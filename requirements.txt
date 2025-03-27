@@ -1,0 +1,16 @@
+pandas==2.2.3
+numpy>=1.22.0
+matplotlib==3.10.1
+seaborn==0.13.2
+geopandas==1.0.1
+census==0.8.23
+sodapy==2.2.0
+requests>=2.28.1
+python-dotenv==1.0.1
+fredapi>=0.5.0
+scikit-learn>=0.24.2
+plotly>=5.3.1
+dash>=2.0.0
+scipy>=1.7.1
+kaleido>=0.2.1  # Required for plotly to save static images
+joblib>=1.0.1
