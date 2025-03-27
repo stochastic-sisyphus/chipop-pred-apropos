@@ -106,7 +106,7 @@ The project uses an ensemble machine learning approach to predict future populat
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+Copyright (c) 2025 [stochastic-sisyphus]. Created as part of development work for Baker Enterprises.
 
 ## Acknowledgments
 
