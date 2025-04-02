@@ -135,4 +135,4 @@ The Chicago Population Analysis project aimed to analyze population shifts acros
 ---
 
 *Project completed: March 2025*
-*Prepared by: Data Analytics Team*
+*Prepared by: Vanessa Beck*

@@ -170,7 +170,7 @@ The analysis generates these key reports:
 - **Economic Impact Analysis**: Assessment of how economic factors influence population shifts
 - **Housing-Retail Balance Report**: Analysis of retail deficits in emerging housing areas
 - **10-Year Growth Analysis**: Long-term housing development patterns by ZIP code
+=======
+Copyright (c) 2025 [stochastic-sisyphus]. Created as part of development work for Baker Enterprises.
 
-## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
