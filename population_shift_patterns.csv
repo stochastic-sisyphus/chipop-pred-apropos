@@ -1,0 +1,8 @@
+neighborhood_type,net_migration_pct,in_out_ratio,education_growth_pct,income_growth_pct,median_income,housing_permits_pct_change,retail_deficit_level
+High-Income,-0.2,98,7.5,32.5,89649,8.7,Low-Medium
+Moderate-Income,-0.8,89,6.0,22.0,68529,12.3,Medium-High
+Low-Income,-1.4,81,6.0,21.7,42840,5.2,High
+Downtown,0.3,105,8.2,36.8,92472,15.4,Low
+Near North,0.1,102,7.8,33.2,90345,12.8,Medium
+West Side,-1.1,83,5.6,19.4,61783,18.5,High
+South Side,-1.6,79,5.2,17.8,38421,4.2,Medium-High
