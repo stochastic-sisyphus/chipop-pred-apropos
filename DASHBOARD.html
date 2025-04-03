@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chicago Retail-Housing Balance & Population Shifts Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            color: #333;
+        }
+        .container {
+            width: 90%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        header {
+            background-color: #1a5276;
+            color: white;
+            padding: 20px 0;
+            text-align: center;
+        }
+        h1, h2, h3 {
+            margin-top: 0;
+        }
+        .dashboard-section {
+            margin-bottom: 40px;
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .visualization-row {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            margin: 0 -10px;
+        }
+        .visualization-card {
+            flex: 1 0 calc(50% - 20px);
+            margin: 10px;
+            background-color: white;
+            border-radius: 5px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .visualization-card img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .card-content {
+            padding: 15px;
+        }
+        .metrics-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+        }
+        .metric-card {
+            flex: 1 0 calc(25% - 20px);
+            margin: 10px;
+            padding: 15px;
+            background-color: white;
+            border-radius: 5px;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .metric-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #1a5276;
+            margin: 10px 0;
+        }
+        .findings-list {
+            padding-left: 20px;
+        }
+        .findings-list li {
+            margin-bottom: 10px;
+        }
+        @media (max-width: 768px) {
+            .visualization-card, .metric-card {
+                flex: 1 0 100%;
+            }
+        }
+        .footer {
+            text-align: center;
+            padding: 20px;
+            margin-top: 40px;
+            border-top: 1px solid #ddd;
+            color: #666;
+        }
+        .tab-container {
+            margin-top: 20px;
+        }
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #ddd;
+        }
+        .tab {
+            padding: 10px 20px;
+            border: 1px solid #ddd;
+            border-bottom: none;
+            background-color: #f1f1f1;
+            cursor: pointer;
+            border-radius: 5px 5px 0 0;
+            margin-right: 5px;
+        }
+        .tab.active {
+            background-color: white;
+            border-bottom: 1px solid white;
+            margin-bottom: -1px;
+        }
+        .tab-content {
+            display: none;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-top: none;
+            background-color: white;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>Chicago Retail-Housing Balance & Population Shifts Analysis</h1>
+            <p>Analyzing the balance between housing development, retail business presence, and population movements across Chicago ZIP codes</p>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="dashboard-section">
+            <h2>Key Metrics</h2>
+            <div class="metrics-container">
+                <div class="metric-card">
+                    <h3>Housing Permits</h3>
+                    <div class="metric-value">16,390</div>
+                    <p>Total housing permits analyzed</p>
+                </div>
+                <div class="metric-card">
+                    <h3>Retail Licenses</h3>
+                    <div class="metric-value">4,990</div>
+                    <p>Total retail business licenses</p>
+                </div>
+                <div class="metric-card">
+                    <h3>ZIP Codes</h3>
+                    <div class="metric-value">59</div>
+                    <p>Chicago ZIP codes analyzed</p>
+                </div>
+                <div class="metric-card">
+                    <h3>Downtown Retail Ratio</h3>
+                    <div class="metric-value">3.2×</div>
+                    <p>Higher than non-downtown areas</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-section">
+            <h2>Housing-Retail Imbalance</h2>
+            <div class="visualization-row">
+                <div class="visualization-card">
+                    <img src="output/visualizations/housing_retail_imbalance.png" alt="Housing-Retail Imbalance" />
+                    <div class="card-content">
+                        <h3>ZIP Codes with Highest Housing-to-Retail Imbalance</h3>
+                        <p>This visualization shows ZIP codes with the highest imbalance between housing permits and retail licenses, with higher values indicating greater retail opportunities.</p>
+                    </div>
+                </div>
+                <div class="visualization-card">
+                    <img src="output/visualizations/housing_vs_retail_licenses.png" alt="Housing vs Retail Licenses" />
+                    <div class="card-content">
+                        <h3>Housing Permits vs. Retail Licenses by ZIP Code</h3>
+                        <p>This scatter plot compares the number of housing permits to retail licenses for each ZIP code, with the reference line showing a 1:1 ratio.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-section">
+            <h2>Emerging Housing Areas</h2>
+            <div class="visualization-row">
+                <div class="visualization-card">
+                    <img src="output/visualizations/emerging_housing_areas.png" alt="Emerging Housing Areas" />
+                    <div class="card-content">
+                        <h3>ZIP Codes with New Housing Development and Limited Retail</h3>
+                        <p>This chart highlights areas with significant recent growth in housing development but limited retail business presence.</p>
+                    </div>
+                </div>
+                <div class="visualization-card">
+                    <img src="output/visualizations/housing_growth_vs_retail.png" alt="Housing Growth vs Retail" />
+                    <div class="card-content">
+                        <h3>New Housing Development vs. Retail Licenses</h3>
+                        <p>This visualization shows the relationship between growth in housing permits and existing retail licenses, identifying opportunities for retail expansion.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-section">
+            <h2>Downtown vs. Non-Downtown Comparison</h2>
+            <div class="visualization-row">
+                <div class="visualization-card">
+                    <img src="output/visualizations/downtown_vs_non_downtown.png" alt="Downtown vs Non-Downtown" />
+                    <div class="card-content">
+                        <h3>Housing Permits and Retail Licenses: Downtown vs. Non-Downtown</h3>
+                        <p>This comparison shows the significant difference in retail-to-housing ratios between downtown and non-downtown areas of Chicago.</p>
+                    </div>
+                </div>
+                <div class="visualization-card">
+                    <img src="output/visualizations/lowest_retail_provision.png" alt="Lowest Retail Provision" />
+                    <div class="card-content">
+                        <h3>ZIP Codes with Lowest Retail-to-Housing Ratio</h3>
+                        <p>This visualization identifies the areas with the lowest retail provision relative to housing development, compared to the downtown benchmark.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-section">
+            <h2>Population Shifts Analysis</h2>
+            <div class="visualization-row">
+                <div class="visualization-card">
+                    <img src="output/visualizations/population_shift_patterns.png" alt="Population Shift Patterns" />
+                    <div class="card-content">
+                        <h3>Population Movement by Neighborhood Type</h3>
+                        <p>This visualization shows migration patterns across different Chicago neighborhoods, with higher-income areas experiencing less net out-migration than lower-income areas.</p>
+                    </div>
+                </div>
+                <div class="visualization-card">
+                    <div class="card-content">
+                        <h3>Key Population Shift Insights</h3>
+                        <ul class="findings-list">
+                            <li><strong>Higher vs. Lower Income Areas:</strong> Higher-income (non-LMI) census tracts experience only -0.2% net migration vs. -1.4% in low-to-moderate income (LMI) tracts</li>
+                            <li><strong>In-Migration vs. Out-Migration:</strong> For every 100 people moving out of non-LMI areas, 98 move in, compared to only 81 in LMI areas</li>
+                            <li><strong>Educational Attainment:</strong> Areas with growing college-educated populations show stronger population stability</li>
+                            <li><strong>Economic Factors:</strong> Neighborhoods with improved median household incomes and credit scores demonstrate greater population growth potential</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-section">
+            <h2>Neighborhood Opportunities</h2>
+            <div class="tab-container">
+                <div class="tabs">
+                    <div class="tab active" onclick="openTab(event, 'downtown')">Downtown/Loop</div>
+                    <div class="tab" onclick="openTab(event, 'north')">North Side</div>
+                    <div class="tab" onclick="openTab(event, 'west')">West Side</div>
+                    <div class="tab" onclick="openTab(event, 'south')">South Side</div>
+                </div>
+                
+                <div id="downtown" class="tab-content active">
+                    <h3>Downtown/Loop Areas</h3>
+                    <p><strong>Retail Deficit:</strong> Low</p>
+                    <p><strong>Housing Activity:</strong> High</p>
+                    <p><strong>Population Trend:</strong> Stable/Growth</p>
+                    <p><strong>Key ZIP Codes:</strong> 60603, 60606</p>
+                    <p><strong>Characteristics:</strong> Commercial transformation to residential, strong retail presence, attractive to higher-income residents</p>
+                    <p><strong>Opportunities:</strong> Specialty retail, high-end services, experiential retail concepts</p>
+                </div>
+                
+                <div id="north" class="tab-content">
+                    <h3>North Side Areas</h3>
+                    <p><strong>Retail Deficit:</strong> Medium</p>
+                    <p><strong>Housing Activity:</strong> High</p>
+                    <p><strong>Population Trend:</strong> Growth</p>
+                    <p><strong>Key ZIP Codes:</strong> 60610, 60626</p>
+                    <p><strong>Characteristics:</strong> Established high-income areas, strong population retention, higher educational attainment</p>
+                    <p><strong>Opportunities:</strong> Neighborhood-focused retail, food and beverage establishments, health and wellness services</p>
+                </div>
+                
+                <div id="west" class="tab-content">
+                    <h3>West Side Areas</h3>
+                    <p><strong>Retail Deficit:</strong> High</p>
+                    <p><strong>Housing Activity:</strong> Very High</p>
+                    <p><strong>Population Trend:</strong> Mixed</p>
+                    <p><strong>Key ZIP Codes:</strong> 60607, 60622, 60647</p>
+                    <p><strong>Characteristics:</strong> Gentrification in progress, significant housing development, retail lagging behind housing</p>
+                    <p><strong>Opportunities:</strong> Immediate retail development required, particularly in Logan Square (60647) and Wicker Park (60622)</p>
+                </div>
+                
+                <div id="south" class="tab-content">
+                    <h3>South Side Areas</h3>
+                    <p><strong>Retail Deficit:</strong> Medium-High</p>
+                    <p><strong>Housing Activity:</strong> Medium</p>
+                    <p><strong>Population Trend:</strong> Decline</p>
+                    <p><strong>Key ZIP Codes:</strong> 60617, 60619</p>
+                    <p><strong>Characteristics:</strong> Emerging growth areas, lower in-migration rates, lower educational attainment</p>
+                    <p><strong>Opportunities:</strong> Essential retail services, community-focused businesses, strategic development to address both retail deficits and population decline</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-section">
+            <h2>Key Findings</h2>
+            <ul class="findings-list">
+                <li><strong>Housing-Retail Imbalance:</strong> ZIP codes 60602, 60622, 60647, 60607, and 60618 show significant housing development without corresponding retail business growth.</li>
+                <li><strong>Emerging Housing Areas:</strong> ZIP codes 60654, 60642, 60439, and 60525 show recent growth in housing development with limited retail presence.</li>
+                <li><strong>Downtown vs. Non-Downtown:</strong> Downtown areas maintain approximately 3.2 times higher retail-to-housing ratio than non-downtown neighborhoods.</li>
+                <li><strong>Population Movements:</strong> Higher-income neighborhoods experience much less net out-migration (-0.2%) than lower-income areas (-1.4%).</li>
+                <li><strong>Migration Drivers:</strong> Lower in-migration rates, rather than higher out-migration rates, drive population loss in less affluent neighborhoods.</li>
+                <li><strong>Development Potential:</strong> Areas with both positive housing development and stable population trends present the strongest retail opportunities.</li>
+            </ul>
+        </div>
+
+        <div class="dashboard-section">
+            <h2>Recommendations</h2>
+            <ul class="findings-list">
+                <li>Target immediate retail development in Logan Square (60647) and Wicker Park (60622).</li>
+                <li>Focus on neighborhood service retail in areas with highest housing-to-retail imbalance.</li>
+                <li>Develop food and beverage establishments in emerging housing areas like River North (60654) and Noble Square/West Town (60642).</li>
+                <li>Increase retail zoning flexibility in high-housing, low-retail areas.</li>
+                <li>Create tax incentives for retail development in emerging housing areas.</li>
+                <li>Develop retail corridors in suburban growth areas like Lemont (60439) and Western Springs/La Grange (60525).</li>
+                <li>Implement integrated economic and housing policies that address both retail deficits and population stabilization in LMI neighborhoods.</li>
+                <li>Prioritize retail development in areas demonstrating positive population momentum.</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>Chicago Retail-Housing Balance & Population Shifts Analysis Dashboard | April 2025</p>
+    </div>
+
+    <script>
+        function openTab(evt, tabName) {
+            var i, tabContent, tabs;
+            tabContent = document.getElementsByClassName("tab-content");
+            for (i = 0; i < tabContent.length; i++) {
+                tabContent[i].className = tabContent[i].className.replace(" active", "");
+            }
+            tabs = document.getElementsByClassName("tab");
+            for (i = 0; i < tabs.length; i++) {
+                tabs[i].className = tabs[i].className.replace(" active", "");
+            }
+            document.getElementById(tabName).className += " active";
+            evt.currentTarget.className += " active";
+        }
+    </script>
+</body>
+</html> 

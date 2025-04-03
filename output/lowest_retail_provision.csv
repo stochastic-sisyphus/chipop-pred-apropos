@@ -1,0 +1,6 @@
+zip_code,recent_housing,historical_housing,recent_multi_family,historical_multi_family,growth_pct,multi_family_growth_pct,is_new_multi_family,housing_permits,multi_family_permits,retail_licenses,housing_retail_ratio,multi_family_retail_ratio,retail_pct_of_housing
+60062,16.0,33.0,10.0,22.0,-51.515151515151516,-54.54545454545454,False,16.0,10.0,1.0,16.0,10.0,6.2
+06023,10.0,1.0,10.0,0.1,900.0,9900.0,True,10.0,10.0,1.0,10.0,10.0,10.0
+60525,20.0,15.0,19.0,6.0,33.33333333333333,216.66666666666666,False,20.0,19.0,2.0,10.0,9.5,10.0
+60712,10.0,4.0,10.0,4.0,150.0,150.0,False,10.0,10.0,1.0,10.0,10.0,10.0
+60302,10.0,2.0,5.0,1.0,400.0,400.0,True,10.0,5.0,3.0,3.3333333333333335,1.6666666666666667,30.0
