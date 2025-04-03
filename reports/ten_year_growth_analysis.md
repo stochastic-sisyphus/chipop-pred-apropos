@@ -1,4 +1,4 @@
-  10-Year Housing Permit Growth Analysis
+#  10-Year Housing Permit Growth Analysis
 ## Chicago ZIP Code Development Patterns (2015-2025)
 
 This report analyzes Chicago building permit data over a 10-year period (2015-2025), focusing on identifying areas with significant growth in housing development activity. The analysis specifically highlights ZIP codes that have experienced at least 20% growth in permit activity when comparing the first five years (2015-2019) to the second five years (2020-2025).
