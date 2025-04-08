@@ -107,16 +107,29 @@ python src/run_population_analysis.py
 
 ```
 chipop/
-├── data/               # Raw and processed data
+├── data/               # Data storage
+│   ├── raw/           # Original, immutable data
+│   ├── interim/       # Intermediate data
+│   └── processed/     # Final, canonical data sets
 ├── src/               # Source code
-│   ├── data_collection/   # Data collection modules
-│   ├── data_processing/   # Data processing modules
-│   └── modeling/          # Modeling and analysis
-├── output/            # Analysis outputs
-│   ├── models/           # Trained models
-│   └── visualizations/   # Generated visualizations
+│   ├── data_processing/   # Data collection and processing
+│   ├── models/           # Model definitions and training
+│   ├── utils/           # Utility functions
+│   └── visualization/   # Visualization code
+├── output/            # Generated analysis
+│   ├── models/       # Trained model files
+│   └── visualizations/ # Generated graphics
 ├── tests/            # Test suite
-└── docs/             # Documentation
+├── .env              # Environment variables
+├── .gitignore        # Git ignore rules
+├── DASHBOARD.html    # Main dashboard
+├── README.md         # Project documentation
+└── main.py          # Main entry point
+
+Key Files:
+- main.py: Primary script to run the complete analysis pipeline
+- DASHBOARD.html: Interactive visualization of results
+- .env: Configuration for API keys and settings
 ```
 
 ## Contributing

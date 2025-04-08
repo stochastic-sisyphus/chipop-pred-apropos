@@ -68,3 +68,11 @@ pipeline.log
 /pkl.tar
 /pkl.gz.tar
 /pkl.bz2.tar
+.py.bak
+
+.__pycache__
+
+.env
+
+.env.local
+
