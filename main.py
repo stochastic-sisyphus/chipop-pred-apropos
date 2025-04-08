@@ -3,8 +3,8 @@ import logging
 from pathlib import Path
 from dotenv import load_dotenv
 from data.data_collector import DataCollector
-from models.population_shift_model import PopulationShiftModel
-from visualization.visualizer import PopulationVisualizer
+from chipop.src.models.population_shift_model import PopulationShiftModel
+from chipop.src.visualization.visualizer import PopulationVisualizer
 
 # Set up logging
 logging.basicConfig(
