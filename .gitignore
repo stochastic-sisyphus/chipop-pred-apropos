@@ -54,3 +54,17 @@ node_modules
 /chipop/logs
 /chipop/venv
 pipeline.log
+.pkl
+.pkl.gz
+.pkl.bz2
+.pkl.zip
+.pkl.tar
+.pkl.gz.tar
+.pkl.bz2.tar
+/pkl
+/pkl.gz
+/pkl.bz2
+/pkl.zip
+/pkl.tar
+/pkl.gz.tar
+/pkl.bz2.tar
