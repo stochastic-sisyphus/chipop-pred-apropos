@@ -1,0 +1,17 @@
+feature,importance
+multi_family_permits_std,0.18084844927883906
+retail_licenses_mean,0.10108179783004392
+housing_permits_sum,0.09382574049399216
+housing_permits_std,0.09371608778138593
+housing_retail_ratio_mean,0.08684043461598095
+multi_family_retail_ratio_max,0.07690628266133338
+housing_retail_ratio_max,0.06918661683825458
+retail_licenses_std,0.056967320488463
+retail_licenses_sum,0.049596542923543624
+multi_family_permits_sum,0.04943370826636774
+second_half_housing,0.036946654481435706
+first_half_housing,0.03629587017713822
+multi_family_retail_ratio_mean,0.03393218582712449
+housing_permits_mean,0.0212732174401136
+multi_family_permits_mean,0.00928861833835775
+housing_growth_pct,0.0038604725576259595

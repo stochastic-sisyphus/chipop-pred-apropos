@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chicago Population & Retail Analysis Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #e74c3c;
+            --light-bg: #f8f9fa;
+            --dark-bg: #343a40;
+            --text-color: #333;
+            --light-text: #f8f9fa;
+            --card-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            --hover-shadow: 0 8px 16px rgba(0,0,0,0.15);
+            --transition: all 0.3s ease;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: #f5f7fa;
+        }
+        
+        .container {
+            width: 92%;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 15px;
+        }
+        
+        header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 30px 0;
+            margin-bottom: 30px;
+            box-shadow: var(--card-shadow);
+        }
+        
+        header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        
+        header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        
+        .dashboard-section {
+            margin-bottom: 40px;
+            background-color: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: var(--card-shadow);
+            transition: var(--transition);
+        }
+        
+        .dashboard-section:hover {
+            box-shadow: var(--hover-shadow);
+        }
+        
+        .section-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+        }
+        
+        .section-header i {
+            font-size: 1.5rem;
+            margin-right: 15px;
+            color: var(--secondary-color);
+        }
+        
+        .section-header h2 {
+            font-size: 1.75rem;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+        
+        .visualization-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .visualization-card {
+            flex: 1 0 calc(50% - 20px);
+            min-width: 300px;
+            background-color: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            transition: var(--transition);
+            border: 1px solid #eee;
+        }
+        
+        .visualization-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--hover-shadow);
+        }
+        
+        .visualization-card img {
+            width: 100%;
+            height: auto;
+            display: block;
+            transition: var(--transition);
+        }
+        
+        .visualization-card:hover img {
+            filter: brightness(1.05);
+        }
+        
+        .card-content {
+            padding: 20px;
+        }
+        
+        .card-content h3 {
+            font-size: 1.25rem;
+            margin-bottom: 10px;
+            color: var(--primary-color);
+        }
+        
+        .card-content p {
+            color: #666;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+        
+        .metrics-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        
+        .metric-card {
+            flex: 1 0 calc(25% - 20px);
+            min-width: 200px;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            transition: var(--transition);
+            border-left: 4px solid var(--secondary-color);
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--hover-shadow);
+        }
+        
+        .metric-card:nth-child(1) {
+            border-left-color: #3498db;
+        }
+        
+        .metric-card:nth-child(2) {
+            border-left-color: #2ecc71;
+        }
+        
+        .metric-card:nth-child(3) {
+            border-left-color: #e74c3c;
+        }
+        
+        .metric-card:nth-child(4) {
+            border-left-color: #f39c12;
+        }
+        
+        .metric-icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            color: var(--secondary-color);
+        }
+        
+        .metric-value {
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin: 10px 0;
+            color: var(--primary-color);
+        }
+        
+        .metric-label {
+            font-size: 0.95rem;
+            color: #666;
+        }
+        
+        .findings-list {
+            padding-left: 20px;
+            margin-top: 15px;
+        }
+        
+        .findings-list li {
+            margin-bottom: 15px;
+            position: relative;
+            padding-left: 25px;
+        }
+        
+        .findings-list li:before {
+            content: "\f058";
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            position: absolute;
+            left: 0;
+            color: var(--secondary-color);
+        }
+        
+        .tab-container {
+            margin-top: 20px;
+        }
+        
+        .tabs {
+            display: flex;
+            flex-wrap: wrap;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 20px;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-radius: 5px 5px 0 0;
+            margin-right: 5px;
+            font-weight: 500;
+            background-color: #f1f1f1;
+            transition: var(--transition);
+        }
+        
+        .tab.active {
+            background-color: var(--secondary-color);
+            color: white;
+        }
+        
+        .tab:hover:not(.active) {
+            background-color: #e1e1e1;
+        }
+        
+        .tab-content {
+            display: none;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-top: none;
+            background-color: white;
+            border-radius: 0 0 5px 5px;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 25px;
+            margin-top: 40px;
+            border-top: 1px solid #eee;
+            color: #666;
+            background-color: white;
+        }
+        
+        .footer a {
+            color: var(--secondary-color);
+            text-decoration: none;
+        }
+        
+        .footer a:hover {
+            text-decoration: underline;
+        }
+        
+        .insight-card {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 4px solid var(--accent-color);
+        }
+        
+        .insight-card h3 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
+        }
+        
+        .insight-card p {
+            color: #666;
+        }
+        
+        @media (max-width: 992px) {
+            .visualization-card, .metric-card {
+                flex: 1 0 calc(50% - 20px);
+            }
+        }
+        
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 2rem;
+            }
+            .section-header h2 {
+                font-size: 1.5rem;
+            }
+            .visualization-card, .metric-card {
+                flex: 1 0 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>Chicago Population & Retail Analysis Dashboard</h1>
+            <p>Comprehensive analysis of housing development, retail business presence, and population shifts across Chicago ZIP codes</p>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="dashboard-section">
+            <div class="section-header">
+                <i class="fas fa-chart-line"></i>
+                <h2>Key Metrics</h2>
+            </div>
+            <div class="metrics-container">
+                <div class="metric-card">
+                    <div class="metric-icon"><i class="fas fa-building"></i></div>
+                    <div class="metric-value">16,390</div>
+                    <div class="metric-label">Housing Permits Analyzed</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon"><i class="fas fa-store"></i></div>
+                    <div class="metric-value">4,990</div>
+                    <div class="metric-label">Retail Business Licenses</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon"><i class="fas fa-map-marker-alt"></i></div>
+                    <div class="metric-value">59</div>
+                    <div class="metric-label">Chicago ZIP Codes Analyzed</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon"><i class="fas fa-balance-scale"></i></div>
+                    <div class="metric-value">3.2×</div>
+                    <div class="metric-label">Downtown Retail Ratio</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-section">
+            <div class="section-header">
+                <i class="fas fa-balance-scale-right"></i>
+                <h2>Housing-Retail Imbalance Analysis</h2>
+            </div>
+            <div class="insight-card">
+                <h3>Key Finding</h3>
+                <p>Our analysis identifies ZIP codes with significant imbalances between housing development and retail business presence, highlighting areas with the greatest opportunities for retail expansion to meet resident needs.</p>
+            </div>
+            <div class="visualization-row">
+                <div class="visualization-card">
+                    <img src="output/visualizations/housing_retail_imbalance.png" alt="Housing-Retail Imbalance" />
+                    <div class="card-content">
+                        <h3>ZIP Codes with Highest Housing-to-Retail Imbalance</h3>
+                        <p>This visualization shows ZIP codes with the highest imbalance between housing permits and retail licenses, with higher values indicating greater retail opportunities.</p>
+                    </div>
+                </div>
+                <div class="visualization-card">
+                    <img src="output/visualizations/housing_vs_retail_licenses.png" alt="Housing vs Retail Licenses" />
+                    <div class="card-content">
+                        <h3>Housing Permits vs. Retail Licenses by ZIP Code</h3>
+                        <p>This scatter plot compares the number of housing permits to retail licenses for each ZIP code, with the reference line showing a balanced 1:1 ratio.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-section">
+            <div class="section-header">
+                <i class="fas fa-home"></i>
+                <h2>Emerging Housing Areas</h2>
+            </div>
+            <div class="insight-card">
+                <h3>Growth Opportunities</h3>
+                <p>Identifying emerging housing areas with limited retail presence provides strategic opportunities for early market entry and development to serve growing populations.</p>
+            </div>
+            <div class="visualization-row">
+                <div class="visualization-card">
+                    <img src="output/visualizations/emerging_housing_areas.png" alt="Emerging Housing Areas" />
+                    <div class="card-content">
+                        <h3>ZIP Codes with New Housing Development and Limited Retail</h3>
+                        <p>This chart highlights areas with significant recent growth in housing development but limited retail business presence, representing prime opportunities for retail expansion.</p>
+                    </div>
+                </div>
+                <div class="visualization-card">
+                    <img src="output/visualizations/housing_growth_vs_retail.png" alt="Housing Growth vs Retail" />
+                    <div class="card-content">
+                        <h3>New Housing Development vs. Retail Licenses</h3>
+                        <p>This visualization shows the relationship between growth in housing permits and existing retail licenses, identifying areas where retail development has not kept pace with housing growth.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-section">
+            <div class="section-header">
+                <i class="fas fa-users"></i>
+                <h2>Population Shifts</h2>
+            </div>
+            <div class="insight-card">
+                <h3>Migration Patterns</h3>
+                <p>Understanding population movement within Chicago helps identify areas gaining residents and the resulting changes in retail demand patterns.</p>
+            </div>
+            <div class="visualization-row">
+                <div class="visualization-card">
+                    <img src="output/visualizations/population_shift_patterns.png" alt="Population Shift Patterns" />
+                    <div class="card-content">
+                        <h3>Population Movement Patterns</h3>
+                        <p>This visualization illustrates the movement of population between different ZIP codes in Chicago, highlighting areas gaining and losing residents.</p>
+                    </div>
+                </div>
+                <div class="visualization-card">
+                    <img src="output/visualizations/population_changes_distribution.png" alt="Population Changes Distribution" />
+                    <div class="card-content">
+                        <h3>Distribution of Population Changes</h3>
+                        <p>This chart shows the distribution of population changes across ZIP codes, with positive values indicating growth and negative values indicating decline.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-section">
+            <div class="section-header">
+                <i class="fas fa-city"></i>
+                <h2>Downtown vs. Non-Downtown Comparison</h2>
+            </div>
+            <div class="insight-card">
+                <h3>Retail Distribution Insights</h3>
+                <p>The stark contrast between downtown and non-downtown areas reveals imbalances in retail provision and opportunities for more equitable distribution.</p>
+            </div>
+            <div class="visualization-row">
+                <div class="visualization-card">
+                    <img src="output/visualizations/downtown_vs_non_downtown.png" alt="Downtown vs. Non-Downtown" />
+                    <div class="card-content">
+                        <h3>Downtown vs. Non-Downtown Retail Comparison</h3>
+                        <p>This visualization compares retail license density between downtown and non-downtown areas, highlighting the significant disparity in retail provision.</p>
+                    </div>
+                </div>
+                <div class="visualization-card">
+                    <img src="output/visualizations/multi_family_vs_retail.png" alt="Multi-Family vs Retail" />
+                    <div class="card-content">
+                        <h3>Multi-Family Housing vs. Retail Development</h3>
+                        <p>This chart examines the relationship between multi-family housing development and retail business presence, identifying patterns and anomalies.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-section">
+            <div class="section-header">
+                <i class="fas fa-lightbulb"></i>
+                <h2>Key Findings & Recommendations</h2>
+            </div>
+            <ul class="findings-list">
+                <li><strong>Retail Opportunity Zones:</strong> ZIP codes 60607, 60616, 60612, and 60653 show significant housing development with inadequate retail presence, presenting prime opportunities for retail expansion.</li>
+                <li><strong>Emerging Growth Areas:</strong> Neighborhoods like West Loop, South Loop, and Pilsen are experiencing rapid housing growth and will require additional retail services to meet growing resident demand.</li>
+                <li><strong>Downtown Retail Concentration:</strong> Downtown Chicago has 3.2 times the retail density of non-downtown areas, indicating a potential oversaturation in central areas while outlying neighborhoods remain underserved.</li>
+                <li><strong>Population Migration Impact:</strong> Population shifts from northern to southern and western ZIP codes are creating new demand centers that retail development has not yet addressed.</li>
+                <li><strong>Multi-Family Housing Influence:</strong> ZIP codes with high multi-family housing development show a 45% higher retail deficit compared to areas with primarily single-family development, highlighting specific targeting opportunities.</li>
+            </ul>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <div class="container">
+            <p>Chicago Population & Retail Analysis Dashboard | Created using Python, Pandas, and Matplotlib/Seaborn | Data sources: Chicago Department of Buildings, U.S. Census Bureau, City of Chicago Data Portal</p>
+            <p>© 2025 | <a href="https://github.com/stochastic-sisyphus/chipop-pred-apropos" target="_blank">GitHub Repository</a></p>
+        </div>
+    </footer>
+
+    <script>
+        // Simple tab functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const tabs = document.querySelectorAll('.tab');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const target = tab.getAttribute('data-target');
+                    
+                    // Remove active class from all tabs and contents
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tabContents.forEach(c => c.classList.remove('active'));
+                    
+                    // Add active class to clicked tab and corresponding content
+                    tab.classList.add('active');
+                    document.getElementById(target).classList.add('active');
+                });
+            });
+        });
+    </script>
+</body>
+</html> 

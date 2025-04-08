@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chicago Population Analysis Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        header {
+            background-color: #1E3A8A;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+        h1, h2, h3 {
+            color: #1E3A8A;
+        }
+        header h1 {
+            color: white;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .row {
+            display: flex;
+            flex-wrap: wrap;
+            margin: 0 -15px;
+        }
+        .col {
+            flex: 1;
+            padding: 0 15px;
+            min-width: 300px;
+        }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+            background-color: white;
+        }
+        .card h3 {
+            margin-top: 0;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+        .btn {
+            display: inline-block;
+            background-color: #1E3A8A;
+            color: white;
+            padding: 8px 16px;
+            text-decoration: none;
+            border-radius: 4px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        .btn:hover {
+            background-color: #152B5E;
+        }
+        .tag {
+            display: inline-block;
+            background-color: #e9ecef;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Chicago Population Analysis Dashboard</h1>
+        <p>Housing, Permits, and Economic Factors (2013-2023)</p>
+    </header>
+
+    <div class="section">
+        <h2>Key Findings</h2>
+        <div class="row">
+            <div class="col">
+                <div class="card">
+                    <h3>Top Growth Areas</h3>
+                    <p>ZIP codes with the strongest annual growth:</p>
+                    <ul>
+                        <li><strong>60610</strong> (Near North Side): +1.79%</li>
+                        <li><strong>60626</strong> (Rogers Park): +1.58%</li>
+                        <li><strong>60617</strong> (South Chicago): +1.57%</li>
+                    </ul>
+                    <a href="../reports/chicago_zip_summary.md" class="btn">Full ZIP Analysis</a>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card">
+                    <h3>Economic Impact</h3>
+                    <p>For each 1% increase in mortgage rates:</p>
+                    <ul>
+                        <li>0.15-0.20% decrease in population growth rates</li>
+                        <li>10-15% reduction in building permit applications</li>
+                        <li>23% reduction in multifamily development</li>
+                    </ul>
+                    <a href="../reports/economic_impact_analysis.md" class="btn">Economic Analysis</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Population Trends</h2>
+        <div class="card">
+            <img src="../visualizations/total_population_trend.png" alt="Total Population Trend">
+            <p>Chicago's population has shown varying growth patterns across different ZIP codes, with the overall trend showing modest growth after recovering from the pandemic-era decline.</p>
+            <div>
+                <span class="tag">Population</span>
+                <span class="tag">Time Series</span>
+                <span class="tag">2013-2023</span>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col">
+                <div class="card">
+                    <img src="../visualizations/population_changes_distribution.png" alt="Population Changes Distribution">
+                    <h3>Population Change Distribution</h3>
+                    <p>The distribution of population changes across Chicago ZIP codes shows significant variance.</p>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card">
+                    <img src="../visualizations/population_shift_heatmap.png" alt="Population Shift Heatmap">
+                    <h3>Geographic Distribution</h3>
+                    <p>Population shifts show distinct geographic patterns, with stronger growth in north and downtown areas.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Building Permit Activity</h2>
+        <div class="row">
+            <div class="col">
+                <div class="card">
+                    <img src="../visualizations/permits_by_year.png" alt="Permits by Year">
+                    <h3>Annual Permit Trends</h3>
+                    <p>Building permit activity has fluctuated with economic conditions, showing sensitivity to mortgage rates and consumer sentiment.</p>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card">
+                    <img src="../visualizations/permits_by_community.png" alt="Permits by Community">
+                    <h3>Permit Distribution by Area</h3>
+                    <p>Permit activity is concentrated in specific communities, particularly downtown, north side, and gentrifying areas.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Economic Indicators</h2>
+        <div class="card">
+            <img src="../visualizations/economic_indicators.png" alt="Economic Indicators">
+            <p>Key economic indicators like treasury yields, mortgage rates, and consumer sentiment have directly impacted Chicago's population and development patterns.</p>
+        </div>
+        
+        <div class="row">
+            <div class="col">
+                <div class="card">
+                    <img src="../visualizations/mortgage_30y_trend.png" alt="30-Year Mortgage Rate">
+                    <h3>Mortgage Rate Impact</h3>
+                    <p>The significant rise in mortgage rates from 2021-2023 led to measurable declines in permit activity and slowed population growth.</p>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card">
+                    <img src="../visualizations/consumer_sentiment_trend.png" alt="Consumer Sentiment">
+                    <h3>Consumer Sentiment</h3>
+                    <p>Consumer sentiment serves as a leading indicator for population movement, with a strong correlation (+0.72).</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Future Projections</h2>
+        <table>
+            <tr>
+                <th>Scenario</th>
+                <th>Average Growth</th>
+                <th>Key Factors</th>
+                <th>Strongest ZIP Codes</th>
+            </tr>
+            <tr>
+                <td><strong>Optimistic</strong></td>
+                <td>+1.13%</td>
+                <td>Lower mortgage rates, stronger consumer sentiment</td>
+                <td>60610, 60606, 60603, 60607</td>
+            </tr>
+            <tr>
+                <td><strong>Neutral</strong></td>
+                <td>+1.02%</td>
+                <td>Stable economic conditions</td>
+                <td>60610, 60626, 60606</td>
+            </tr>
+            <tr>
+                <td><strong>Pessimistic</strong></td>
+                <td>+0.88%</td>
+                <td>Higher mortgage rates, weaker consumer sentiment</td>
+                <td>60610, 60626, 60603</td>
+            </tr>
+        </table>
+        <a href="../reports/chicago_population_analysis_report.md" class="btn">Full Analysis Report</a>
+    </div>
+
+    <div class="section">
+        <h2>Explore More</h2>
+        <div class="row">
+            <div class="col">
+                <div class="card">
+                    <h3>Reports</h3>
+                    <ul>
+                        <li><a href="../reports/chicago_population_analysis_report.md">Population Analysis Report</a></li>
+                        <li><a href="../reports/chicago_zip_summary.md">ZIP Code Summary</a></li>
+                        <li><a href="../reports/economic_impact_analysis.md">Economic Impact Analysis</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card">
+                    <h3>Key Resources</h3>
+                    <ul>
+                        <li><a href="../EXECUTIVE_SUMMARY.md">Executive Summary</a></li>
+                        <li><a href="../PROJECT_COMPLETION.md">Project Completion Report</a></li>
+                        <li><a href="../README.md">Project Overview</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p><small>© 2025 Chicago Population Analysis Project. Completed: March 2025</small></p>
+    </footer>
+</body>
+</html> 

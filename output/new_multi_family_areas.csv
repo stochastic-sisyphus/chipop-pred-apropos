@@ -1,0 +1,7 @@
+zip_code,recent_housing,historical_housing,recent_multi_family,historical_multi_family,growth_pct,multi_family_growth_pct,is_new_multi_family,housing_permits,multi_family_permits,retail_licenses,housing_retail_ratio,multi_family_retail_ratio
+06023,10.0,1.0,10.0,0.1,900.0,9900.0,True,10.0,10.0,1.0,10.0,10.0
+60455,8.0,1.0,8.0,0.1,700.0,7900.0,True,8.0,8.0,1.0,8.0,8.0
+60453,8.0,4.0,7.0,1.0,100.0,600.0,True,8.0,7.0,1.0,8.0,7.0
+60005,7.0,5.0,6.0,0.1,40.0,5900.0,True,7.0,6.0,1.0,7.0,6.0
+60302,10.0,2.0,5.0,1.0,400.0,400.0,True,10.0,5.0,3.0,3.3333333333333335,1.6666666666666667
+60202,5.0,1.0,5.0,0.1,400.0,4900.0,True,5.0,5.0,2.0,2.5,2.5
