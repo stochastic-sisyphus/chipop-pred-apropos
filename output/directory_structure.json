@@ -1,0 +1,17 @@
+{
+  "directories_created": [
+    "data/raw",
+    "data/interim",
+    "data/processed",
+    "output/models",
+    "output/visualizations",
+    "output/reports",
+    "output/reports/figures",
+    "output/reports/tables",
+    "output/run_archives",
+    "logs",
+    "src/templates/reports",
+    "src/templates/visualizations"
+  ],
+  "timestamp": "2025-04-28T23:32:06.403407"
+}
