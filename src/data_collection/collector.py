@@ -199,139 +199,159 @@ class DataCollector:
         df.to_csv(output_file, index=False)
         logger.info(f"{data_type} saved to {output_file}")
         return df
-            
+    
     def collect_economic_data(self) -> Optional[pd.DataFrame]:
         """
         Collect economic indicators from FRED for the Chicago metropolitan area.
-        
+
         The following indicators are collected based on settings.FRED_SERIES:
-        - CHIC917URN: Chicago Metro Area Unemployment Rate (%)
-        - NGMP16980: Chicago Metro Area Real GDP (Millions of chained 2012 dollars)
-        - PCPI17031: Chicago Per Capita Personal Income (Dollars)
-        - CHIC917PCPI: Chicago Personal Income (Thousands of dollars)
-        - HORAMM17031: Chicago Homeownership Rate (%)
-        
-        Data is filtered to settings.DEFAULT_TRAIN_YEARS and aggregated annually:
-        - Rate-based metrics (unemployment, homeownership): Annual mean
-        - Absolute metrics (GDP, income): Last value of year
-        
+        - CHIC917URN: Unemployment Rate
+        - NGMP16980: Real GDP
+        - PCPI17031: Per Capita Income
+        - CHIC917PCPI: Personal Income
+
         Returns:
-            pd.DataFrame: DataFrame containing economic indicators by date, or None if collection fails
+            pd.DataFrame with economic indicators by year, or None on failure.
         """
+        if not isinstance(settings.FRED_SERIES, dict):
+            logger.error(
+                f"Expected dict for FRED_SERIES but got {type(settings.FRED_SERIES)}: {settings.FRED_SERIES}"
+            )
+            return None
+
         economic_data = {}
         rate_based_metrics = ['unemployment_rate', 'homeownership_rate']
-        
-        # Track any failed series
         failed_series = []
-        
-        # Collect each economic indicator
+
         for series_id, indicator_name in settings.FRED_SERIES.items():
             try:
+                logger.debug(f"Requesting FRED series {series_id} ({indicator_name})")
                 series = self.fred.get_series(series_id)
-                
+
                 if series is None or series.empty:
                     logger.warning(f"No data found for FRED series {series_id} ({indicator_name})")
                     failed_series.append(series_id)
                     continue
-                    
-                # Convert index to datetime if not already
+
                 if not isinstance(series.index, pd.DatetimeIndex):
                     series.index = pd.to_datetime(series.index)
-                
-                # Resample to annual frequency using appropriate method
+
                 if indicator_name in rate_based_metrics:
-                    # Use mean for rate-based metrics
                     series = series.resample('YE').mean()
                 else:
-                    # Use last value for absolute metrics
                     series = series.resample('YE').last()
-                
-                # Convert index to year
+
                 series.index = series.index.year
-                
-                # Filter to relevant years
                 series = series[series.index.isin(settings.DEFAULT_TRAIN_YEARS)]
-                
+
                 if series.empty:
-                    logger.warning(f"No data in training years for series {series_id} ({indicator_name})")
+                    logger.warning(f"No valid data in training years for {series_id} ({indicator_name})")
                     failed_series.append(series_id)
                     continue
-                
-                economic_data[indicator_name] = series
-                logger.info(f"Successfully collected {indicator_name} data from {series_id}")
-                
+
+                economic_data[indicator_name] = series.values
+                logger.info(f"Successfully collected {indicator_name} from {series_id}")
+
             except Exception as e:
-                logger.error(f"Error collecting {series_id} ({indicator_name}): {str(e)}")
+                logger.error(f"Error collecting FRED series {series_id} ({indicator_name}): {str(e)}")
                 failed_series.append(series_id)
-                continue
-        
+
         if failed_series:
-            logger.error(f"Failed to collect data for series: {', '.join(failed_series)}")
-        
+            logger.warning(f"Failed FRED series: {', '.join(failed_series)}")
+
         if not economic_data:
-            logger.error("No economic data was successfully collected")
+            logger.error("No economic indicators collected")
             return None
-            
-        # Combine all indicators into a single DataFrame
-        df = pd.DataFrame(economic_data)
-        df.index.name = 'year'
-        
-        # Save to CSV
+
+        df = pd.DataFrame(economic_data, index=pd.Index(settings.DEFAULT_TRAIN_YEARS, name='year'))
         output_path = self.raw_dir / 'economic_indicators.csv'
         df.to_csv(output_path)
         logger.info(f"Saved {len(economic_data)} economic indicators to {output_path}")
-        
+
         return df
             
     def get_zoning_data(self) -> Optional[pd.DataFrame]:
-        """
-        Collect property and zoning data from Chicago Data Portal.
-        
-        Returns:
-            DataFrame with property and zoning information, or None if collection fails
-        """
+        """Get zoning data from Chicago Data Portal."""
         try:
-            logger.info("Collecting zoning data...")
-            
+            # Query zoning data without property_use column
             results = self.socrata.get(
                 settings.ZONING_DATASET,
-                limit=1000000,
                 select="""
-                    property_use, township, 
-                    year_constructed, total_building_area, total_land_area,
-                    sale_date, sale_price, sale_type,
-                    zip_code
-                """.replace('\n', '').replace(' ', '')
+                    zip_code,
+                    zoning_classification,
+                    COUNT(*) as total_parcels,
+                    AVG(lot_area_sqft) as avg_lot_size
+                """,
+                group="zip_code, zoning_classification",
+                where="zip_code IS NOT NULL",
+                limit=1000000
             )
-            
+
+            if not results:
+                logger.warning("No zoning data returned from API")
+                return None
+
+            # Convert to DataFrame
             df = pd.DataFrame.from_records(results)
-            
-            # Rename columns to match expected names
-            df = df.rename(columns={
-                'property_use': 'property_class',
-                'year_constructed': 'year_built',
-                'total_building_area': 'building_area',
-                'total_land_area': 'land_area'
-            })
-            
-            # Convert numeric columns
-            numeric_cols = ['year_built', 'building_area', 'land_area', 'sale_price']
+
+            # Clean numeric columns
+            numeric_cols = ['total_parcels', 'avg_lot_size']
             for col in numeric_cols:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
+
+            return self._extracted_from_get_property_transactions_31(
+                df, "zoning_data.csv", "Saved zoning data"
+            )
+        except Exception as e:
+            logger.error(f"Error getting zoning data: {str(e)}")
+            return None
             
+    def get_property_transactions(self, limit: int = 1000000) -> Optional[pd.DataFrame]:
+        """Get property transaction data from Chicago Data Portal."""
+        try:
+            # Query property transactions
+            results = self.socrata.get(
+                settings.PROPERTY_TRANSACTIONS_DATASET,
+                select="""
+                    zip_code,
+                    property_type,
+                    sale_price,
+                    sale_date,
+                    year_built,
+                    building_sqft,
+                    land_sqft
+                """,
+                where="zip_code IS NOT NULL AND sale_price > 0",
+                limit=limit
+            )
+
+            if not results:
+                logger.warning("No property transaction data returned from API")
+                return None
+
+            # Convert to DataFrame
+            df = pd.DataFrame.from_records(results)
+
+            # Clean numeric columns
+            numeric_cols = ['sale_price', 'year_built', 'building_sqft', 'land_sqft']
+            for col in numeric_cols:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+
             # Convert dates
             df['sale_date'] = pd.to_datetime(df['sale_date'])
-            
-            # Add year column
-            df['year'] = df['sale_date'].dt.year
-            
-            return self._save_data_to_csv(
-                'property_data.csv', df, 'Property and zoning data'
+
+            return self._extracted_from_get_property_transactions_31(
+                df, "property_transactions.csv", "Saved property transaction data"
             )
-            
         except Exception as e:
-            logger.error(f"Error collecting zoning data: {str(e)}")
+            logger.error(f"Error getting property transaction data: {str(e)}")
             return None
+
+    # TODO Rename this here and in `get_zoning_data` and `get_property_transactions`
+    def _extracted_from_get_property_transactions_31(self, df, arg1, arg2):
+        df.to_csv(settings.DATA_RAW_DIR / arg1, index=False)
+        logger.info(arg2)
+        return df
 
     def get_business_licenses(self, limit: int = 1000000) -> Optional[pd.DataFrame]:
         """
@@ -378,94 +398,40 @@ class DataCollector:
                     logger.error(f"Error collecting business license data after retry: {str(e)}")
                     return None
 
-    def get_property_transactions(self, limit: int = 1000000) -> Optional[pd.DataFrame]:
-        """
-        Collect property transaction data from Chicago Data Portal.
-        
-        Args:
-            limit: Maximum number of records to retrieve
-            
-        Returns:
-            DataFrame with property transaction data, or None if collection fails
-        """
+    def collect_all_data(self) -> bool:
+        """Collect all required datasets."""
         try:
-            logger.info("Collecting property transaction data...")
+            # Collect each dataset
+            census_data = self.collect_census_data()
+            permit_data = self.collect_permit_data()
+            economic_data = self.collect_economic_data()
             
-            results = self.socrata.get(
-                settings.PROPERTY_TRANSACTIONS_DATASET,  # Use correct dataset ID
-                limit=limit,
-                select="""
-                    pin, sale_date, sale_price, sale_type,
-                    property_class, township, zip_code,
-                    year_built, building_area, land_area
-                """.replace('\n', '').replace(' ', ''),
-                where="sale_price > 0 AND sale_type IS NOT NULL",
-                order="sale_date DESC"
-            )
-            
-            if not results:
-                logger.warning("No property transaction data available")
-                return None
+            # Try to get zoning data but don't fail if unsuccessful
+            try:
+                zoning_data = self.get_zoning_data()
+                if zoning_data is not None:
+                    logger.info("Successfully collected zoning data")
+            except Exception as e:
+                logger.warning(f"Failed to collect zoning data: {str(e)}")
                 
-            df = pd.DataFrame.from_records(results)
-            
-            # Convert numeric columns
-            numeric_cols = ['sale_price', 'year_built', 'building_area', 'land_area']
-            for col in numeric_cols:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-            
-            # Convert dates
-            df['sale_date'] = pd.to_datetime(df['sale_date'])
-            
-            # Add year column
-            df['year'] = df['sale_date'].dt.year
-            
-            # Filter out invalid transactions
-            df = df[
-                (df['sale_price'].notna()) & 
-                (df['sale_type'].notna()) &
-                (df['sale_price'] > 0)
-            ]
-            
-            # Filter to relevant years
-            df = df[df['year'].isin(settings.DEFAULT_TRAIN_YEARS)]
-            
-            if df.empty:
-                logger.warning("No valid property transactions found in the training period")
-                return None
-            
-            return self._save_data_to_csv(
-                'property_transactions.csv', df, 'Property transaction data'
-            )
+            # Try to get property data but don't fail if unsuccessful
+            try:
+                property_data = self.get_property_transactions()
+                if property_data is not None:
+                    logger.info("Successfully collected property transaction data")
+            except Exception as e:
+                logger.warning(f"Failed to collect property transaction data: {str(e)}")
+                
+            # Check core datasets were collected
+            if all([census_data is not None,
+                   permit_data is not None,
+                   economic_data is not None]):
+                logger.info("Successfully collected all core datasets")
+                return True
+                
+            logger.error("Failed to collect one or more core datasets")
+            return False
             
         except Exception as e:
-            logger.error(f"Error collecting property transaction data: {str(e)}")
-            return None
-
-    def collect_all_data(self):
-        """Collect all required data."""
-        # Critical data sources
-        critical_data = {
-            'census': self.collect_census_data(),
-            'permits': self.collect_permit_data(),
-            'economic': self.collect_economic_data()
-        }
-
-        # Check for critical failures
-        if failed_critical := [name for name, data in critical_data.items() if data is None]:
-            logger.error(f"Failed to collect critical data: {', '.join(failed_critical)}")
-            return False
-
-        # Optional data sources
-        optional_data = {
-            'property': self.get_property_transactions(),
-            'zoning': self.get_zoning_data(),
-            'licenses': self.get_business_licenses()
-        }
-
-        # Log warning for optional failures
-        if failed_optional := [name for name, data in optional_data.items() if data is None]:
-            logger.warning(f"Failed to collect optional data: {', '.join(failed_optional)}")
-
-        logger.info("Successfully collected all critical data")
-        return True 
+            logger.error(f"Error in collect_all_data: {str(e)}")
+            return False 

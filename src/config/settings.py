@@ -1,6 +1,7 @@
 """
-Configuration settings for the Chicago population analysis pipeline.
+Configuration settings for the Chicago Population Analysis Pipeline.
 """
+
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -8,183 +9,217 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# API Keys
-CENSUS_API_KEY = os.getenv('CENSUS_API_KEY')
-FRED_API_KEY = os.getenv('FRED_API_KEY')
-CHICAGO_DATA_TOKEN = os.getenv('CHICAGO_DATA_TOKEN')
-
-# Base directories
+# Base directory
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-DATA_DIR = BASE_DIR / 'data'
-OUTPUT_DIR = BASE_DIR / 'output'
-SRC_DIR = BASE_DIR / 'src'
 
 # Data directories
+DATA_DIR = BASE_DIR / 'data'
 RAW_DATA_DIR = DATA_DIR / 'raw'
 INTERIM_DATA_DIR = DATA_DIR / 'interim'
 PROCESSED_DATA_DIR = DATA_DIR / 'processed'
 
 # Output directories
+OUTPUT_DIR = BASE_DIR / 'output'
 MODELS_DIR = OUTPUT_DIR / 'models'
 VISUALIZATIONS_DIR = OUTPUT_DIR / 'visualizations'
 REPORTS_DIR = OUTPUT_DIR / 'reports'
-PREDICTIONS_DIR = MODELS_DIR / 'predictions'
-
-# Template directories
-REPORT_TEMPLATES_DIR = SRC_DIR / 'templates' / 'reports'
-TEMPLATE_DIR = SRC_DIR / 'templates'
-
-# Model directories
-TRAINED_MODELS_DIR = MODELS_DIR / 'trained'
-MODEL_METRICS_DIR = MODELS_DIR / 'metrics'
-
-# Report subdirectories
-REPORT_FIGURES_DIR = REPORTS_DIR / 'figures'
-REPORT_TABLES_DIR = REPORTS_DIR / 'tables'
-
-# Analysis results directory
 ANALYSIS_RESULTS_DIR = OUTPUT_DIR / 'analysis_results'
+MODEL_METRICS_DIR = OUTPUT_DIR / 'model_metrics'
+PREDICTIONS_DIR = OUTPUT_DIR / 'predictions'
+TRAINED_MODELS_DIR = OUTPUT_DIR / 'trained_models'
 
-# Ensure all directories exist
-for directory in [
-    RAW_DATA_DIR, INTERIM_DATA_DIR, PROCESSED_DATA_DIR,
-    MODELS_DIR, VISUALIZATIONS_DIR, REPORTS_DIR,
-    TEMPLATE_DIR, REPORT_TEMPLATES_DIR,
-    TRAINED_MODELS_DIR, MODEL_METRICS_DIR, PREDICTIONS_DIR,
-    REPORT_FIGURES_DIR, REPORT_TABLES_DIR, ANALYSIS_RESULTS_DIR
-]:
-    directory.mkdir(parents=True, exist_ok=True)
+# Logs directory
+LOGS_DIR = BASE_DIR / 'logs'
 
-# Data collection settings
-CHICAGO_ZIP_CODES = [
-    '60601', '60602', '60603', '60604', '60605', '60606', '60607', '60608',
-    '60609', '60610', '60611', '60612', '60613', '60614', '60615', '60616',
-    '60617', '60618', '60619', '60620', '60621', '60622', '60623', '60624',
-    '60625', '60626', '60628', '60629', '60630', '60631', '60632', '60633',
-    '60634', '60636', '60637', '60638', '60639', '60640', '60641', '60642',
-    '60643', '60644', '60645', '60646', '60647', '60649', '60651', '60652',
-    '60653', '60654', '60655', '60656', '60657', '60659', '60660', '60661',
-    '60666', '60707', '60827'
+# Data file paths
+CENSUS_DATA_PATH = RAW_DATA_DIR / "census_data.csv"
+PERMITS_DATA_PATH = RAW_DATA_DIR / "building_permits.csv"
+BUSINESS_LICENSES_PATH = RAW_DATA_DIR / "business_licenses.csv"
+ECONOMIC_DATA_PATH = RAW_DATA_DIR / "economic_indicators.csv"
+
+# Processed data paths
+CENSUS_PROCESSED_PATH = PROCESSED_DATA_DIR / "census_processed.csv"
+PERMITS_PROCESSED_PATH = PROCESSED_DATA_DIR / "permits_processed.csv"
+ECONOMIC_PROCESSED_PATH = PROCESSED_DATA_DIR / "economic_processed.csv"
+BUSINESS_LICENSES_PROCESSED_PATH = PROCESSED_DATA_DIR / "business_licenses_processed.csv"
+PROPERTY_PROCESSED_PATH = PROCESSED_DATA_DIR / "property_processed.csv"
+ZONING_PROCESSED_PATH = PROCESSED_DATA_DIR / "zoning_processed.csv"
+RETAIL_DEFICIT_PROCESSED_PATH = PROCESSED_DATA_DIR / "retail_deficit_processed.csv"
+MERGED_DATA_PATH = PROCESSED_DATA_DIR / "merged_dataset.csv"
+
+# API Keys
+CENSUS_API_KEY = os.getenv("CENSUS_API_KEY")
+FRED_API_KEY = os.getenv("FRED_API_KEY")
+CHICAGO_DATA_TOKEN = os.getenv("CHICAGO_DATA_TOKEN")
+
+# Create directories if they don't exist
+REQUIRED_DIRS = [
+    RAW_DATA_DIR,
+    INTERIM_DATA_DIR,
+    PROCESSED_DATA_DIR,
+    MODELS_DIR,
+    PREDICTIONS_DIR,
+    VISUALIZATIONS_DIR,
+    REPORTS_DIR,
+    ANALYSIS_RESULTS_DIR,
+    MODEL_METRICS_DIR,
+    TRAINED_MODELS_DIR,
+    LOGS_DIR
 ]
 
-# FRED API series mappings
+for directory in REQUIRED_DIRS:
+    directory.mkdir(parents=True, exist_ok=True)
+
+# Model paths
+POPULATION_MODEL_PATH = MODELS_DIR / "population_model.joblib"
+ECONOMIC_MODEL_PATH = MODELS_DIR / "economic_model.joblib"
+HOUSING_MODEL_PATH = MODELS_DIR / "housing_model.joblib"
+RETAIL_MODEL_PATH = MODELS_DIR / "retail_model.joblib"
+
+# Analysis output paths
+RETAIL_DEFICIT_PATH = ANALYSIS_RESULTS_DIR / "retail_deficit_areas.csv"
+HIGH_GROWTH_PATH = ANALYSIS_RESULTS_DIR / "high_growth_areas.csv"
+RETAIL_LEAKAGE_PATH = ANALYSIS_RESULTS_DIR / "retail_leakage_areas.csv"
+
+# Report templates
+REPORT_TEMPLATES_DIR = BASE_DIR / "src" / "templates" / "reports"
+
+# Chicago Data Portal IDs
+CHICAGO_ZIP_CODES = list(range(60601, 60827))  # Chicago ZIP code range
 FRED_SERIES = {
-    'CHIC917URN': 'unemployment_rate',
-    'NGMP16980': 'gdp',
-    'PCPI17031': 'per_capita_income',
-    'CHIC917PCPI': 'personal_income'
+    "CHIC917URN": "unemployment_rate",
+    "NGMP16980": "gdp",
+    "PCPI17031": "per_capita_income",
+    "CHIC917PCPI": "personal_income"
 }
 
-# Chicago Data Portal dataset IDs
-PERMITS_DATASET = "ydr8-5enu"
-ZONING_DATASET = "8v9j-bter"
-BUSINESS_LICENSES_DATASET = "r5kz-chrr"
-PROPERTY_TRANSACTIONS_DATASET = "wvjz-am8w"
+ZONING_DATASET = "8v9j-bter"  # Chicago zoning dataset ID
+PROPERTY_TRANSACTIONS_DATASET = "wvjz-ec8w"  # Property transactions dataset ID
+BUSINESS_LICENSES_DATASET = "r5kz-chrr"  # Business licenses dataset ID
 
-# Analysis settings
-DEFAULT_TRAIN_YEARS = range(2015, 2024)  # Training data from 2015-2023
-FORECAST_YEARS = range(2024, 2034)  # 10-year forecast period
+# Analysis parameters
+DEFAULT_TRAIN_YEARS = list(range(2015, 2024))  # Training years from 2015-2023
+FORECAST_YEARS = range(2024, 2034)
 
 # Model parameters
 POPULATION_MODEL_PARAMS = {
-    "forecast_periods": 10,
-    "confidence_level": 0.95,
-    "scenarios": ["base", "high_growth", "low_growth"],
-    "features": [
-        "population_density",
-        "median_income",
-        "employment_rate",
-        "housing_units",
-        "retail_space",
-        "business_licenses"
-    ]
+    "n_estimators": 100,
+    "max_depth": 10,
+    "random_state": 42
 }
 
 RETAIL_MODEL_PARAMS = {
-    "min_retail_space": 500,  # square feet
-    "max_vacancy_rate": 0.15,
-    "target_retail_per_capita": 23.5,  # square feet per person
-    "retail_categories": [
-        "grocery",
-        "restaurant",
-        "general_merchandise",
-        "clothing",
-        "health_personal_care",
-        "home_furnishing"
-    ]
+    "n_estimators": 100,
+    "max_depth": 8,
+    "random_state": 42
 }
 
 HOUSING_MODEL_PARAMS = {
-    "min_density": 10,  # units per acre
-    "max_density": 100,
-    "target_vacancy_rate": 0.05,
-    "housing_types": [
-        "single_family",
-        "multi_family",
-        "mixed_use"
-    ]
+    "n_estimators": 100,
+    "max_depth": 8,
+    "random_state": 42
 }
 
 ECONOMIC_MODEL_PARAMS = {
-    "indicators": [
-        "gdp",
-        "employment",
-        "income",
-        "retail_sales"
-    ],
-    "forecast_horizon": 10,
-    "seasonality": True
+    "n_estimators": 100,
+    "max_depth": 8,
+    "random_state": 42
 }
 
-# Scenario definitions
+# Scenario parameters
 SCENARIOS = {
-    'base': {
-        'gdp_growth': 1.0,
-        'population_growth': 1.0,
-        'employment_growth': 1.0,
-        'income_growth': 1.0
+    "optimistic": {
+        "growth_factor": 1.2,
+        "confidence": 0.9
     },
-    'high_growth': {
-        'gdp_growth': 1.15,  # 15% higher growth
-        'population_growth': 1.10,  # 10% higher growth
-        'employment_growth': 1.12,  # 12% higher growth
-        'income_growth': 1.08  # 8% higher growth
+    "neutral": {
+        "growth_factor": 1.0,
+        "confidence": 0.8
     },
-    'low_growth': {
-        'gdp_growth': 0.85,  # 15% lower growth
-        'population_growth': 0.90,  # 10% lower growth
-        'employment_growth': 0.88,  # 12% lower growth
-        'income_growth': 0.92  # 8% lower growth
+    "pessimistic": {
+        "growth_factor": 0.8,
+        "confidence": 0.7
     }
 }
 
 # Visualization settings
 VIZ_SETTINGS = {
-    "style": "seaborn-v0_8-whitegrid",
-    "palette": "viridis",
-    "dpi": 300,
-    "figsize": (12, 8)
+    "width": 1200,
+    "height": 800,
+    "template": "plotly_white"
 }
 
 # Report settings
 REPORT_SETTINGS = {
-    "formats": ["md", "pdf", "html"],
-    "include_executive_summary": True,
-    "include_methodology": True,
-    "include_data_quality": True
+    "date_format": "%Y-%m-%d",
+    "confidence_level": 0.95
 }
+
+# Random state for reproducibility
+RANDOM_STATE = 42
+TEST_SIZE = 0.2
+CV_FOLDS = 5
+
+# Plot settings
+PLOT_STYLE = "seaborn"
+COLOR_PALETTE = "viridis"
+FIGURE_DPI = 300
+
+# Report settings
+REPORT_TEMPLATE_DIR = BASE_DIR / "src" / "templates" / "reports"
+REPORT_DATE_FORMAT = "%Y-%m-%d"
+
+# Logging settings
+LOG_FILE = LOGS_DIR / "chipop.log"
+LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+# Raw data file paths
+CENSUS_DATA_PATH = RAW_DATA_DIR / 'census_data.csv'
+PERMITS_DATA_PATH = RAW_DATA_DIR / 'permits.csv'
+ECONOMIC_DATA_PATH = RAW_DATA_DIR / 'economic_indicators.csv'
+RETAIL_DEFICIT_PATH = RAW_DATA_DIR / 'retail_deficit.csv'
+BUSINESS_LICENSES_PATH = RAW_DATA_DIR / 'business_licenses.csv'
+ZONING_DATA_PATH = RAW_DATA_DIR / 'zoning.csv'
+PROPERTY_DATA_PATH = RAW_DATA_DIR / 'property.csv'
+
+# Processed data file paths
+CENSUS_PROCESSED_PATH = PROCESSED_DATA_DIR / 'census_processed.csv'
+PERMITS_PROCESSED_PATH = PROCESSED_DATA_DIR / 'permits_processed.csv'
+ECONOMIC_PROCESSED_PATH = PROCESSED_DATA_DIR / 'economic_processed.csv'
+RETAIL_DEFICIT_PROCESSED_PATH = PROCESSED_DATA_DIR / 'retail_deficit_processed.csv'
+BUSINESS_LICENSES_PROCESSED_PATH = PROCESSED_DATA_DIR / 'business_licenses_processed.csv'
+ZONING_PROCESSED_PATH = PROCESSED_DATA_DIR / 'zoning_processed.csv'
+PROPERTY_PROCESSED_PATH = PROCESSED_DATA_DIR / 'property_processed.csv'
+ZONING_PROPERTY_MERGED_PATH = PROCESSED_DATA_DIR / 'zoning_property_merged.csv'
+
+# Retail Analysis Settings
+RETAIL_SALES_PATH = RAW_DATA_DIR / 'retail_sales.csv'
+DEMOGRAPHIC_DATA_PATH = RAW_DATA_DIR / 'demographics.csv'
+RETAIL_DEFICIT_PROCESSED_PATH = PROCESSED_DATA_DIR / 'retail_deficit.csv'
+RETAIL_LEAKAGE_SUMMARY_PATH = PROCESSED_DATA_DIR / 'retail_leakage_summary.csv'
+
+# Retail Analysis Constants
+RETAIL_SPENDING_FACTOR = 0.30  # Average percentage of income spent on retail
 
 # Export all settings
 __all__ = [
-    'BASE_DIR', 'DATA_DIR', 'OUTPUT_DIR', 'SRC_DIR',
+    'BASE_DIR', 'DATA_DIR', 'OUTPUT_DIR',
     'RAW_DATA_DIR', 'INTERIM_DATA_DIR', 'PROCESSED_DATA_DIR',
     'MODELS_DIR', 'VISUALIZATIONS_DIR', 'REPORTS_DIR',
-    'TEMPLATE_DIR', 'REPORT_TEMPLATES_DIR',
-    'TRAINED_MODELS_DIR', 'MODEL_METRICS_DIR', 'PREDICTIONS_DIR',
-    'REPORT_FIGURES_DIR', 'REPORT_TABLES_DIR', 'ANALYSIS_RESULTS_DIR',
-    'CENSUS_API_KEY', 'FRED_API_KEY', 'CHICAGO_DATA_TOKEN',
-    'PERMITS_DATASET', 'ZONING_DATASET', 'BUSINESS_LICENSES_DATASET', 'PROPERTY_TRANSACTIONS_DATASET',
-    'FRED_SERIES', 'DEFAULT_TRAIN_YEARS', 'FORECAST_YEARS',
+    'ANALYSIS_RESULTS_DIR', 'MODEL_METRICS_DIR', 'PREDICTIONS_DIR',
+    'TRAINED_MODELS_DIR', 'LOGS_DIR',
+    'CENSUS_DATA_PATH', 'PERMITS_DATA_PATH', 'BUSINESS_LICENSES_PATH', 'ECONOMIC_DATA_PATH',
+    'CENSUS_PROCESSED_PATH', 'PERMITS_PROCESSED_PATH', 'ECONOMIC_PROCESSED_PATH', 'BUSINESS_LICENSES_PROCESSED_PATH', 'MERGED_DATA_PATH',
+    'POPULATION_MODEL_PATH', 'ECONOMIC_MODEL_PATH', 'HOUSING_MODEL_PATH', 'RETAIL_MODEL_PATH',
+    'RETAIL_DEFICIT_PATH', 'HIGH_GROWTH_PATH', 'RETAIL_LEAKAGE_PATH',
+    'REPORT_TEMPLATES_DIR',
+    'CHICAGO_ZIP_CODES', 'FRED_SERIES', 'ZONING_DATASET', 'PROPERTY_TRANSACTIONS_DATASET', 'BUSINESS_LICENSES_DATASET',
+    'DEFAULT_TRAIN_YEARS', 'FORECAST_YEARS',
     'POPULATION_MODEL_PARAMS', 'RETAIL_MODEL_PARAMS', 'HOUSING_MODEL_PARAMS', 'ECONOMIC_MODEL_PARAMS',
-    'SCENARIOS', 'VIZ_SETTINGS', 'REPORT_SETTINGS'
+    'SCENARIOS', 'VIZ_SETTINGS', 'REPORT_SETTINGS',
+    'RANDOM_STATE', 'TEST_SIZE', 'CV_FOLDS',
+    'PLOT_STYLE', 'COLOR_PALETTE', 'FIGURE_DPI',
+    'REPORT_TEMPLATE_DIR', 'REPORT_DATE_FORMAT', 'LOG_FILE', 'LOG_FORMAT', 'LOG_DATE_FORMAT',
+    'RETAIL_SALES_PATH', 'DEMOGRAPHIC_DATA_PATH', 'RETAIL_DEFICIT_PROCESSED_PATH', 'RETAIL_LEAKAGE_SUMMARY_PATH', 'RETAIL_SPENDING_FACTOR'
 ] 

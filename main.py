@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.11
+#!/usr/bin/env python3
 """
 Chicago Population Analysis Pipeline
 Main entry point for running the complete analysis pipeline.
@@ -47,8 +47,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # === Python version check (fail fast if not 3.11) ===
-if sys.version_info.major != 3 or sys.version_info.minor != 11:
-    sys.stderr.write("ERROR: This pipeline requires Python 3.11.\n")
+if sys.version_info.major != 3 or sys.version_info.minor < 11:
+    sys.stderr.write("ERROR: This pipeline requires Python 3.11 or higher.\n")
     sys.exit(1)
 
 def detect_target_column(df, preferred_names, model_name="model"):

@@ -9,6 +9,7 @@ from typing import Dict, List, Optional
 import logging
 import jinja2
 from datetime import datetime
+from jinja2 import Template
 
 from src.config import settings
 from src.models.housing_model import HousingModel
@@ -81,22 +82,74 @@ class HousingRetailBalanceReport:
             raise
             
     def analyze_balance(self, data: Dict[str, pd.DataFrame]) -> Dict[str, Dict]:
-        """Analyze housing-retail balance patterns."""
-        logger.info("Analyzing housing-retail balance")
-        
+        """Analyze the balance between housing and retail development."""
         try:
-            housing_analysis = self.housing_model.analyze_housing_trends(data['housing'])
-            retail_analysis = self.retail_model.analyze_retail_trends(data['retail'])
-            balance_analysis = self.housing_model.analyze_housing_retail_balance(data['housing'])
+            # Initialize housing model
+            housing_model = HousingModel()
+            housing_trends = housing_model.analyze_housing_trends(data['housing'])
             
-            return {
-                'housing': housing_analysis,
-                'retail': retail_analysis,
-                'balance': balance_analysis
+            # Initialize retail model
+            retail_model = RetailModel()
+            retail_trends = retail_model.analyze_retail_trends(data['retail'])
+            
+            # Analyze housing-retail balance
+            balance_analysis = housing_model.analyze_housing_retail_balance(data['housing'])
+            
+            # Ensure all required fields are present
+            required_fields = {
+                'housing': {
+                    'total_units': 0,
+                    'density': 0.0,
+                    'pipeline_units': 0,
+                    'total_value': 0.0,
+                    'growth_rate': 0.0,
+                    'vacancy_rate': 0.0
+                },
+                'retail': {
+                    'total_space': 0,
+                    'per_capita': 0.0,
+                    'vacancy_rate': 0.0,
+                    'total_value': 0.0,
+                    'growth_rate': 0.0
+                },
+                'balance': {
+                    'score': 0.0,
+                    'ratio': 0.0,
+                    'target_ratio': 0.0,
+                    'deviation': 0.0
+                },
+                'trends': {
+                    'housing_growth': 0.0,
+                    'retail_growth': 0.0,
+                    'correlation': 0.0
+                }
             }
+            
+            # Merge analysis results with required fields
+            analysis_results = {}
+            for section, defaults in required_fields.items():
+                section_data = {}
+                if section == 'housing':
+                    section_data = housing_trends.get('summary', {})
+                elif section == 'retail':
+                    section_data = retail_trends.get('summary', {})
+                elif section == 'balance':
+                    section_data = balance_analysis.get('metrics', {})
+                elif section == 'trends':
+                    section_data = balance_analysis.get('trends', {})
+                
+                # Ensure all required fields exist
+                for field, default in defaults.items():
+                    if field not in section_data or pd.isna(section_data[field]):
+                        section_data[field] = default
+                
+                analysis_results[section] = section_data
+            
+            return analysis_results
+            
         except Exception as e:
             logger.error(f"Error analyzing housing-retail balance: {str(e)}")
-            raise
+            return {}
             
     def identify_opportunities(self, analysis_results: Dict) -> Dict[str, List[Dict]]:
         """Identify mixed-use development opportunities."""
@@ -145,61 +198,58 @@ class HousingRetailBalanceReport:
             raise
             
     def generate_report(self) -> None:
-        """Generate the complete housing-retail balance report."""
-        logger.info("Starting housing-retail balance report generation")
-
+        """Generate the housing-retail balance report."""
         try:
-            # Load and analyze data
+            logger.info("Starting housing-retail balance report generation")
+            
+            # Load and prepare data
             data = self.load_and_prepare_data()
+            if not all(df.size > 0 for df in data.values()):
+                logger.error("One or more required datasets are empty")
+                return
+            
+            # Analyze housing-retail balance
+            logger.info("Analyzing housing-retail balance")
             analysis_results = self.analyze_balance(data)
+            if not analysis_results:
+                logger.error("Failed to analyze housing-retail balance")
+                return
+            
+            # Identify development opportunities
+            logger.info("Identifying development opportunities")
             opportunities = self.identify_opportunities(analysis_results)
-
-            # Generate visualizations
-            self.visualizer.create_balance_analysis_charts(analysis_results['balance'])
-
-            # Load template
-            template = self.template_env.get_template('housing_retail_balance_report.md')
-
-            # Prepare template context
-            imbalance_areas = analysis_results['balance']
-            if not isinstance(imbalance_areas, pd.DataFrame) or imbalance_areas.empty:
-                imbalance_areas_records = []
-            else:
-                imbalance_areas_records = imbalance_areas.to_dict('records')
-
-            # Check if high_priority opportunities exist and are not empty
-            high_priority_opps = opportunities.get('high_priority', [])
-            mixed_use_opps = list(high_priority_opps) if high_priority_opps else []
-
+            if not opportunities:
+                logger.error("Failed to identify development opportunities")
+                return
+            
+            # Create visualizations
+            logger.info("Creating housing-retail balance analysis charts...")
+            visualizer = Visualizer()
+            visualizer.create_balance_analysis_charts(data['housing'])
+            
+            # Load report template
+            template_path = settings.REPORT_TEMPLATES_DIR / 'housing_retail_balance_report.md'
+            with open(template_path, 'r') as f:
+                template = f.read()
+            
+            # Prepare context
             context = {
-                'current_analysis': {
-                    'housing': analysis_results['housing'],
-                    'retail': analysis_results['retail'],
-                },
-                'analysis_results': {
-                    'imbalance_areas': imbalance_areas_records,
-                    'mixed_use_opportunities': mixed_use_opps,
-                },
-                'recommendations': {
-                    'development': [opp['action'] for opp in high_priority_opps],
-                    'policy': [
-                        "Update zoning to encourage mixed-use development",
-                        "Streamline permits for balanced development",
-                        "Create incentives for retail in residential areas",
-                    ],
-                },
                 'generation_date': datetime.now().strftime('%Y-%m-%d'),
+                'current_analysis': analysis_results.get('housing', {}),
+                'analysis_results': analysis_results,
+                'recommendations': opportunities
             }
-
+            
             # Generate report
-            report_content = template.render(**context)
-
+            report = Template(template).render(context)
+            
             # Save report
-            with open(self.output_path, 'w') as f:
-                f.write(report_content)
-
-            logger.info(f"Generated housing-retail balance report at {self.output_path}")
-
+            output_path = settings.REPORTS_DIR / 'housing_retail_balance_report.md'
+            with open(output_path, 'w') as f:
+                f.write(report)
+            
+            logger.info(f"Generated housing-retail balance report at {output_path}")
+            
         except Exception as e:
             logger.error(f"Error generating housing-retail balance report: {str(e)}")
             raise 

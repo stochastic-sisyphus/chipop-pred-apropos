@@ -84,3 +84,4 @@ site/
 *.tmp
 *.temp 
 .gitkeep
+.hintrc

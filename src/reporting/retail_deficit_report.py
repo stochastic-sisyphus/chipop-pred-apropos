@@ -9,6 +9,7 @@ from typing import Dict, List, Optional
 import logging
 import jinja2
 from datetime import datetime
+from jinja2 import Template
 
 from src.config import settings
 from src.models.retail_model import RetailModel
@@ -55,181 +56,206 @@ class RetailDeficitReport:
             raise
             
     def analyze_retail_deficit(self, data: pd.DataFrame) -> Dict[str, Dict]:
-        """Analyze retail deficit patterns."""
-        logger.info("Analyzing retail deficit patterns")
-        
+        """Analyze retail deficit patterns and opportunities."""
         try:
-            retail_analysis = self.retail_model.analyze_retail_trends(data['retail'])
-            retail_demand = self.retail_model.predict_retail_demand(data['retail'])
-            retail_leakage = self.retail_model.analyze_retail_leakage(data['retail'])
+            # Initialize retail model
+            retail_model = RetailModel()
             
-            return {
-                'trends': retail_analysis,
-                'demand': retail_demand,
-                'leakage': retail_leakage
+            # Get retail trends and leakage analysis
+            retail_trends = retail_model.analyze_retail_trends(data)
+            retail_leakage = retail_model.analyze_retail_leakage(data)
+            
+            # Required fields with default values
+            required_fields = {
+                'current': {
+                    'retail': {
+                        'total_space': 0,
+                        'density': 0.0,
+                        'vacancy_rate': 0.0,
+                        'total_value': 0.0
+                    }
+                },
+                'retail_deficit': [],  # Will be populated from leakage analysis
+                'retail_categories': [],  # Will be populated from trends
+                'development_potential': []  # Will be populated from analysis
             }
+            
+            # Process retail deficit areas
+            deficit_areas = []
+            if not retail_leakage.empty:
+                for _, row in retail_leakage.iterrows():
+                    area = {
+                        'zip_code': row.get('zip_code', ''),
+                        'spending_potential': float(row.get('spending_potential', 0.0)),
+                        'current_provision': float(row.get('current_provision', 0.0)),
+                        'retail_gap': float(row.get('retail_gap', 0.0)),
+                        'leakage_rate': float(row.get('leakage_rate', 0.0))
+                    }
+                    deficit_areas.append(area)
+            
+            # Process retail categories
+            categories = []
+            if 'retail_categories' in retail_trends:
+                for cat in retail_trends['retail_categories']:
+                    category = {
+                        'name': cat.get('name', ''),
+                        'market_gap': float(cat.get('market_gap', 0.0)),
+                        'required_space': float(cat.get('required_space', 0.0)),
+                        'potential_stores': int(cat.get('potential_stores', 0))
+                    }
+                    categories.append(category)
+            
+            # Process development potential
+            development_areas = []
+            if 'development_sites' in retail_trends:
+                for site in retail_trends['development_sites']:
+                    area = {
+                        'code': site.get('zip_code', ''),
+                        'available_sites': int(site.get('available_sites', 0)),
+                        'potential_gla': float(site.get('potential_gla', 0.0)),
+                        'investment_value': float(site.get('investment_value', 0.0))
+                    }
+                    development_areas.append(area)
+            
+            # Combine all results
+            analysis_results = {
+                'current': {
+                    'retail': {
+                        'total_space': float(retail_trends.get('total_space', 0.0)),
+                        'density': float(retail_trends.get('density', 0.0)),
+                        'vacancy_rate': float(retail_trends.get('vacancy_rate', 0.0)),
+                        'total_value': float(retail_trends.get('total_value', 0.0))
+                    }
+                },
+                'retail_deficit': deficit_areas,
+                'retail_categories': categories,
+                'development_potential': development_areas
+            }
+            
+            return analysis_results
+            
         except Exception as e:
             logger.error(f"Error analyzing retail deficit: {str(e)}")
-            raise
+            return {}
             
     def generate_recommendations(self, deficit_data: Dict) -> Dict[str, list]:
-        """Generate recommendations based on deficit analysis."""
-        logger.info("Generating recommendations")
-        
-        recommendations = {
-            'high_priority': [],
-            'medium_priority': [],
-            'long_term': []
-        }
-        
+        """Generate recommendations based on retail deficit analysis."""
         try:
-            # Analyze high deficit areas
-            high_deficit_areas = deficit_data['leakage'][
-                deficit_data['leakage']['leakage_rate'] > 0.2
+            # Initialize recommendations
+            recommendations = {
+                'retail': [],
+                'development': [],
+                'policy': []
+            }
+            
+            # Process retail deficit areas
+            if 'retail_deficit' in deficit_data:
+                deficit_areas = deficit_data['retail_deficit']
+                if isinstance(deficit_areas, list) and deficit_areas:
+                    # Sort by leakage rate if available
+                    sorted_areas = sorted(
+                        deficit_areas,
+                        key=lambda x: float(x.get('leakage_rate', 0)),
+                        reverse=True
+                    )
+                    
+                    # Generate recommendations for high deficit areas
+                    for area in sorted_areas[:3]:  # Top 3 areas
+                        zip_code = area.get('zip_code', '')
+                        leakage = float(area.get('retail_gap', 0))
+                        if leakage > 0:
+                            recommendations['retail'].append(
+                                f"Address retail gap of ${leakage:,.2f} in ZIP {zip_code}"
+                            )
+            
+            # Process retail categories
+            if 'retail_categories' in deficit_data:
+                categories = deficit_data['retail_categories']
+                if isinstance(categories, list) and categories:
+                    # Sort by market gap if available
+                    sorted_cats = sorted(
+                        categories,
+                        key=lambda x: float(x.get('market_gap', 0)),
+                        reverse=True
+                    )
+                    
+                    # Generate recommendations for underserved categories
+                    for cat in sorted_cats[:3]:  # Top 3 categories
+                        name = cat.get('name', '')
+                        gap = float(cat.get('market_gap', 0))
+                        if gap > 0:
+                            recommendations['development'].append(
+                                f"Develop {name} retail space to capture ${gap:,.2f} market opportunity"
+                            )
+            
+            # Add policy recommendations
+            recommendations['policy'] = [
+                "Update zoning regulations to encourage retail development in high-deficit areas",
+                "Create incentives for retailers in underserved categories",
+                "Streamline permitting process for retail development in target areas"
             ]
             
-            # Generate recommendations for each area
-            for _, area in high_deficit_areas.iterrows():
-                if area['leakage_rate'] > 0.4:
-                    recommendations['high_priority'].append({
-                        'zip_code': area['zip_code'],
-                        'action': f"Develop retail space in {area['zip_code']} to capture ${area['retail_gap']:,.0f} in retail opportunity",
-                        'priority': 'High',
-                        'timeline': '0-12 months'
-                    })
-                elif area['leakage_rate'] > 0.3:
-                    recommendations['medium_priority'].append({
-                        'zip_code': area['zip_code'],
-                        'action': f"Plan retail development in {area['zip_code']} to address ${area['retail_gap']:,.0f} retail gap",
-                        'priority': 'Medium',
-                        'timeline': '12-24 months'
-                    })
-                else:
-                    recommendations['long_term'].append({
-                        'zip_code': area['zip_code'],
-                        'action': f"Monitor retail opportunity in {area['zip_code']} (${area['retail_gap']:,.0f} potential)",
-                        'priority': 'Low',
-                        'timeline': '24-36 months'
-                    })
-                    
             return recommendations
             
         except Exception as e:
             logger.error(f"Error generating recommendations: {str(e)}")
-            raise
+            return {
+                'retail': [],
+                'development': [],
+                'policy': []
+            }
             
     def generate_report(self) -> None:
-        """Generate the complete retail deficit analysis report."""
-        logger.info("Starting retail deficit report generation")
-        
+        """Generate the retail deficit analysis report."""
         try:
-            # Load and analyze data
+            logger.info("Starting retail deficit report generation")
+            
+            # Load and prepare data
             data = self.load_and_prepare_data()
-            deficit_analysis = self.analyze_retail_deficit(data)
-            recommendations = self.generate_recommendations(deficit_analysis)
+            if not all(df.size > 0 for df in data.values()):
+                logger.error("One or more required datasets are empty")
+                return
             
-            # Generate visualizations
-            self.visualizer.create_retail_deficit_map(deficit_analysis['leakage'])
+            # Analyze retail deficit
+            logger.info("Analyzing retail deficit patterns")
+            analysis_results = self.analyze_retail_deficit(data['retail'])
+            if not analysis_results:
+                logger.error("Failed to analyze retail deficit")
+                return
             
-            # Calculate current state metrics with safe defaults
-            def safe_float(val, default=0.0):
-                try:
-                    return default if pd.isna(val) or val is None else float(val)
-                except Exception:
-                    return default
-
-            retail_df = data['retail']
-            total_space = safe_float(retail_df['retail_space'].sum())
-            density = safe_float(retail_df['retail_space_per_capita'].mean())
-            vacancy_rate = 0.1  # Placeholder - would need actual vacancy data
-
-            current_metrics = {
-                'retail': {
-                    'total_space': total_space,
-                    'density': density,
-                    'vacancy_rate': vacancy_rate
-                }
-            }
+            # Generate recommendations
+            logger.info("Generating recommendations")
+            recommendations = self.generate_recommendations(analysis_results)
+            if not recommendations:
+                logger.error("Failed to generate recommendations")
+                return
             
-            # Load template
-            template = self.template_env.get_template('retail_deficit_analysis.md')
+            # Create visualizations
+            visualizer = Visualizer()
+            visualizer.create_retail_deficit_map(data['retail'])
             
-            # Patch: ensure all fields are present and correct type for template
-            def clean_record(record, keys_defaults):
-                out = {}
-                for k, default in keys_defaults.items():
-                    v = record.get(k, default)
-                    # Patch: ensure correct type for numeric fields
-                    if isinstance(default, (int, float)):
-                        try:
-                            v = float(v)
-                        except Exception:
-                            v = default
-                    if v is None or (isinstance(v, float) and pd.isna(v)):
-                        out[k] = default
-                    else:
-                        out[k] = v
-                # Add any extra keys from record
-                for k, v in record.items():
-                    if k not in out:
-                        if isinstance(v, (int, float)):
-                            try:
-                                v = float(v)
-                            except Exception:
-                                v = 0
-                        out[k] = 0 if (v is None or (isinstance(v, float) and pd.isna(v))) else v
-                return out
-
-            # Define expected keys for each section
-            retail_deficit_keys = {
-                'zip_code': '', 'spending_potential': 0.0, 'current_provision': 0.0, 'retail_gap': 0.0, 'leakage_rate': 0.0
-            }
-            retail_categories_keys = {
-                'name': '', 'market_gap': 0.0, 'required_space': 0.0, 'potential_stores': 0
-            }
-            development_potential_keys = {
-                'code': '', 'available_sites': 0, 'potential_gla': 0.0, 'investment_value': 0.0
-            }
-
-            # Prepare lists, ensuring at least one record with safe defaults if empty
-            retail_deficit_list = [clean_record(r, retail_deficit_keys) for r in deficit_analysis['leakage'].to_dict('records')]
-            if not retail_deficit_list:
-                retail_deficit_list = [retail_deficit_keys]
-            retail_categories_list = [clean_record(r, retail_categories_keys) for r in deficit_analysis['trends'].to_dict('records')]
-            if not retail_categories_list:
-                retail_categories_list = [retail_categories_keys]
-            # Patch: ensure 'code' key is present for development_potential
-            dev_pot_records = []
-            for r in deficit_analysis['demand'].to_dict('records'):
-                if 'zip_code' in r and 'code' not in r:
-                    r['code'] = r['zip_code']
-                dev_pot_records.append(r)
-            development_potential_list = [clean_record(r, development_potential_keys) for r in dev_pot_records]
-            if not development_potential_list:
-                development_potential_list = [development_potential_keys]
-
-            # Prepare template context with safe values
+            # Load report template
+            template_path = settings.REPORT_TEMPLATES_DIR / 'retail_deficit_analysis.md'
+            with open(template_path, 'r') as f:
+                template = f.read()
+            
+            # Prepare context
             context = {
-                'current_analysis': current_metrics,
-                'analysis_results': {
-                    'retail_deficit': retail_deficit_list,
-                    'retail_categories': retail_categories_list,
-                    'development_potential': development_potential_list
-                },
-                'recommendations': {
-                    'retail': [rec['action'] for rec in recommendations['high_priority']] if recommendations.get('high_priority') else []
-                },
-                'generation_date': datetime.now().strftime('%Y-%m-%d')
+                'generation_date': datetime.now().strftime('%Y-%m-%d'),
+                'current_analysis': analysis_results.get('current', {}),
+                'analysis_results': analysis_results,
+                'recommendations': recommendations
             }
             
             # Generate report
-            report_content = template.render(**context)
+            report = Template(template).render(context)
             
             # Save report
-            with open(self.output_path, 'w') as f:
-                f.write(report_content)
-                
-            logger.info(f"Generated retail deficit report at {self.output_path}")
+            output_path = settings.REPORTS_DIR / 'retail_deficit_analysis.md'
+            with open(output_path, 'w') as f:
+                f.write(report)
+            
+            logger.info(f"Generated retail deficit report at {output_path}")
             
         except Exception as e:
             logger.error(f"Error generating retail deficit report: {str(e)}")

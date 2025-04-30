@@ -36,74 +36,64 @@ class PopulationModel:
         settings.TRAINED_MODELS_DIR.mkdir(parents=True, exist_ok=True)
         
     def prepare_features(self, df: pd.DataFrame, feature_list=None, mode: str = 'full', target_variable: str = 'total_population') -> tuple[pd.DataFrame, pd.Series]:
-        """Prepare features for population modeling."""
+        """
+        Prepare features for population modeling.
+        
+        Args:
+            df: Input DataFrame
+            feature_list: List of features to use (optional)
+            mode: 'full' or 'minimal' feature set
+            target_variable: Target variable to predict
+            
+        Returns:
+            Tuple of (X, y) for model training/prediction
+        """
         try:
             logger.info(f"Preparing population features for target: {target_variable}")
-
-            if feature_list is not None:
-                features = [f for f in feature_list if f in df.columns and df[f].notna().sum() > 0]
-            elif mode == 'full':
-                features = [
-                    'total_population', 'median_household_income', 'labor_force',
-                    'total_permits', 'residential_permits', 'commercial_permits', 'retail_permits', 
-                    'total_construction_cost', 'residential_construction_cost',
-                    'commercial_construction_cost', 'retail_construction_cost',
-                    'median_age', 'households', 'housing_units', 'vacancy_rate',
-                    'owner_occupied_rate', 'poverty_rate', 'unemployment_rate',
-                    'education_less_than_hs', 'education_hs', 'education_some_college',
-                    'education_bachelors', 'education_graduate',
-                    'industry_manufacturing', 'industry_retail', 'industry_professional',
-                    'industry_education_health', 'industry_arts_entertainment',
-                    'commute_time', 'commute_public_transit', 'commute_carpool',
-                    'health_insurance_coverage', 'broadband_internet',
-                    'median_rooms', 'median_year_built', 'median_gross_rent',
-                    'median_home_value', 'household_family_percent',
-                    'foreign_born', 'speak_english_less_than_very_well'
-                ]
-            elif mode == 'scenario':
-                features = [f for f in self.scenario_feature_names if f in df.columns]
-
-            if not features:
-                logger.error(f"No usable features for mode: {mode}")
-                return None, None
-
-            logger.info(f"Features used for {mode} modeling: {features}")
-
-            # Create feature matrix
-            X = df[features].copy()
-
-            # Validate target
-            if target_variable not in df.columns:
-                logger.error(f"Target variable '{target_variable}' not found in dataframe.")
-                return None, None
-            y = df[target_variable]
-
-            # Fill missing values with median (for features)
-            X = X.fillna(X.median())
-
-            # Remove rows with any NaN or inf in X or y
-            mask = (~X.isin([np.nan, np.inf, -np.inf]).any(axis=1)) & (~y.isin([np.nan, np.inf, -np.inf]))
-            dropped = (~mask).sum()
-            if dropped > 0:
-                logger.warning(f"Dropping {dropped} rows with NaN or inf in features or target.")
-            X = X[mask]
-            y = y[mask]
-
-            # Clip values to float64 range
-            float_max = np.finfo(np.float64).max
-            float_min = np.finfo(np.float64).min
-            X = X.clip(lower=float_min, upper=float_max)
-            y = y.clip(lower=float_min, upper=float_max)
-
-            # Scale features
-            scaler = StandardScaler()
-            X_scaled = scaler.fit_transform(X)
-
-            return pd.DataFrame(X_scaled, columns=features, index=X.index), y.reset_index(drop=True)
-
+            
+            # Create copy to avoid modifying original
+            data = df.copy()
+            
+            # Add required features if missing
+            if 'month' not in data.columns:
+                data['month'] = 1  # Default to January
+                
+            if 'development_density' not in data.columns:
+                if 'housing_units' in data.columns and 'total_population' in data.columns:
+                    data['development_density'] = data['housing_units'] / data['total_population'].replace(0, np.nan)
+                else:
+                    data['development_density'] = 0.0  # Default value
+                    
+            # Fill NaN values
+            data['development_density'] = data['development_density'].fillna(0.0)
+            data['month'] = data['month'].fillna(1)
+            
+            # Get target variable
+            y = data[target_variable]
+            
+            # Drop target from features
+            X = data.drop(columns=[target_variable], errors='ignore')
+            
+            # Use provided feature list or all available features
+            if feature_list:
+                X = X[feature_list]
+            
+            # Log feature list
+            logger.info(f"Features used for {mode} modeling: {list(X.columns)}")
+            
+            # Drop rows with NaN or inf values
+            mask = ~(X.isna().any(axis=1) | np.isinf(X).any(axis=1) | y.isna() | np.isinf(y))
+            if (~mask).any():
+                n_dropped = (~mask).sum()
+                logger.warning(f"Dropping {n_dropped} rows with NaN or inf in features or target.")
+                X = X[mask]
+                y = y[mask]
+            
+            return X, y
+            
         except Exception as e:
-            logger.error(f"Error preparing population features: {str(e)}")
-            return None, None
+            logger.error(f"Error preparing features: {str(e)}")
+            raise
             
     def train(self, df, feature_list=None, target_variable='total_population'):
         """Train the population model."""
