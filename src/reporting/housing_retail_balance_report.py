@@ -15,6 +15,8 @@ from src.config import settings
 from src.models.housing_model import HousingModel
 from src.models.retail_model import RetailModel
 from src.visualization.visualizer import Visualizer
+from src.utils.helpers import resolve_column_name
+from src.config.column_alias_map import column_aliases
 
 logger = logging.getLogger(__name__)
 
@@ -44,212 +46,169 @@ class HousingRetailBalanceReport:
             permits = pd.read_csv(settings.PROCESSED_DATA_DIR / 'permits_processed.csv')
             retail_metrics = pd.read_csv(settings.PROCESSED_DATA_DIR / 'retail_metrics.csv')
             census_data = pd.read_csv(settings.PROCESSED_DATA_DIR / 'census_processed.csv')
-            
-            # Create housing metrics from permits data
-            housing_metrics = permits[['year', 'zip_code', 'residential_permits', 
-                                    'residential_construction_cost', 'residential_permit_ratio',
-                                    'residential_cost_ratio']].copy()
-            
-            # Merge with census data
-            housing_metrics = housing_metrics.merge(
-                census_data[['year', 'zip_code', 'total_population', 'median_household_income']],
-                on=['year', 'zip_code'],
+
+            # Resolve column names
+            zip_col = resolve_column_name(permits, 'zip_code', column_aliases)
+            res_permits_col = resolve_column_name(permits, 'residential_permits', column_aliases)
+            total_permits_col = resolve_column_name(permits, 'total_permits', column_aliases)
+            res_cost_col = resolve_column_name(permits, 'residential_construction_cost', column_aliases)
+            total_cost_col = resolve_column_name(permits, 'total_construction_cost', column_aliases)
+            pop_col = resolve_column_name(census_data, 'total_population', column_aliases)
+            housing_units_col = resolve_column_name(census_data, 'housing_units', column_aliases)
+            retail_deficit_col = resolve_column_name(retail_metrics, 'retail_deficit', column_aliases)
+
+            # Validate required columns
+            required_cols = {
+                'permits': [zip_col, res_permits_col, total_permits_col, res_cost_col, total_cost_col],
+                'census': [zip_col, pop_col, housing_units_col],
+                'retail': [zip_col, retail_deficit_col]
+            }
+
+            for dataset_name, cols in required_cols.items():
+                if missing := [col for col in cols if not col]:
+                    logger.error(f"Missing required columns in {dataset_name}: {missing}")
+                    return None
+
+            # Calculate ratios
+            permits['residential_permit_ratio'] = permits[res_permits_col] / permits[total_permits_col]
+            permits['residential_cost_ratio'] = permits[res_cost_col] / permits[total_cost_col]
+
+            # Merge datasets
+            merged = permits.merge(
+                retail_metrics[[zip_col, retail_deficit_col]], 
+                on=zip_col, 
                 how='left'
             )
-            
-            # Calculate housing metrics
-            housing_metrics['housing_units'] = housing_metrics['residential_permits'] * 1.5  # Assume 1.5 units per permit
-            housing_metrics['housing_density'] = housing_metrics['housing_units'] / housing_metrics['total_population']
-            housing_metrics['housing_value_per_unit'] = housing_metrics['residential_construction_cost'] / housing_metrics['housing_units']
-            
-            # Calculate year-over-year changes
-            for col in ['housing_units', 'housing_density', 'housing_value_per_unit']:
-                housing_metrics[f'{col}_change'] = housing_metrics.groupby('zip_code')[col].pct_change()
-            
-            # Fill NaN values
-            housing_metrics = housing_metrics.fillna(0)
-            
-            # Save housing metrics for future use
-            housing_metrics.to_csv(settings.PROCESSED_DATA_DIR / 'housing_metrics.csv', index=False)
-            
+            merged = merged.merge(
+                census_data[[zip_col, pop_col, housing_units_col]], 
+                on=zip_col, 
+                how='left'
+            )
+
+            # Fill missing values
+            merged = merged.fillna({
+                retail_deficit_col: 0,
+                'residential_permit_ratio': 0,
+                'residential_cost_ratio': 0
+            })
+
+            # Calculate balance metrics
+            merged['housing_retail_ratio'] = merged['residential_permit_ratio'] / (1 - merged[retail_deficit_col])
+            merged['balance_score'] = 1 - abs(merged['housing_retail_ratio'] - 1)
+
+            # Categorize areas
+            merged['balance_category'] = pd.cut(
+                merged['balance_score'],
+                bins=[0, 0.3, 0.6, 0.8, 1.0],
+                labels=['Severe Imbalance', 'Moderate Imbalance', 'Slight Imbalance', 'Balanced']
+            )
+
+            logger.info("Successfully prepared data for housing retail balance report")
             return {
-                'housing': housing_metrics,
+                'merged': merged,
+                'permits': permits,
                 'retail': retail_metrics,
-                'demographic': census_data
+                'census': census_data
             }
+
         except Exception as e:
-            logger.error(f"Error loading data: {str(e)}")
-            raise
+            logger.error(f"Error preparing data for housing retail balance report: {str(e)}")
+            return None
             
     def analyze_balance(self, data: Dict[str, pd.DataFrame]) -> Dict[str, Dict]:
         """Analyze the balance between housing and retail development."""
         try:
-            # Initialize housing model
-            housing_model = HousingModel()
-            housing_trends = housing_model.analyze_housing_trends(data['housing'])
+            merged_data = data['merged']
             
-            # Initialize retail model
-            retail_model = RetailModel()
-            retail_trends = retail_model.analyze_retail_trends(data['retail'])
+            # Resolve column names
+            zip_col = resolve_column_name(merged_data, 'zip_code', column_aliases)
+            pop_col = resolve_column_name(merged_data, 'total_population', column_aliases)
+            housing_col = resolve_column_name(merged_data, 'housing_units', column_aliases)
+            retail_space_col = resolve_column_name(merged_data, 'retail_space', column_aliases)
             
-            # Analyze housing-retail balance
-            balance_analysis = housing_model.analyze_housing_retail_balance(data['housing'])
+            if not all([zip_col, pop_col, housing_col, retail_space_col]):
+                logger.error("Required columns not found for balance analysis")
+                return {}
             
-            # Ensure all required fields are present
-            required_fields = {
-                'housing': {
-                    'total_units': 0,
-                    'density': 0.0,
-                    'pipeline_units': 0,
-                    'total_value': 0.0,
-                    'growth_rate': 0.0,
-                    'vacancy_rate': 0.0
-                },
-                'retail': {
-                    'total_space': 0,
-                    'per_capita': 0.0,
-                    'vacancy_rate': 0.0,
-                    'total_value': 0.0,
-                    'growth_rate': 0.0
-                },
-                'balance': {
-                    'score': 0.0,
-                    'ratio': 0.0,
-                    'target_ratio': 0.0,
-                    'deviation': 0.0
-                },
-                'trends': {
-                    'housing_growth': 0.0,
-                    'retail_growth': 0.0,
-                    'correlation': 0.0
-                }
+            # Calculate metrics by ZIP code
+            zip_metrics = merged_data.groupby(zip_col).agg({
+                pop_col: 'sum',
+                housing_col: 'sum',
+                retail_space_col: 'sum',
+                'balance_score': 'mean',
+                'balance_category': lambda x: 'Unknown' if x.empty else x.mode()[0]
+            }).reset_index()
+            
+            # Calculate housing density
+            zip_metrics['housing_density'] = zip_metrics[housing_col] / zip_metrics[pop_col]
+            zip_metrics['retail_density'] = zip_metrics[retail_space_col] / zip_metrics[pop_col]
+            
+            # Identify imbalanced areas
+            severe_imbalance = zip_metrics[
+                zip_metrics['balance_score'] < 0.3
+            ][zip_col].tolist()
+            
+            balanced = zip_metrics[
+                zip_metrics['balance_score'] > 0.8
+            ][zip_col].tolist()
+            
+            # Calculate summary statistics
+            summary_stats = {
+                'avg_balance_score': zip_metrics['balance_score'].mean(),
+                'median_balance_score': zip_metrics['balance_score'].median(),
+                'severe_imbalance_count': len(severe_imbalance),
+                'balanced_count': len(balanced),
+                'avg_housing_density': zip_metrics['housing_density'].mean(),
+                'avg_retail_density': zip_metrics['retail_density'].mean()
             }
             
-            # Merge analysis results with required fields
-            analysis_results = {}
-            for section, defaults in required_fields.items():
-                section_data = {}
-                if section == 'housing':
-                    section_data = housing_trends.get('summary', {})
-                elif section == 'retail':
-                    section_data = retail_trends.get('summary', {})
-                elif section == 'balance':
-                    section_data = balance_analysis.get('metrics', {})
-                elif section == 'trends':
-                    section_data = balance_analysis.get('trends', {})
-                
-                # Ensure all required fields exist
-                for field, default in defaults.items():
-                    if field not in section_data or pd.isna(section_data[field]):
-                        section_data[field] = default
-                
-                analysis_results[section] = section_data
-            
-            return analysis_results
+            return {
+                'zip_metrics': zip_metrics.to_dict('records'),
+                'summary': summary_stats,
+                'severe_imbalance_zips': severe_imbalance,
+                'balanced_zips': balanced
+            }
             
         except Exception as e:
             logger.error(f"Error analyzing housing-retail balance: {str(e)}")
             return {}
             
-    def identify_opportunities(self, analysis_results: Dict) -> Dict[str, List[Dict]]:
-        """Identify mixed-use development opportunities."""
-        logger.info("Identifying development opportunities")
-        
-        opportunities = {
-            'high_priority': [],
-            'medium_priority': [],
-            'long_term': []
-        }
-        
-        try:
-            # Analyze imbalanced areas
-            imbalanced_areas = analysis_results['balance'][
-                analysis_results['balance']['balance_score'] < 0.7
-            ]
-            
-            # Generate opportunities for each area
-            for _, area in imbalanced_areas.iterrows():
-                if area['balance_score'] < 0.5:
-                    opportunities['high_priority'].append({
-                        'zip_code': area['zip_code'],
-                        'action': f"Develop mixed-use project in {area['zip_code']} to address severe imbalance",
-                        'priority': 'High',
-                        'timeline': '0-12 months'
-                    })
-                elif area['balance_score'] < 0.6:
-                    opportunities['medium_priority'].append({
-                        'zip_code': area['zip_code'],
-                        'action': f"Plan mixed-use development in {area['zip_code']} to improve balance",
-                        'priority': 'Medium',
-                        'timeline': '12-24 months'
-                    })
-                else:
-                    opportunities['long_term'].append({
-                        'zip_code': area['zip_code'],
-                        'action': f"Monitor development balance in {area['zip_code']}",
-                        'priority': 'Low',
-                        'timeline': '24-36 months'
-                    })
-                    
-            return opportunities
-            
-        except Exception as e:
-            logger.error(f"Error identifying opportunities: {str(e)}")
-            raise
-            
-    def generate_report(self) -> None:
+    def generate_report(self) -> bool:
         """Generate the housing-retail balance report."""
         try:
-            logger.info("Starting housing-retail balance report generation")
-            
             # Load and prepare data
             data = self.load_and_prepare_data()
-            if not all(df.size > 0 for df in data.values()):
-                logger.error("One or more required datasets are empty")
-                return
+            if not data:
+                logger.error("Failed to load required data")
+                return False
             
             # Analyze housing-retail balance
-            logger.info("Analyzing housing-retail balance")
-            analysis_results = self.analyze_balance(data)
-            if not analysis_results:
+            analysis = self.analyze_balance(data)
+            if not analysis:
                 logger.error("Failed to analyze housing-retail balance")
-                return
-            
-            # Identify development opportunities
-            logger.info("Identifying development opportunities")
-            opportunities = self.identify_opportunities(analysis_results)
-            if not opportunities:
-                logger.error("Failed to identify development opportunities")
-                return
+                return False
             
             # Create visualizations
-            logger.info("Creating housing-retail balance analysis charts...")
-            visualizer = Visualizer()
-            visualizer.create_balance_analysis_charts(data['housing'])
+            self.visualizer.create_balance_analysis_charts(data['merged'])
             
             # Load report template
-            template_path = settings.REPORT_TEMPLATES_DIR / 'housing_retail_balance_report.md'
-            with open(template_path, 'r') as f:
-                template = f.read()
+            template = self.template_env.get_template('housing_retail_balance_report.md')
             
-            # Prepare context
-            context = {
-                'generation_date': datetime.now().strftime('%Y-%m-%d'),
-                'current_analysis': analysis_results.get('housing', {}),
-                'analysis_results': analysis_results,
-                'recommendations': opportunities
-            }
-            
-            # Generate report
-            report = Template(template).render(context)
+            # Generate report content
+            report_content = template.render(
+                date=datetime.now().strftime('%Y-%m-%d'),
+                analysis=analysis,
+                data=data
+            )
             
             # Save report
-            output_path = settings.REPORTS_DIR / 'housing_retail_balance_report.md'
-            with open(output_path, 'w') as f:
-                f.write(report)
+            self.output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.output_path, 'w') as f:
+                f.write(report_content)
             
-            logger.info(f"Generated housing-retail balance report at {output_path}")
+            logger.info(f"Housing-retail balance report generated at {self.output_path}")
+            return True
             
         except Exception as e:
             logger.error(f"Error generating housing-retail balance report: {str(e)}")
-            raise 
+            return False 

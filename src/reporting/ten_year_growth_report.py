@@ -20,8 +20,9 @@ from src.models.population_model import PopulationModel
 from src.models.retail_model import RetailModel
 from src.models.economic_model import EconomicModel
 from src.visualization.visualizer import Visualizer
-from src.utils.helpers import calculate_growth_rate, calculate_confidence_interval
+from src.utils.helpers import calculate_growth_rate, calculate_confidence_interval, resolve_column_name
 from src.config import settings
+from src.config.column_alias_map import column_aliases
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +102,12 @@ class TenYearGrowthReport:
     def load_and_prepare_data(self):
         """Load and prepare data for the report."""
         try:
+            # Load merged dataset
+            df = pd.read_csv(settings.MERGED_DATA_PATH)
+            if 'zip_code' not in df.columns:
+                logger.error("zip_code column missing from merged dataset!")
+                raise ValueError("zip_code column missing from merged dataset!")
+            
             # Load processed datasets
             population_data = pd.read_csv(self.data_dir / "census_processed.csv")
             economic_data = pd.read_csv(self.data_dir / "economic_processed.csv")
@@ -116,11 +123,11 @@ class TenYearGrowthReport:
             self.df = self.df.fillna(0)
             
             logger.info("Data loaded and prepared successfully")
-            return True
+            return self.df
             
         except Exception as e:
             logger.error(f"Error loading data: {str(e)}")
-            return False
+            return None
         
     def analyze_historical_trends(self):
         """Analyze historical trends for the report."""

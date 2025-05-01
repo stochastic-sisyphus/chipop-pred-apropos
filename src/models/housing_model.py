@@ -10,8 +10,12 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, r2_score
 import matplotlib.pyplot as plt
 import joblib
+from sklearn.model_selection import train_test_split
+from typing import Tuple
 
 from src.config import settings
+from src.utils.helpers import sanitize_features, match_features, resolve_column_name, safe_train_model
+from src.config.column_alias_map import column_aliases
 
 logger = logging.getLogger(__name__)
 
@@ -20,26 +24,84 @@ class HousingModel:
     
     def __init__(self):
         """Initialize housing model."""
-        self.results = None
-        self.trends = None
-        self.predictions = None
+        self.model = RandomForestRegressor(
+            n_estimators=100,
+            max_depth=None,
+            min_samples_split=2,
+            min_samples_leaf=1,
+            random_state=42
+        )
+        self.scaler = StandardScaler()
+        self.feature_names = None
         
+    def train(self, df: pd.DataFrame) -> bool:
+        """Train the housing model."""
+        try:
+            logger.info("Training housing model...")
+            
+            # Prepare features
+            X, y = self.prepare_features(df)
+            if X is None or y is None:
+                logger.error("Failed to prepare features for training")
+                return False
+            
+            # Train model
+            success = safe_train_model(self.model, X, y, model_name="HousingModel")
+            if success:
+                logger.info("Model trained successfully.")
+                
+                # Save model and scaler
+                joblib.dump(self.model, settings.TRAINED_MODELS_DIR / 'housing_model.joblib')
+                joblib.dump(self.scaler, settings.TRAINED_MODELS_DIR / 'housing_scaler.joblib')
+                logger.info("Model and scaler saved")
+                
+            return success
+            
+        except Exception as e:
+            logger.error(f"HousingModel training failed: {str(e)}")
+            return False
+            
     def analyze_housing_trends(self, df):
         """Analyze housing trends in the data."""
         try:
             logger.info("Analyzing housing trends...")
             
-            # Calculate housing metrics by year
-            yearly_trends = df.groupby('year').agg({
-                'housing_units': 'sum',
-                'housing_density': 'mean',
-                'housing_value_per_unit': 'mean',
-                'residential_construction_cost': 'sum'
+            # Get column names
+            year_col = resolve_column_name(df, 'year', column_aliases)
+            if not year_col:
+                logger.error("Year column not found")
+                return None
+            
+            # Define metrics to analyze
+            metrics = [
+                'housing_units', 'housing_density', 'housing_value_per_unit',
+                'residential_construction_cost'
+            ]
+            
+            # Resolve metric columns
+            resolved_metrics = {
+                metric: resolve_column_name(df, metric, column_aliases)
+                for metric in metrics
+            }
+            
+            # Filter out unresolved metrics
+            resolved_metrics = {
+                k: v for k, v in resolved_metrics.items() if v is not None
+            }
+            
+            if not resolved_metrics:
+                logger.error("No metric columns found")
+                return None
+            
+            # Calculate yearly trends
+            yearly_trends = df.groupby(year_col).agg({
+                col: 'mean' if 'density' in metric or 'value' in metric else 'sum'
+                for metric, col in resolved_metrics.items()
             }).reset_index()
             
             # Calculate year-over-year changes
             for col in yearly_trends.columns:
-                if col != 'year':
+                if col != year_col:
                     yearly_trends[f'{col}_change'] = yearly_trends[col].pct_change()
             
             self.trends = yearly_trends
@@ -50,19 +112,23 @@ class HousingModel:
             logger.error(f"Error analyzing housing trends: {str(e)}")
             return None
             
-    def predict_housing_demand(self, df, feature_list=None):
-        """Predict housing demand based on demographic and economic factors."""
+    def predict_housing_demand(self, df: pd.DataFrame, feature_list=None) -> pd.DataFrame:
+        """
+        Predict housing demand based on demographic and economic factors.
+        
+        Args:
+            df: Input DataFrame with demographic and economic data
+            feature_list: List of features to use (from pipeline inspector)
+            
+        Returns:
+            DataFrame with housing demand predictions
+        """
         try:
             logger.info("Predicting housing demand...")
+            
             # Use dynamic feature selection if feature_list is provided
-            if feature_list is not None:
-                features = [f for f in feature_list if f in df.columns and df[f].notna().sum() > 0]
-                if not features:
-                    logger.error("No usable features available for housing demand modeling.")
-                    return None
-                logger.info(f"Features used for housing modeling: {features}")
-            else:
-                features = [
+            if feature_list is None:
+                feature_list = [
                     'total_population',
                     'median_household_income',
                     'housing_density',
@@ -70,16 +136,36 @@ class HousingModel:
                     'residential_permits',
                     'residential_construction_cost'
                 ]
-                features = [f for f in features if f in df.columns and df[f].notna().sum() > 0]
-                if not features:
-                    logger.error("No usable default features for housing demand modeling.")
-                    return None
-                logger.info(f"Default features used for housing modeling: {features}")
+            
+            # Match features using aliases
+            feature_cols = match_features(df, feature_list, column_aliases)
+            if not feature_cols:
+                logger.error("No usable features found")
+                return None
+            
+            # Resolve target column
+            target_col = resolve_column_name(df, 'housing_units', column_aliases)
+            if not target_col:
+                logger.error("Target column 'housing_units' not found")
+                return None
+            
             # Prepare features and target
-            X = df[features].copy()
-            y = df['housing_units']  # Use housing_units as target
+            X = df[feature_cols].copy()
+            y = df[target_col]
+            
+            # Coerce all features to numeric and handle inf/-inf
+            X = X.apply(pd.to_numeric, errors='coerce')
+            X.replace([np.inf, -np.inf], np.nan, inplace=True)
+            y = pd.to_numeric(y, errors='coerce')
+            y.replace([np.inf, -np.inf], np.nan, inplace=True)
+            
             # Fill missing values with median (for features)
             X = X.fillna(X.median())
+            
+            # Log missing value counts before dropping
+            logger.info("Missing values per column before drop:\n" + str(X.isnull().sum()))
+            logger.info(f"Missing values in target before drop: {y.isnull().sum()}")
+            
             # Remove rows with any NaN or inf in X or y
             mask = (~X.isin([np.nan, np.inf, -np.inf]).any(axis=1)) & (~y.isin([np.nan, np.inf, -np.inf]))
             dropped = (~mask).sum()
@@ -87,28 +173,39 @@ class HousingModel:
                 logger.warning(f"Dropping {dropped} rows with NaN or inf in features or target.")
             X = X[mask]
             y = y[mask]
+            
             # Clip values to float64 range
             float_max = np.finfo(np.float64).max
             float_min = np.finfo(np.float64).min
             X = X.clip(lower=float_min, upper=float_max)
             y = y.clip(lower=float_min, upper=float_max)
+            
             # Create prediction model
             model = RandomForestRegressor(
                 n_estimators=100,
                 max_depth=10,
                 random_state=42
             )
+            
             # Train model on historical data
             model.fit(X, y)
+            
             # Generate predictions
             df = df.loc[X.index].copy()
             df['predicted_housing_demand'] = model.predict(X)
+            
             # Calculate additional metrics
-            df['demand_gap'] = df['predicted_housing_demand'] - df['housing_units']
-            df['demand_ratio'] = df['predicted_housing_demand'] / df['housing_units']
+            df['demand_gap'] = df['predicted_housing_demand'] - df[target_col]
+            df['demand_ratio'] = df['predicted_housing_demand'] / df[target_col]
+            
+            # Save predictions
+            predictions_file = settings.PREDICTIONS_DIR / 'housing_demand_predictions.csv'
+            df.to_csv(predictions_file, index=False)
+            
             self.predictions = df
             logger.info("Generated housing demand predictions")
             return df
+            
         except Exception as e:
             logger.error(f"Error predicting housing demand: {str(e)}")
             return None
@@ -225,6 +322,91 @@ class HousingModel:
     def get_results(self) -> dict[str, pd.DataFrame]:
         """Get the analysis results."""
         if self.results is None:
-            logger.warning("No results available. Run analysis first.")
-            return pd.DataFrame()
+            logger.warning("No results available. Run analysis first.") 
+            return {}
         return self.results
+
+    def prepare_features(self, df: pd.DataFrame, feature_list=None) -> Tuple[pd.DataFrame, pd.Series]:
+        """Prepare features for housing modeling."""
+        try:
+            logger.info("Preparing housing features...")
+            
+            # Use dynamic feature selection if feature_list is provided
+            if feature_list is not None:
+                features = match_features(df, feature_list, column_aliases)
+            else:
+                # Default features
+                default_features = [
+                    'total_population',
+                    'median_household_income',
+                    'median_home_value',
+                    'labor_force',
+                    'commercial_permits',
+                    'retail_permits',
+                    'commercial_construction_cost',
+                    'retail_construction_cost'
+                ]
+                features = match_features(df, default_features, column_aliases)
+            
+            if not features:
+                logger.error("No usable features available for housing modeling.")
+                return None, None
+                
+            logger.info(f"Features used for housing modeling: {features}")
+            
+            # Store feature names for reuse
+            self.feature_names = features
+            
+            # Resolve target variable
+            target_col = resolve_column_name(df, 'residential_permits', column_aliases)
+            
+            # Create feature matrix and target
+            X = df[features].copy()
+            y = df[target_col] if target_col else None
+            
+            # Log missing value counts before dropping
+            logger.info("Missing values per column before drop:\n" + str(df[features + ([target_col] if target_col else [])].isnull().sum()))
+            
+            # Handle missing values and outliers
+            if y is not None:
+                mask = (~X.isin([np.nan, np.inf, -np.inf]).any(axis=1)) & (~y.isin([np.nan, np.inf, -np.inf]))
+            else:
+                mask = ~X.isin([np.nan, np.inf, -np.inf]).any(axis=1)
+            dropped = (~mask).sum()
+            if dropped > 0:
+                logger.warning(f"Dropping {dropped} rows with NaN or inf in features or target.")
+            X = X[mask]
+            if y is not None:
+                y = y[mask]
+            
+            # Clip values to float64 range
+            float_max = np.finfo(np.float64).max
+            float_min = np.finfo(np.float64).min
+            X = X.clip(lower=float_min, upper=float_max)
+            if y is not None:
+                y = y.clip(lower=float_min, upper=float_max)
+            
+            # Log transform large numeric columns
+            large_value_cols = [
+                'total_construction_cost', 'residential_construction_cost',
+                'commercial_construction_cost', 'retail_construction_cost',
+                'median_household_income', 'median_home_value'
+            ]
+            for col in large_value_cols:
+                resolved_col = resolve_column_name(X, col, column_aliases)
+                if resolved_col in X.columns:
+                    X[resolved_col] = np.log1p(X[resolved_col])
+            
+            # Scale features
+            X = pd.DataFrame(
+                self.scaler.fit_transform(X),
+                columns=X.columns,
+                index=X.index
+            )
+            
+            logger.info("Housing features prepared successfully")
+            return X, y
+            
+        except Exception as e:
+            logger.error(f"Error preparing housing features: {str(e)}")
+            return None, None

@@ -11,6 +11,9 @@ from sodapy import Socrata
 from dotenv import load_dotenv
 from datetime import datetime
 from typing import Dict, Optional, List
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
+import time
 
 from src.config import settings
 
@@ -18,72 +21,64 @@ logger = logging.getLogger(__name__)
 
 class DataCollector:
     """Handles data collection from various sources including FRED, Census, and Chicago Data Portal."""
-    
+
     def __init__(self):
         """Initialize data collector with API clients."""
         self.census = Census(settings.CENSUS_API_KEY)
         self.fred = Fred(api_key=settings.FRED_API_KEY)
         self.socrata = Socrata("data.cityofchicago.org", settings.CHICAGO_DATA_TOKEN)
-        
         self.raw_dir = settings.RAW_DATA_DIR
         self.raw_dir.mkdir(exist_ok=True)
-        
+
+    def _fetch_census_zip_year(self, zip_code, year, variables, max_retries=3):
+        for attempt in range(max_retries):
+            try:
+                if result := self.census.acs5.state_zipcode(
+                    variables, state_fips='17', zcta=zip_code, year=year
+                ):
+                    row = result[0]
+                    row['year'] = year
+                    row['zip_code'] = zip_code
+                    return row
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    time.sleep(1)
+                else:
+                    logger.error(f"Failed for ZIP {zip_code}, year {year}: {e}")
+        return None
+
     def collect_census_data(self):
-        """Collect demographic data from Census API."""
-        try:
-            logger.info("Collecting Census data...")
+        logger.info("Collecting Census data...")
 
-            # Define variables to collect
-            variables = [
-                'B01003_001E',  # Total population
-                'B19013_001E',  # Median household income
-                'B25077_001E',  # Median home value
-                'B23025_002E'   # Labor force
-            ]
+        variables = [
+            'B01003_001E',  # Total population
+            'B19013_001E',  # Median household income
+            'B25077_001E',  # Median home value
+            'B23025_002E'   # Labor force
+        ]
 
-            data = []
-            max_retries = 3
-            retry_delay = 5  # seconds
-            
-            for year in settings.DEFAULT_TRAIN_YEARS:
-                # Get data for each ZIP code in Illinois (state FIPS: 17)
-                for zip_code in settings.CHICAGO_ZIP_CODES:
-                    for attempt in range(max_retries):
-                        try:
-                            if result := self.census.acs5.state_zipcode(
-                                variables,
-                                state_fips='17',  # Illinois
-                                zcta=zip_code,
-                                year=year,
-                            ):
-                                row = result[0]
-                                row['year'] = year
-                                row['zip_code'] = zip_code
-                                data.append(row)
-                                break  # Success, break retry loop
-                        except Exception as e:
-                            if attempt == max_retries - 1:  # Last attempt
-                                logger.error(f"Failed to collect Census data for ZIP {zip_code} year {year} after {max_retries} attempts: {str(e)}")
-                                continue  # Skip this ZIP code
-                            else:
-                                logger.warning(f"Attempt {attempt + 1}/{max_retries} failed for ZIP {zip_code} year {year}. Retrying...")
-                                import time
-                                time.sleep(retry_delay)
+        tasks = [
+            (zip_code, year)
+            for year in settings.DEFAULT_TRAIN_YEARS
+            for zip_code in settings.CHICAGO_ZIP_CODES
+        ]
 
-            if not data:
-                logger.error("No Census data collected after all retries")
-                return None
+        results = []
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {
+                executor.submit(self._fetch_census_zip_year, z, y, variables): (z, y)
+                for z, y in tasks
+            }
+            for future in tqdm(as_completed(futures), total=len(futures), desc="Fetching Census data"):
+                if res := future.result():
+                    results.append(res)
 
-            # Convert to DataFrame
-            df = pd.DataFrame(data)
-
-            return self._save_data_to_csv(
-                'census_data.csv', df, 'Census data'
-            )
-
-        except Exception as e:
-            logger.error(f"Error collecting Census data: {str(e)}")
+        if not results:
+            logger.error("No Census data collected")
             return None
+
+        df = pd.DataFrame(results)
+        return self._save_data_to_csv('census_data.csv', df, 'Census data')
             
     def collect_permit_data(self):
         """Collect building permit data from Chicago Data Portal."""
@@ -273,85 +268,87 @@ class DataCollector:
     def get_zoning_data(self) -> Optional[pd.DataFrame]:
         """Get zoning data from Chicago Data Portal."""
         try:
-            # Query zoning data without property_use column
-            results = self.socrata.get(
-                settings.ZONING_DATASET,
-                select="""
-                    zip_code,
-                    zoning_classification,
-                    COUNT(*) as total_parcels,
-                    AVG(lot_area_sqft) as avg_lot_size
-                """,
-                group="zip_code, zoning_classification",
-                where="zip_code IS NOT NULL",
-                limit=1000000
-            )
+            # Try with postal_code first
+            try:
+                results = self.socrata.get(
+                    settings.ZONING_DATASET,
+                    select="""
+                        postal_code as zip_code,
+                        zoning_classification,
+                        COUNT(*) as total_parcels,
+                        AVG(lot_area_sq_ft) as avg_lot_size
+                    """,
+                    group="postal_code, zoning_classification",
+                    limit=1000000
+                )
+                if results:
+                    logger.info("Successfully retrieved zoning data using postal_code")
+                    return pd.DataFrame.from_records(results)
+            except Exception as e1:
+                logger.warning(f"Failed to get zoning data with postal_code: {str(e1)}")
 
-            if not results:
-                logger.warning("No zoning data returned from API")
-                return None
+            # Try with community_area and map to zip codes later
+            try:
+                results = self.socrata.get(
+                    settings.ZONING_DATASET,
+                    select="""
+                        community_area,
+                        zoning_classification,
+                        COUNT(*) as total_parcels,
+                        AVG(lot_area_sq_ft) as avg_lot_size
+                    """,
+                    group="community_area, zoning_classification",
+                    limit=1000000
+                )
+                if results:
+                    logger.info("Successfully retrieved zoning data using community_area")
+                    df = pd.DataFrame.from_records(results)
+                    # TODO: Map community areas to zip codes using a lookup table
+                    return df
+            except Exception as e2:
+                logger.error(f"Failed to get zoning data with community_area: {str(e2)}")
 
-            # Convert to DataFrame
-            df = pd.DataFrame.from_records(results)
+            logger.error("Failed to retrieve zoning data with any available method")
+            return None
 
-            # Clean numeric columns
-            numeric_cols = ['total_parcels', 'avg_lot_size']
-            for col in numeric_cols:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-
-            return self._extracted_from_get_property_transactions_31(
-                df, "zoning_data.csv", "Saved zoning data"
-            )
         except Exception as e:
             logger.error(f"Error getting zoning data: {str(e)}")
             return None
             
-    def get_property_transactions(self, limit: int = 1000000) -> Optional[pd.DataFrame]:
+    def get_property_transactions(self) -> Optional[pd.DataFrame]:
         """Get property transaction data from Chicago Data Portal."""
         try:
-            # Query property transactions
+            # Verify dataset ID exists
+            if not settings.PROPERTY_TRANSACTIONS_DATASET:
+                logger.warning("Property transactions dataset ID not configured")
+                return None
+                
             results = self.socrata.get(
                 settings.PROPERTY_TRANSACTIONS_DATASET,
                 select="""
                     zip_code,
-                    property_type,
                     sale_price,
-                    sale_date,
+                    property_type,
                     year_built,
-                    building_sqft,
-                    land_sqft
+                    total_value
                 """,
-                where="zip_code IS NOT NULL AND sale_price > 0",
-                limit=limit
+                limit=1000000
             )
-
+            
             if not results:
-                logger.warning("No property transaction data returned from API")
+                logger.warning("No property transaction data returned")
                 return None
-
-            # Convert to DataFrame
+                
             df = pd.DataFrame.from_records(results)
-
-            # Clean numeric columns
-            numeric_cols = ['sale_price', 'year_built', 'building_sqft', 'land_sqft']
-            for col in numeric_cols:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-
-            # Convert dates
-            df['sale_date'] = pd.to_datetime(df['sale_date'])
-
-            return self._extracted_from_get_property_transactions_31(
-                df, "property_transactions.csv", "Saved property transaction data"
-            )
+            
+            # Save raw data
+            df.to_csv(settings.PROPERTY_DATA_PATH, index=False)
+            logger.info(f"Property transaction data saved to {settings.PROPERTY_DATA_PATH}")
+            return df
+            
         except Exception as e:
             logger.error(f"Error getting property transaction data: {str(e)}")
             return None
-
-    # TODO Rename this here and in `get_zoning_data` and `get_property_transactions`
-    def _extracted_from_get_property_transactions_31(self, df, arg1, arg2):
-        df.to_csv(settings.DATA_RAW_DIR / arg1, index=False)
-        logger.info(arg2)
-        return df
 
     def get_business_licenses(self, limit: int = 1000000) -> Optional[pd.DataFrame]:
         """

@@ -17,6 +17,8 @@ import geopandas as gpd
 
 from src.config import settings
 from .zoning import ZoningProcessor
+from src.utils.helpers import resolve_column_name, ensure_directory
+from src.config.column_alias_map import column_aliases, validate_column_value
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -27,6 +29,8 @@ class DataProcessor:
     def __init__(self):
         """Initialize the data processor."""
         self.zoning_processor = ZoningProcessor()
+        self.processed_data_dir = settings.PROCESSED_DATA_DIR
+        self.processed_data_dir.mkdir(parents=True, exist_ok=True)
         
     def process_population_data(self) -> bool:
         """Process population data.
@@ -55,21 +59,26 @@ class DataProcessor:
             return False
     
     def process_economic_data(self) -> bool:
-        """Process economic data.
-        
-        Returns:
-            bool: True if successful, False otherwise
-        """
+        """Process economic data and add employment if possible."""
         try:
             df = pd.read_csv(settings.ECONOMIC_DATA_PATH)
+            print('ECONOMIC DATA COLUMNS:', df.columns.tolist())  # Debug print
             
             # Clean and process economic data
             df.columns = df.columns.str.lower().str.replace(' ', '_')
-            df = df.groupby(['zip_code', 'year']).agg({
-                'gdp': 'sum',
-                'employment': 'sum',
-                'retail_sales': 'sum'
-            }).reset_index()
+            
+            # Economic indicators are city-wide, so we'll replicate them for each ZIP code
+            chicago_zips = settings.CHICAGO_ZIP_CODES
+            years = df['year'].unique()
+            
+            # Create a cross product of ZIP codes and years
+            zip_years = pd.DataFrame([(zip_code, year) 
+                                    for zip_code in chicago_zips 
+                                    for year in years],
+                                   columns=['zip_code', 'year'])
+            
+            # Merge with economic data
+            df = zip_years.merge(df, on='year', how='left')
             
             # Save processed data
             df.to_csv(settings.ECONOMIC_PROCESSED_PATH, index=False)
@@ -80,311 +89,493 @@ class DataProcessor:
             logger.error(f"Error processing economic data: {str(e)}")
             return False
     
-    def process_permit_data(self) -> bool:
-        """Process building permit data.
-        
-        Returns:
-            bool: True if successful, False otherwise
-        """
+    def process_permits_data(self) -> bool:
+        """Process building permit data."""
         try:
-            df = pd.read_csv(settings.PERMIT_DATA_PATH)
+            # Load permit data
+            df = pd.read_csv(settings.PERMITS_RAW_PATH, low_memory=False)
+            logger.info(f"Loaded {len(df)} raw permit records")
+
+            # Standardize column names - handle multiple possible names
+            cost_columns = ['total_cost', 'estimated_cost', 'reported_cost', 'construction_cost']
+            if cost_col := next(
+                (col for col in cost_columns if col in df.columns), None
+            ):
+                # Standardize the column name
+                df = df.rename(columns={cost_col: 'total_cost'})
+                # Clean cost values
+                df['total_cost'] = pd.to_numeric(df['total_cost'].astype(str).str.replace(r'[\$,]', '', regex=True), errors='coerce')
+            else:
+                # If no cost column found, create one with zeros
+                df['total_cost'] = 0
+                logger.warning("No cost column found in permits data, using zeros")
+
+            # Handle permit ID
+            id_columns = ['permit_id', 'id', 'permit_number', 'application_number']
+            if id_col := next(
+                (col for col in id_columns if col in df.columns), None
+            ):
+                df = df.rename(columns={id_col: 'permit_id'})
+            else:
+                df['permit_id'] = df.index
+                logger.warning("No permit ID column found, using index")
+
+            # Ensure required columns exist
+            required_columns = {
+                'permit_id': df.index,
+                'total_cost': 0,
+                'issue_date': pd.Timestamp.now(),
+                'permit_type': 'UNKNOWN',
+                'zip_code': '00000'
+            }
+
+            for col, default in required_columns.items():
+                if col not in df.columns:
+                    df[col] = default
+                    logger.warning(f"Added missing column {col} with default value")
+
+            # Convert issue_date to datetime and extract year
+            df['issue_date'] = pd.to_datetime(df['issue_date'], errors='coerce')
+            df['year'] = df['issue_date'].dt.year
+
+            # Add permit type classification
+            df['permit_type'] = 'Other'
             
-            # Clean and process permit data
-            df.columns = df.columns.str.lower().str.replace(' ', '_')
-            df = df.groupby(['zip_code', 'year']).agg({
-                'permit_count': 'sum',
-                'construction_value': 'sum',
-                'square_footage': 'sum'
-            }).reset_index()
+            # Classify permits based on work description
+            retail_keywords = ['retail', 'store', 'shop', 'restaurant', 'commercial', 'business', 'mall', 'market', 'sales']
+            residential_keywords = ['residential', 'house', 'apartment', 'condo', 'dwelling', 'home', 'townhouse', 'multi-family', 'single-family']
+            commercial_keywords = ['office', 'industrial', 'warehouse', 'factory', 'manufacturing', 'corporate', 'wholesale', 'distribution']
             
+            # Convert work description to lowercase for case-insensitive matching
+            work_desc = df['work_description'].str.lower()
+            
+            # Classify permits
+            df.loc[work_desc.str.contains('|'.join(retail_keywords), na=False), 'permit_type'] = 'Retail'
+            df.loc[work_desc.str.contains('|'.join(residential_keywords), na=False), 'permit_type'] = 'Residential'
+            df.loc[work_desc.str.contains('|'.join(commercial_keywords), na=False), 'permit_type'] = 'Commercial'
+
+            # Log permit type distribution
+            type_counts = df['permit_type'].value_counts()
+            logger.info("Permit type distribution:")
+            for permit_type, count in type_counts.items():
+                logger.info(f"- {permit_type}: {count:,} permits")
+
+            # Aggregate permits by type and year
+            logger.info("Aggregating permits by type and year...")
+            
+            # Create aggregation dictionary
+            agg_dict = {
+                'permit_id': 'count',  # Count of permits
+                'total_cost': 'sum'    # Sum of costs
+            }
+            
+            # Group by ZIP code, year, and permit type
+            grouped = df.groupby(['zip_code', 'year', 'permit_type']).agg(agg_dict)
+            
+            # Unstack permit types to get separate columns
+            permit_counts = grouped['permit_id'].unstack(fill_value=0)
+            construction_costs = grouped['total_cost'].unstack(fill_value=0)
+            
+            # Ensure all permit type columns exist
+            for col in ['Residential', 'Commercial', 'Retail']:
+                if col not in permit_counts.columns:
+                    permit_counts[col] = 0
+                if col not in construction_costs.columns:
+                    construction_costs[col] = 0
+            
+            # Rename columns
+            permit_counts = permit_counts.rename(columns={
+                'Residential': 'residential_permits',
+                'Commercial': 'commercial_permits',
+                'Retail': 'retail_permits'
+            })
+            
+            construction_costs = construction_costs.rename(columns={
+                'Residential': 'residential_construction_cost',
+                'Commercial': 'commercial_construction_cost',
+                'Retail': 'retail_construction_cost'
+            })
+            
+            # Reset index
+            permit_counts = permit_counts.reset_index()
+            construction_costs = construction_costs.reset_index()
+            
+            # Merge permit counts and construction costs
+            processed_df = pd.merge(
+                permit_counts,
+                construction_costs,
+                on=['zip_code', 'year'],
+                how='outer'
+            )
+            
+            # Fill any missing values
+            processed_df = processed_df.fillna(0)
+            
+            # Calculate totals
+            processed_df['total_permits'] = processed_df[['residential_permits', 'commercial_permits', 'retail_permits']].sum(axis=1)
+            processed_df['total_construction_cost'] = processed_df[['residential_construction_cost', 'commercial_construction_cost', 'retail_construction_cost']].sum(axis=1)
+
+            # Log summary statistics
+            logger.info(f"Processed {len(df)} permits:")
+            logger.info(f"- Residential: {processed_df['residential_permits'].sum():,} permits")
+            logger.info(f"- Commercial: {processed_df['commercial_permits'].sum():,} permits")
+            logger.info(f"- Retail: {processed_df['retail_permits'].sum():,} permits")
+            logger.info(f"Total construction cost: ${processed_df['total_construction_cost'].sum():,.2f}")
+
             # Save processed data
-            df.to_csv(settings.PERMIT_PROCESSED_PATH, index=False)
-            logger.info("Successfully processed permit data")
-            return True
+            processed_df.to_csv(settings.PERMITS_PROCESSED_PATH, index=False)
+            logger.info(f"Processed permit data saved to {str(settings.PERMITS_PROCESSED_PATH)}")
             
+            # Log columns for debugging
+            logger.info(f"Processed permits columns: {processed_df.columns.tolist()}")
+            
+            return True
+
         except Exception as e:
             logger.error(f"Error processing permit data: {str(e)}")
             return False
     
+    def _process_core_sources(self) -> Dict[str, bool]:
+        """Process core data sources."""
+        return {
+            'census': self.process_census_data(),
+            'permits': self.process_permits_data(),
+            'business_licenses': self.process_business_licenses()
+        }
+
+    def _process_optional_sources(self) -> Dict[str, bool]:
+        """Process optional data sources."""
+        results = {'property': False, 'zoning': False}
+        if os.path.exists(settings.PROPERTY_DATA_PATH):
+            results['property'] = self.process_property_data()
+        else:
+            logger.warning("Property data file not found - skipping")
+
+        if os.path.exists(settings.ZONING_DATA_PATH):
+            results['zoning'] = self.process_zoning_data()
+        else:
+            logger.warning("Zoning data file not found - skipping")
+        return results
+
+    def _merge_processed_files(self, results: Dict[str, bool]) -> Optional[pd.DataFrame]:
+        """Merge all processed data files into a single dataset."""
+        try:
+            logger.info("Merging processed datasets...")
+            processed_files = {}
+            
+            # Load all successfully processed files
+            for name, success in results.items():
+                if not success:
+                    continue
+                    
+                path = self.processed_data_dir / f"{name}_processed.csv"
+                if not path.exists():
+                    logger.warning(f"Processed file not found: {path}")
+                    continue
+                
+                # Load file and log columns    
+                processed_files[name] = pd.read_csv(path, low_memory=False)
+                logger.info(f"{name} columns: {processed_files[name].columns.tolist()}")
+
+            # Start with census data as base
+            if 'census' not in processed_files:
+                logger.error("Census data missing - required for base dataset")
+                return None
+                
+            logger.info(f"Base census columns: {processed_files['census'].columns.tolist()}")
+            merged_df = processed_files['census'].copy()
+
+            # Merge permits data if available
+            if 'permits' in processed_files:
+                logger.info("Merging permits on ['zip_code', 'year']")
+                logger.info(f"Pre-merge columns: {merged_df.columns.tolist()}")
+                try:
+                    merged_df = pd.merge(
+                        merged_df,
+                        processed_files['permits'],
+                        on=['zip_code', 'year'],
+                        how='left'
+                    )
+                except Exception as e:
+                    logger.error(f"Error merging permits: {str(e)}")
+                    # Add missing permit columns with zeros
+                    permit_cols = [
+                        'residential_permits', 'commercial_permits', 'retail_permits',
+                        'residential_construction_cost', 'commercial_construction_cost',
+                        'retail_construction_cost', 'total_permits', 'total_construction_cost'
+                    ]
+                    for col in permit_cols:
+                        if col not in merged_df.columns:
+                            merged_df[col] = 0
+                            logger.info(f"Added missing column {col} with zeros")
+
+            # Merge business license data if available
+            if 'business_licenses' in processed_files:
+                logger.info("Merging business_licenses on ['zip_code', 'year']")
+                logger.info(f"Pre-merge columns: {merged_df.columns.tolist()}")
+                try:
+                    merged_df = pd.merge(
+                        merged_df,
+                        processed_files['business_licenses'],
+                        on=['zip_code', 'year'],
+                        how='left'
+                    )
+                except Exception as e:
+                    logger.error(f"Error merging business_licenses: {str(e)}")
+
+            # Merge economic data if available - note this is city-wide data
+            if 'economic' in processed_files:
+                logger.info("Merging economic data on ['year'] only - applying city-wide values")
+                try:
+                    economic_df = processed_files['economic'].copy()
+                    # Ensure year is properly formatted
+                    economic_df['year'] = pd.to_numeric(economic_df['year'], errors='coerce')
+                    merged_df['year'] = pd.to_numeric(merged_df['year'], errors='coerce')
+                    
+                    # Merge economic data on year only
+                    merged_df = pd.merge(
+                        merged_df,
+                        economic_df,
+                        on='year',
+                        how='left'
+                    )
+                    logger.info(f"Economic columns added: {economic_df.columns.tolist()}")
+                except Exception as e:
+                    logger.error(f"Error merging economic data: {str(e)}")
+                    # Add missing economic columns with NaN
+                    economic_cols = ['gdp', 'unemployment_rate', 'per_capita_income', 'personal_income']
+                    for col in economic_cols:
+                        if col not in merged_df.columns:
+                            merged_df[col] = np.nan
+                            logger.info(f"Added missing column {col} with NaN")
+
+            # Check for missing permit columns
+            permit_cols = ['residential_permits', 'commercial_permits', 'retail_permits']
+            missing_permit_cols = [col for col in permit_cols if col not in merged_df.columns]
+            if missing_permit_cols:
+                logger.warning(f"Missing permit columns: {missing_permit_cols}")
+                for col in missing_permit_cols:
+                    logger.info(f"Added missing column {col} with zeros")
+                    merged_df[col] = 0
+
+            # Calculate total_permits if not present
+            if 'total_permits' not in merged_df.columns:
+                logger.info("Calculating total_permits from individual permit types")
+                merged_df['total_permits'] = merged_df[permit_cols].sum(axis=1)
+
+            # Save merged dataset
+            merged_df.to_csv(settings.MERGED_DATA_PATH, index=False)
+            logger.info(f"Merged dataset saved to {str(settings.MERGED_DATA_PATH)}")
+            logger.info(f"Final merged columns: {merged_df.columns.tolist()}")
+            
+            return merged_df
+
+        except Exception as e:
+            logger.error(f"Error in merge process: {str(e)}")
+            return None
+
     def process_all(self) -> bool:
-        """
-        Process all data sources and merge results.
-        
-        Returns:
-            bool: True if all processing steps were successful, False otherwise.
-        """
+        """Run all processing steps, including retail deficit."""
         try:
             logger.info("Starting data processing pipeline...")
             
-            # Process each data source
-            census_success = self.process_census_data()
-            permits_success = self.process_permits_data()
-            business_success = self.process_business_licenses()
-            property_success = self.process_property_data()
-            zoning_success = self.process_zoning_data()
-            
-            # Log processing results
-            results = {
-                'Census Data': census_success,
-                'Permits Data': permits_success,
-                'Business Licenses': business_success,
-                'Property Data': property_success,
-                'Zoning Data': zoning_success
-            }
-            
-            for source, success in results.items():
-                status = "successful" if success else "failed"
-                logger.info(f"{source} processing {status}")
-            
-            # Check if all processing steps were successful
-            all_successful = all(results.values())
-            
-            if all_successful:
-                logger.info("All data processing steps completed successfully")
-                
-                # Load processed datasets
-                processed_files = {
-                    'census': pd.read_csv(settings.CENSUS_PROCESSED_PATH),
-                    'permits': pd.read_csv(settings.PERMITS_PROCESSED_PATH),
-                    'business': pd.read_csv(settings.BUSINESS_LICENSES_PROCESSED_PATH),
-                    'property': pd.read_csv(settings.PROPERTY_PROCESSED_PATH),
-                    'zoning': pd.read_csv(settings.ZONING_PROCESSED_PATH)
-                }
-                
-                # Merge all datasets on zip_code and year where applicable
-                merged_data = processed_files['census']
-                
-                for name, df in processed_files.items():
-                    if name != 'census':
-                        if 'year' in df.columns:
-                            merged_data = pd.merge(
-                                merged_data,
-                                df,
-                                on=['zip_code', 'year'],
-                                how='outer'
-                            )
-                        else:
-                            merged_data = pd.merge(
-                                merged_data,
-                                df,
-                                on='zip_code',
-                                how='outer'
-                            )
-                
-                # Sort by ZIP code and year
-                merged_data = merged_data.sort_values(['zip_code', 'year'])
-                
-                # Save merged dataset
-                merged_data.to_csv(settings.MERGED_DATA_PATH, index=False)
-                logger.info(f"Merged dataset saved to {settings.MERGED_DATA_PATH}")
-                
-                return True
-            else:
-                failed_steps = [source for source, success in results.items() if not success]
-                logger.error(f"Data processing pipeline failed. Failed steps: {', '.join(failed_steps)}")
+            # Process core data sources
+            core_results = self._process_core_sources()
+            if not all(core_results.values()):
+                failed = [k for k, v in core_results.items() if not v]
+                logger.error(f"Core processing failed for: {', '.join(failed)}")
                 return False
             
+            # Process optional sources
+            optional_results = self._process_optional_sources()
+            
+            # Process economic data
+            economic_success = self.process_economic_data()
+            if not economic_success:
+                logger.warning("Economic data processing failed - some features may be missing")
+            
+            # Merge processed files
+            merged_data = self._merge_processed_files({**core_results, **optional_results})
+            if merged_data is None:
+                logger.error("Failed to merge processed files")
+                return False
+                
+            # Process retail deficit
+            retail_deficit_success = self.process_retail_deficit()
+            if not retail_deficit_success:
+                logger.warning("Retail deficit processing failed - some analyses may be incomplete")
+            
+            logger.info("Data processing pipeline completed successfully")
+            return True
+            
         except Exception as e:
-            logger.error(f"Error in data processing pipeline: {str(e)}")
+            logger.error(f"Pipeline failed with error: {str(e)}")
             return False
     
     def process_census_data(self) -> bool:
-        """Process census population data."""
+        """Process census data."""
         try:
-            # Load census data with specified dtypes
-            dtypes = {
-                'zip_code': str,
-                'year': int,
-                'total_population': float,
-                'median_age': float,
-                'median_income': float
+            # Load and validate raw census data
+            df = pd.read_csv(settings.CENSUS_RAW_PATH, low_memory=False)
+            
+            # Define ACS column mapping
+            ACS_COLUMN_MAP = {
+                'B01003_001E': 'total_population',
+                'B19013_001E': 'median_household_income',
+                'B25077_001E': 'median_home_value',
+                'B23025_002E': 'labor_force'
             }
             
-            df = pd.read_csv(
-                settings.CENSUS_DATA_PATH,
-                dtype=dtypes,
-                low_memory=False
-            )
+            # Diagnostic check for raw columns
+            print("\n🔍 Raw census data columns:", df.columns.tolist())
             
-            # Clean column names
-            df.columns = df.columns.str.lower().str.replace(' ', '_')
+            # Apply column mapping
+            df = df.rename(columns=ACS_COLUMN_MAP)
+            logger.info(f"Census columns after renaming: {df.columns.tolist()}")
             
-            # Handle missing values
-            df = df.fillna({
-                'total_population': df['total_population'].mean(),
-                'median_age': df['median_age'].mean(),
-                'median_income': df['median_income'].mean()
-            })
+            # Validate total_population exists after mapping
+            if 'total_population' in df.columns:
+                missing_pct = df['total_population'].isna().mean() * 100
+                print(f"✅ total_population present after mapping, {missing_pct:.2f}% missing")
+            else:
+                print("❌ total_population still missing after mapping")
+                logger.error("total_population column missing after mapping")
+                return False
+
+            # Continue with normal processing
+            required_cols = [
+                'total_population',
+                'median_household_income',
+                'median_home_value',
+                'labor_force',
+                'zip_code',
+                'year'
+            ]
+            
+            for col in required_cols:
+                if col not in df.columns:
+                    logger.error(f"Required column {col} missing from census data")
+                    return False
+
+            # Process and clean data
+            df = df[required_cols].copy()
+            df['zip_code'] = df['zip_code'].astype(str).str.zfill(5)
+            
+            # Ensure year is numeric and within valid range
+            df['year'] = pd.to_numeric(df['year'], errors='coerce')
+            valid_years = df['year'].between(2010, 2030)
+            if not valid_years.all():
+                logger.warning(f"Found {(~valid_years).sum()} records with invalid years")
+                df = df[valid_years]
+            
+            # Convert numeric columns
+            numeric_cols = ['total_population', 'median_household_income', 'median_home_value', 'labor_force']
+            for col in numeric_cols:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+            
+            # Fill missing values with median by ZIP code
+            for col in numeric_cols:
+                df[col] = df.groupby('zip_code')[col].transform(lambda x: x.fillna(x.median()))
             
             # Save processed data
             df.to_csv(settings.CENSUS_PROCESSED_PATH, index=False)
-            logger.info(f"Census data processed and saved to {settings.CENSUS_PROCESSED_PATH}")
+            logger.info("Successfully processed census data")
             return True
             
         except Exception as e:
             logger.error(f"Error processing census data: {str(e)}")
             return False
     
-    def process_permits_data(self) -> bool:
-        """Process building permits data."""
-        try:
-            # Load permits data
-            df = pd.read_csv(settings.PERMITS_DATA_PATH, low_memory=False)
-            
-            # Clean column names
-            df.columns = df.columns.str.lower().str.replace(' ', '_')
-            
-            # Convert date columns
-            date_cols = ['issue_date', 'completion_date']
-            for col in date_cols:
-                if col in df.columns:
-                    df[col] = pd.to_datetime(df[col])
-                    df[f'{col}_year'] = df[col].dt.year
-            
-            # Group by ZIP code and year
-            agg_dict = {
-                'permit_number': 'count',
-                'estimated_cost': 'sum',
-                'reported_cost': 'sum'
-            }
-            
-            df_grouped = df.groupby(['zip_code', 'issue_date_year']).agg(agg_dict).reset_index()
-            
-            # Rename columns
-            df_grouped = df_grouped.rename(columns={
-                'permit_number': 'total_permits',
-                'estimated_cost': 'total_estimated_cost',
-                'reported_cost': 'total_reported_cost',
-                'issue_date_year': 'year'
-            })
-            
-            # Save processed data
-            df_grouped.to_csv(settings.PERMITS_PROCESSED_PATH, index=False)
-            logger.info(f"Permits data processed and saved to {settings.PERMITS_PROCESSED_PATH}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error processing permits data: {str(e)}")
-            return False
-    
     def process_retail_deficit(self) -> bool:
-        """Process retail deficit data.
-        
-        Returns:
-            bool: True if successful, False otherwise
-        """
+        """Process retail deficit data and save results."""
         try:
-            # Load retail sales and demographic data
-            retail_df = pd.read_csv(settings.RETAIL_SALES_PATH)
-            demo_df = pd.read_csv(settings.DEMOGRAPHIC_DATA_PATH)
-            
-            # Clean column names
-            retail_df.columns = retail_df.columns.str.lower().str.replace(' ', '_')
-            demo_df.columns = demo_df.columns.str.lower().str.replace(' ', '_')
-            
-            # Calculate retail potential based on demographics
-            demo_df['retail_potential'] = (
-                demo_df['population'] * 
-                demo_df['median_income'] * 
-                settings.RETAIL_SPENDING_FACTOR
-            )
-            
-            # Merge retail sales with potential
-            merged_df = pd.merge(
-                retail_df,
-                demo_df[['zip_code', 'year', 'retail_potential']],
-                on=['zip_code', 'year'],
-                how='left'
-            )
-            
+            # Load required data
+            try:
+                retail_metrics = pd.read_csv(settings.RETAIL_DEFICIT_PATH)
+                logger.info("Loaded retail metrics for deficit calculation")
+            except FileNotFoundError:
+                logger.warning("Retail metrics not found, generating from scratch")
+                retail_metrics = self.generate_retail_metrics()
+                if retail_metrics is None:
+                    logger.error("Failed to generate retail metrics")
+                    return False
+
             # Calculate retail deficit
-            merged_df['retail_deficit'] = (
-                merged_df['retail_potential'] - 
-                merged_df['retail_sales']
+            retail_metrics['retail_deficit'] = retail_metrics['expected_retail_demand'] - retail_metrics['actual_retail_supply']
+            retail_metrics['deficit_ratio'] = retail_metrics['retail_deficit'] / retail_metrics['expected_retail_demand']
+
+            # Categorize areas
+            retail_metrics['deficit_category'] = pd.cut(
+                retail_metrics['deficit_ratio'],
+                bins=[-np.inf, -0.2, -0.05, 0.05, 0.2, np.inf],
+                labels=['High Surplus', 'Moderate Surplus', 'Balanced', 'Moderate Deficit', 'High Deficit']
             )
-            
-            # Calculate additional metrics
-            merged_df['retail_deficit_per_capita'] = (
-                merged_df['retail_deficit'] / 
-                merged_df['population']
-            )
-            
-            merged_df['retail_capture_rate'] = (
-                (merged_df['retail_sales'] / 
-                merged_df['retail_potential'] * 100)
-                .round(2)
-            )
-            
-            # Identify retail leakage areas
-            merged_df['is_leakage_area'] = merged_df['retail_deficit'] > 0
-            
+
             # Save processed data
-            merged_df.to_csv(settings.RETAIL_DEFICIT_PROCESSED_PATH, index=False)
-            logger.info("Successfully processed retail deficit data")
-            
-            # Generate summary of retail leakage areas
-            leakage_summary = merged_df[merged_df['is_leakage_area']].groupby('zip_code').agg({
-                'retail_deficit': 'mean',
-                'retail_deficit_per_capita': 'mean',
-                'retail_capture_rate': 'mean'
-            }).round(2)
-            
-            leakage_summary.to_csv(settings.RETAIL_LEAKAGE_SUMMARY_PATH, index=True)
-            logger.info("Generated retail leakage areas summary")
-            
+            retail_metrics.to_csv(settings.RETAIL_DEFICIT_PATH, index=False)
+            logger.info(f"Saved retail deficit data to {settings.RETAIL_DEFICIT_PATH}")
+
+            # Save analysis results
+            self._save_retail_analysis_results(retail_metrics)
+
             return True
-            
-        except FileNotFoundError as e:
-            logger.error(f"Required file not found: {str(e)}")
-            return False
+
         except Exception as e:
-            logger.error(f"Error processing retail deficit data: {str(e)}")
+            logger.error(f"Error processing retail deficit: {str(e)}")
             return False
-    
-    def process_business_licenses(self) -> bool:
-        """Process business license data."""
+
+    def _save_retail_analysis_results(self, df: pd.DataFrame) -> None:
+        """Save retail analysis results to separate files."""
         try:
-            # Load business license data
-            df = pd.read_csv(settings.BUSINESS_LICENSES_PATH, low_memory=False)
-            
-            # Clean column names
-            df.columns = df.columns.str.lower().str.replace(' ', '_')
-            
-            # Convert date columns
-            date_cols = ['date_issued', 'expiration_date']
-            for col in date_cols:
-                if col in df.columns:
-                    df[col] = pd.to_datetime(df[col])
-                    df[f'{col}_year'] = df[col].dt.year
-            
-            # Calculate license duration
-            df['license_duration'] = (df['expiration_date'] - df['date_issued']).dt.days / 365.25
-            
-            # Flag retail and restaurant licenses
-            df['is_retail'] = df['license_description'].str.contains('retail', case=False, na=False)
-            df['is_restaurant'] = df['license_description'].str.contains('restaurant|food', case=False, na=False)
-            
-            # Group by ZIP code and year
-            df_grouped = df.groupby(['zip_code', 'date_issued_year']).agg({
+            # Create analysis results directory if it doesn't exist
+            analysis_dir = settings.OUTPUT_DIR / 'analysis_results'
+            analysis_dir.mkdir(parents=True, exist_ok=True)
+
+            # Save deficit areas
+            df[df['deficit_ratio'] > 0.05].to_csv(
+                analysis_dir / 'retail_deficit_areas.csv',
+                index=False
+            )
+
+            # Save surplus areas
+            df[df['deficit_ratio'] < -0.05].to_csv(
+                analysis_dir / 'retail_surplus_areas.csv',
+                index=False
+            )
+
+            # Save retail leakage analysis
+            df[['zip_code', 'retail_deficit', 'deficit_ratio', 'deficit_category']].to_csv(
+                analysis_dir / 'retail_leakage.csv',
+                index=False
+            )
+
+            logger.info("Saved retail analysis results to separate files")
+
+        except Exception as e:
+            logger.error(f"Error saving retail analysis results: {str(e)}")
+
+    def process_business_licenses(self) -> bool:
+        """Process business license data and add active_licenses as total_licenses."""
+        try:
+            df = pd.read_csv(settings.BUSINESS_LICENSES_PATH)
+            date_columns = ['license_start_date', 'expiration_date', 'application_created_date']
+            for col in date_columns:
+                df[col] = pd.to_datetime(df[col], errors='coerce')
+            df['year'] = df['license_start_date'].dt.year
+            processed_df = df.groupby(['zip_code', 'year']).agg({
                 'license_id': 'count',
-                'license_duration': 'mean',
-                'is_retail': 'sum',
-                'is_restaurant': 'sum'
+                'account_number': 'nunique'
             }).reset_index()
-            
-            # Rename columns
-            df_grouped = df_grouped.rename(columns={
+            processed_df = processed_df.rename(columns={
                 'license_id': 'total_licenses',
-                'date_issued_year': 'year',
-                'is_retail': 'retail_licenses',
-                'is_restaurant': 'restaurant_licenses'
+                'account_number': 'unique_businesses'
             })
-            
-            # Save processed data
-            df_grouped.to_csv(settings.BUSINESS_LICENSES_PROCESSED_PATH, index=False)
-            logger.info(f"Business licenses processed and saved to {settings.BUSINESS_LICENSES_PROCESSED_PATH}")
+            # If you want to count only currently active licenses, add logic here.
+            # For now, active_licenses is set to total_licenses (all licenses in that year).
+            processed_df['active_licenses'] = processed_df['total_licenses']
+            processed_df.to_csv(settings.BUSINESS_LICENSES_PROCESSED_PATH, index=False)
+            logger.info("Successfully processed business license data")
             return True
-            
         except Exception as e:
             logger.error(f"Error processing business licenses: {str(e)}")
             return False
@@ -525,93 +716,100 @@ class DataProcessor:
     def generate_retail_metrics(self) -> Optional[pd.DataFrame]:
         """Generate retail metrics from processed data."""
         try:
-            logger.info("Generating retail metrics...")
-
-            # Load required datasets
-            permits = pd.read_csv(self.processed_dir / 'permits_processed.csv')
-            census = pd.read_csv(self.processed_dir / 'census_processed.csv')
-            economic = pd.read_csv(self.processed_dir / 'economic_processed.csv')
-
-            # Create retail metrics DataFrame
-            retail_metrics = permits[['year', 'zip_code', 'retail_permits', 
-                                   'retail_construction_cost', 'retail_permit_ratio',
-                                   'retail_cost_ratio']].copy()
-
-            # Merge with census data for demographic context
-            retail_metrics = retail_metrics.merge(
-                census[['year', 'zip_code', 'total_population', 'median_household_income']],
-                on=['year', 'zip_code'],
-                how='left'
-            )
-
-            # Calculate retail metrics
-            retail_metrics['retail_space'] = retail_metrics['retail_permits'] * 2000  # Assume 2000 sq ft per permit
-            retail_metrics['retail_space_per_capita'] = retail_metrics['retail_space'] / retail_metrics['total_population']
-            retail_metrics['retail_spending_potential'] = retail_metrics['total_population'] * retail_metrics['median_household_income'] * 0.3
-            retail_metrics['retail_gap'] = retail_metrics['retail_spending_potential'] - retail_metrics['retail_construction_cost']
-            retail_metrics['retail_opportunity_score'] = (
-                (retail_metrics['retail_gap'] > 0).astype(int) * 
-                (retail_metrics['median_household_income'] > retail_metrics['median_household_income'].median()).astype(int) *
-                (retail_metrics['total_population'] > retail_metrics['total_population'].median()).astype(int)
-            )
-
-            # Calculate year-over-year changes
-            for col in ['retail_space', 'retail_space_per_capita', 'retail_spending_potential', 'retail_gap']:
-                retail_metrics[f'{col}_change'] = retail_metrics.groupby('zip_code')[col].pct_change(fill_method=None)
-
-            # Fill NaN values
-            retail_metrics = retail_metrics.fillna(0)
-
-            return self._extracted_from_generate_retail_metrics_30(
-                'retail_metrics.csv', retail_metrics, 'Retail metrics saved to '
-            )
+            df = pd.read_csv(settings.MERGED_DATA_PATH, low_memory=False)
+            logger.info(f"Loaded merged dataset with {len(df)} rows")
+            
+            # Verify required columns exist
+            required_cols = [
+                'residential_permits', 'commercial_permits', 'retail_permits',
+                'residential_construction_cost', 'commercial_construction_cost', 'retail_construction_cost'
+            ]
+            
+            missing_cols = [col for col in required_cols if col not in df.columns]
+            if missing_cols:
+                logger.error(f"Required columns missing from merged dataset: {missing_cols}")
+                return None
+            
+            # Calculate total permits and costs
+            permit_cols = ['residential_permits', 'commercial_permits', 'retail_permits']
+            cost_cols = ['residential_construction_cost', 'commercial_construction_cost', 'retail_construction_cost']
+            
+            # Calculate total_permits if not present
+            if 'total_permits' not in df.columns:
+                logger.info("Calculating total_permits from individual permit types")
+                df['total_permits'] = df[permit_cols].sum(axis=1)
+            
+            # Calculate total_construction_cost if not present
+            if 'total_construction_cost' not in df.columns:
+                logger.info("Calculating total_construction_cost from individual costs")
+                df['total_construction_cost'] = df[cost_cols].sum(axis=1)
+            
+            # Calculate permit ratios safely
+            for col in permit_cols:
+                ratio_col = f"{col.replace('permits', 'permit')}_ratio"
+                df[ratio_col] = np.where(
+                    df['total_permits'] > 0,
+                    df[col] / df['total_permits'],
+                    0
+                )
+                
+            # Calculate cost ratios safely
+            for col in cost_cols:
+                ratio_col = f"{col.replace('construction_cost', 'cost')}_ratio"
+                df[ratio_col] = np.where(
+                    df['total_construction_cost'] > 0,
+                    df[col] / df['total_construction_cost'],
+                    0
+                )
+            
+            # Log summary statistics
+            logger.info("Generated retail metrics:")
+            logger.info(f"- Total permits: {df['total_permits'].sum():,}")
+            logger.info(f"- Total construction cost: ${df['total_construction_cost'].sum():,.2f}")
+            logger.info("Permit distribution:")
+            for col in permit_cols:
+                total = df[col].sum()
+                pct = (total / df['total_permits'].sum() * 100) if df['total_permits'].sum() > 0 else 0
+                logger.info(f"- {col}: {total:,} ({pct:.1f}%)")
+            
+            # Save retail metrics
+            df.to_csv(settings.RETAIL_METRICS_PATH, index=False)
+            logger.info(f"Saved retail metrics to {settings.RETAIL_METRICS_PATH}")
+            
+            return df
+            
         except Exception as e:
             logger.error(f"Error generating retail metrics: {str(e)}")
             return None
-
-    def _extracted_from_generate_retail_metrics_30(self, arg0, arg1, arg2):
-        output_file = self.processed_dir / arg0
-        arg1.to_csv(output_file, index=False)
-        logger.info(f"{arg2}{output_file}")
-        return arg1
 
     def process_property_data(self) -> bool:
         """Process property transaction data."""
         try:
             # Load property data
-            df = pd.read_csv(settings.PROPERTY_DATA_PATH, low_memory=False)
+            df = pd.read_csv(settings.PROPERTY_DATA_PATH)
             
-            # Clean column names
-            df.columns = df.columns.str.lower().str.replace(' ', '_')
+            # Convert date column
+            df['sale_date'] = pd.to_datetime(df['sale_date'])
+            df['year'] = df['sale_date'].dt.year
             
             # Convert numeric columns
-            numeric_cols = ['sale_price', 'square_feet', 'year_built']
+            numeric_cols = ['sale_price', 'property_sq_ft', 'year_built']
             for col in numeric_cols:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors='coerce')
+                df[col] = pd.to_numeric(df[col], errors='coerce')
             
-            # Convert date columns
-            if 'sale_date' in df.columns:
-                df['sale_date'] = pd.to_datetime(df['sale_date'])
-                df['sale_year'] = df['sale_date'].dt.year
-            
-            # Calculate property age
-            current_year = datetime.now().year
-            df['property_age'] = current_year - df['year_built']
-            
-            # Group by ZIP code and year
-            df_grouped = df.groupby(['zip_code', 'sale_year']).agg({
+            # Calculate metrics by ZIP code and year
+            processed_df = df.groupby(['zip_code', 'year']).agg({
                 'sale_price': ['mean', 'median', 'count'],
-                'square_feet': 'mean',
-                'property_age': 'mean'
+                'property_sq_ft': 'mean',
+                'property_type': lambda x: x.value_counts().index[0]  # Most common property type
             }).reset_index()
             
             # Flatten column names
-            df_grouped.columns = [f"{col[0]}_{col[1]}" if col[1] else col[0] for col in df_grouped.columns]
+            processed_df.columns = ['_'.join(col).strip('_') for col in processed_df.columns.values]
             
             # Save processed data
-            df_grouped.to_csv(settings.PROPERTY_PROCESSED_PATH, index=False)
-            logger.info(f"Property data processed and saved to {settings.PROPERTY_PROCESSED_PATH}")
+            processed_df.to_csv(settings.PROPERTY_PROCESSED_PATH, index=False)
+            logger.info("Successfully processed property data")
             return True
             
         except Exception as e:
@@ -622,39 +820,22 @@ class DataProcessor:
         """Process zoning data."""
         try:
             # Load zoning data
-            df = pd.read_csv(settings.ZONING_DATA_PATH, low_memory=False)
-            
-            # Clean column names
-            df.columns = df.columns.str.lower().str.replace(' ', '_')
+            df = pd.read_csv(settings.ZONING_DATA_PATH)
             
             # Convert numeric columns
-            numeric_cols = ['lot_area', 'floor_area_ratio']
-            for col in numeric_cols:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors='coerce')
+            df['total_parcels'] = pd.to_numeric(df['total_parcels'], errors='coerce')
+            df['avg_lot_size'] = pd.to_numeric(df['avg_lot_size'], errors='coerce')
             
-            # Group by ZIP code and zoning type
-            df_grouped = df.groupby(['zip_code', 'zoning_type']).agg({
-                'lot_area': 'sum',
-                'floor_area_ratio': 'mean',
-                'parcel_count': 'count'
-            }).reset_index()
+            # Calculate zoning distribution
+            total_parcels = df.groupby('zip_code')['total_parcels'].transform('sum')
+            df['zoning_percentage'] = (df['total_parcels'] / total_parcels) * 100
             
-            # Calculate area percentages
-            total_area = df_grouped.groupby('zip_code')['lot_area'].transform('sum')
-            df_grouped['area_percentage'] = (df_grouped['lot_area'] / total_area) * 100
+            # Calculate density metrics
+            df['density_score'] = df['total_parcels'] / df['avg_lot_size']
             
             # Save processed data
-            df_grouped.to_csv(settings.ZONING_PROCESSED_PATH, index=False)
-            logger.info(f"Zoning data processed and saved to {settings.ZONING_PROCESSED_PATH}")
-            
-            # Merge with property data if available
-            if os.path.exists(settings.PROPERTY_PROCESSED_PATH):
-                property_df = pd.read_csv(settings.PROPERTY_PROCESSED_PATH)
-                merged_df = pd.merge(df_grouped, property_df, on='zip_code', how='outer')
-                merged_df.to_csv(settings.ZONING_PROPERTY_MERGED_PATH, index=False)
-                logger.info(f"Merged zoning and property data saved to {settings.ZONING_PROPERTY_MERGED_PATH}")
-            
+            df.to_csv(settings.ZONING_PROCESSED_PATH, index=False)
+            logger.info("Successfully processed zoning data")
             return True
             
         except Exception as e:

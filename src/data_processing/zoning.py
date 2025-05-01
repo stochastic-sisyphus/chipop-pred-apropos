@@ -1,221 +1,236 @@
-import logging
-import pandas as pd
-from pathlib import Path
-from typing import Dict, Optional, Tuple
-import numpy as np
+"""
+Zoning data processing module.
+"""
 
-from ..config import settings
+import pandas as pd
+import numpy as np
+from pathlib import Path
+import logging
+from typing import Dict, List, Optional, Union
+
+from src.config import settings
+from src.utils.helpers import resolve_column_name
+from src.config.column_alias_map import column_aliases
 
 logger = logging.getLogger(__name__)
 
 class ZoningProcessor:
-    """Processes zoning and property data for Chicago neighborhoods."""
+    """Handles zoning data processing and analysis."""
     
     def __init__(self):
-        """Initialize the ZoningProcessor."""
-        self.zoning_data: Optional[pd.DataFrame] = None
-        self.property_data: Optional[pd.DataFrame] = None
-        self.merged_data: Optional[pd.DataFrame] = None
+        """Initialize the zoning processor."""
+        self.processed_data_dir = settings.PROCESSED_DATA_DIR
+        self.processed_data_dir.mkdir(parents=True, exist_ok=True)
+        self.zoning_data = None
+        self.property_data = None
         
-    def load_data(self) -> Tuple[bool, bool]:
-        """Load zoning and property data from files.
-        
-        Returns:
-            Tuple[bool, bool]: Status of (zoning_loaded, property_loaded)
-        """
-        zoning_loaded = False
-        property_loaded = False
-        
+    def process_zoning_data(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Process zoning data."""
         try:
-            self.zoning_data = pd.read_csv(settings.ZONING_DATA_PATH)
-            logger.info(f"Loaded zoning data from {settings.ZONING_DATA_PATH}")
-            zoning_loaded = True
-        except FileNotFoundError:
-            logger.error(f"Zoning data file not found at {settings.ZONING_DATA_PATH}")
-        except Exception as e:
-            logger.error(f"Error loading zoning data: {str(e)}")
+            # Resolve column names
+            zip_col = resolve_column_name(df, 'zip_code', column_aliases)
             
-        try:
-            self.property_data = pd.read_csv(settings.PROPERTY_DATA_PATH)
-            logger.info(f"Loaded property data from {settings.PROPERTY_DATA_PATH}")
-            property_loaded = True
-        except FileNotFoundError:
-            logger.error(f"Property data file not found at {settings.PROPERTY_DATA_PATH}")
-        except Exception as e:
-            logger.error(f"Error loading property data: {str(e)}")
+            if not zip_col:
+                logger.error("ZIP code column not found in zoning data")
+                return pd.DataFrame()
             
-        return zoning_loaded, property_loaded
-    
-    def clean_zoning_data(self) -> bool:
-        """Clean and preprocess zoning data.
-        
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        if self.zoning_data is None:
-            logger.error("No zoning data loaded to clean")
-            return False
+            # Clean ZIP codes
+            df[zip_col] = df[zip_col].astype(str).str.extract(r'(\d{5})').fillna('00000')
             
-        try:
-            # Clean column names
-            self.zoning_data.columns = self.zoning_data.columns.str.lower().str.replace(' ', '_')
+            # Calculate zoning metrics
+            metrics = df.groupby(zip_col).agg({
+                'zoning_area': 'sum',
+                'residential_area': 'sum',
+                'commercial_area': 'sum',
+                'retail_area': 'sum'
+            }).reset_index()
             
-            # Remove duplicates
-            self.zoning_data = self.zoning_data.drop_duplicates()
+            # Calculate percentages
+            for col in ['residential_area', 'commercial_area', 'retail_area']:
+                metrics[f'{col}_pct'] = metrics[col] / metrics['zoning_area'] * 100
             
-            # Aggregate metrics by zip code
-            agg_dict = {
-                'zone_type': lambda x: x.mode().iloc[0] if not x.empty else None,
-                'lot_area': 'sum',
-                'floor_area_ratio': 'mean',
-                'height_limit': 'mean'
-            }
+            # Save processed data
+            output_path = self.processed_data_dir / 'zoning_processed.csv'
+            metrics.to_csv(output_path, index=False)
+            logger.info("Successfully processed zoning data")
             
-            self.zoning_data = self.zoning_data.groupby('zip_code').agg(agg_dict).reset_index()
-            
-            logger.info("Successfully cleaned zoning data")
-            return True
+            return metrics
             
         except Exception as e:
-            logger.error(f"Error cleaning zoning data: {str(e)}")
-            return False
-    
-    def clean_property_data(self) -> bool:
-        """Clean and preprocess property data.
-        
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        if self.property_data is None:
-            logger.error("No property data loaded to clean")
-            return False
+            logger.error(f"Error processing zoning data: {str(e)}")
+            return pd.DataFrame()
             
+    def process_property_data(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Process property data."""
         try:
-            # Clean column names
-            self.property_data.columns = self.property_data.columns.str.lower().str.replace(' ', '_')
+            # Resolve column names
+            zip_col = resolve_column_name(df, 'zip_code', column_aliases)
             
-            # Remove duplicates
-            self.property_data = self.property_data.drop_duplicates()
+            if not zip_col:
+                logger.error("ZIP code column not found in property data")
+                return pd.DataFrame()
             
-            # Aggregate metrics by zip code
-            agg_dict = {
+            # Clean ZIP codes
+            df[zip_col] = df[zip_col].astype(str).str.extract(r'(\d{5})').fillna('00000')
+            
+            # Calculate property metrics
+            metrics = df.groupby(zip_col).agg({
+                'property_area': 'sum',
                 'building_area': 'sum',
-                'land_value': 'mean',
-                'improvement_value': 'mean',
+                'assessed_value': 'mean',
+                'market_value': 'mean',
                 'year_built': 'mean'
-            }
-            
-            self.property_data = self.property_data.groupby('zip_code').agg(agg_dict).reset_index()
-            
-            logger.info("Successfully cleaned property data")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error cleaning property data: {str(e)}")
-            return False
-    
-    def merge_data(self) -> bool:
-        """Merge zoning and property data and calculate derived metrics.
-        
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        if self.zoning_data is None or self.property_data is None:
-            logger.error("Missing data for merge operation")
-            return False
-            
-        try:
-            # Merge on zip code
-            self.merged_data = pd.merge(
-                self.zoning_data,
-                self.property_data,
-                on='zip_code',
-                how='outer'
-            )
+            }).reset_index()
             
             # Calculate derived metrics
-            self.merged_data['building_density'] = (
-                self.merged_data['building_area'] / self.merged_data['lot_area']
-            )
+            metrics['building_density'] = metrics['building_area'] / metrics['property_area']
+            metrics['value_per_sqft'] = metrics['market_value'] / metrics['building_area']
             
-            self.merged_data['zoning_utilization'] = (
-                self.merged_data['building_density'] / self.merged_data['floor_area_ratio']
-            )
+            # Save processed data
+            output_path = self.processed_data_dir / 'property_processed.csv'
+            metrics.to_csv(output_path, index=False)
+            logger.info("Successfully processed property data")
             
-            # Fill missing values with appropriate defaults
-            self.merged_data = self.merged_data.fillna({
-                'building_density': 0,
-                'zoning_utilization': 0
-            })
-            
-            logger.info("Successfully merged zoning and property data")
-            return True
+            return metrics
             
         except Exception as e:
-            logger.error(f"Error merging data: {str(e)}")
-            return False
-    
-    def save_processed_data(self) -> bool:
-        """Save processed data to files.
-        
-        Returns:
-            bool: True if successful, False otherwise
-        """
+            logger.error(f"Error processing property data: {str(e)}")
+            return pd.DataFrame()
+            
+    def analyze_zoning_patterns(self, df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
+        """Analyze zoning patterns and trends."""
         try:
-            # Create output directory if it doesn't exist
-            settings.DATA_PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+            # Resolve column names
+            zip_col = resolve_column_name(df, 'zip_code', column_aliases)
             
-            # Save individual datasets
-            if self.zoning_data is not None:
-                self.zoning_data.to_csv(settings.ZONING_PROCESSED_PATH, index=False)
-                logger.info(f"Saved processed zoning data to {settings.ZONING_PROCESSED_PATH}")
-                
-            if self.property_data is not None:
-                self.property_data.to_csv(settings.PROPERTY_PROCESSED_PATH, index=False)
-                logger.info(f"Saved processed property data to {settings.PROPERTY_PROCESSED_PATH}")
-                
-            if self.merged_data is not None:
-                self.merged_data.to_csv(settings.ZONING_PROPERTY_MERGED_PATH, index=False)
-                logger.info(f"Saved merged data to {settings.ZONING_PROPERTY_MERGED_PATH}")
-                
+            if not zip_col:
+                logger.error("ZIP code column not found for zoning analysis")
+                return {}
+            
+            # Calculate zoning mix
+            zoning_mix = df.groupby(zip_col).agg({
+                'residential_area_pct': 'mean',
+                'commercial_area_pct': 'mean',
+                'retail_area_pct': 'mean'
+            }).reset_index()
+            
+            # Identify predominant use
+            for col in ['residential', 'commercial', 'retail']:
+                pct_col = f'{col}_area_pct'
+                zoning_mix[f'{col}_dominant'] = zoning_mix[pct_col] > 50
+            
+            # Identify mixed-use areas
+            zoning_mix['mixed_use'] = ~(
+                zoning_mix['residential_dominant'] |
+                zoning_mix['commercial_dominant'] |
+                zoning_mix['retail_dominant']
+            )
+            
+            # Calculate development potential
+            development_potential = df.groupby(zip_col).agg({
+                'zoning_area': 'sum',
+                'building_area': 'sum'
+            }).reset_index()
+            
+            development_potential['development_capacity'] = (
+                development_potential['zoning_area'] -
+                development_potential['building_area']
+            )
+            
+            return {
+                'zoning_mix': zoning_mix,
+                'development_potential': development_potential
+            }
+            
+        except Exception as e:
+            logger.error(f"Error analyzing zoning patterns: {str(e)}")
+            return {}
+            
+    def analyze_property_values(self, df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
+        """Analyze property values and trends."""
+        try:
+            # Resolve column names
+            zip_col = resolve_column_name(df, 'zip_code', column_aliases)
+            
+            if not zip_col:
+                logger.error("ZIP code column not found for property analysis")
+                return {}
+            
+            # Calculate value metrics
+            value_metrics = df.groupby(zip_col).agg({
+                'market_value': ['mean', 'median', 'std'],
+                'value_per_sqft': ['mean', 'median', 'std']
+            }).reset_index()
+            
+            # Flatten column names
+            value_metrics.columns = [
+                f"{col[0]}_{col[1]}" if col[1] else col[0]
+                for col in value_metrics.columns
+            ]
+            
+            # Calculate value tiers
+            value_metrics['value_tier'] = pd.qcut(
+                value_metrics['market_value_mean'],
+                q=5,
+                labels=['Very Low', 'Low', 'Moderate', 'High', 'Very High']
+            )
+            
+            # Calculate value density
+            value_density = df.groupby(zip_col).agg({
+                'market_value': 'sum',
+                'property_area': 'sum'
+            }).reset_index()
+            
+            value_density['value_density'] = (
+                value_density['market_value'] /
+                value_density['property_area']
+            )
+            
+            return {
+                'value_metrics': value_metrics,
+                'value_density': value_density
+            }
+            
+        except Exception as e:
+            logger.error(f"Error analyzing property values: {str(e)}")
+            return {}
+            
+    def process_all(self) -> bool:
+        """Run the complete zoning and property analysis pipeline."""
+        try:
+            logger.info("Starting zoning and property analysis...")
+            
+            # Process zoning data if available
+            if settings.ZONING_RAW_PATH.exists():
+                zoning_data = pd.read_csv(settings.ZONING_RAW_PATH)
+                self.zoning_data = self.process_zoning_data(zoning_data)
+                if not self.zoning_data.empty:
+                    zoning_analysis = self.analyze_zoning_patterns(self.zoning_data)
+                    
+                    # Save analysis results
+                    for name, df in zoning_analysis.items():
+                        output_path = self.processed_data_dir / f'zoning_{name}.csv'
+                        df.to_csv(output_path, index=False)
+            else:
+                logger.warning("Zoning data file not found - skipping")
+            
+            # Process property data if available
+            if settings.PROPERTY_RAW_PATH.exists():
+                property_data = pd.read_csv(settings.PROPERTY_RAW_PATH)
+                self.property_data = self.process_property_data(property_data)
+                if not self.property_data.empty:
+                    property_analysis = self.analyze_property_values(self.property_data)
+                    
+                    # Save analysis results
+                    for name, df in property_analysis.items():
+                        output_path = self.processed_data_dir / f'property_{name}.csv'
+                        df.to_csv(output_path, index=False)
+            else:
+                logger.warning("Property data file not found - skipping")
+            
+            logger.info("Zoning and property analysis completed")
             return True
             
         except Exception as e:
-            logger.error(f"Error saving processed data: {str(e)}")
-            return False
-    
-    def process_all(self) -> Dict[str, bool]:
-        """Run the complete zoning and property data processing pipeline.
-        
-        Returns:
-            Dict[str, bool]: Status of each processing step
-        """
-        results = {}
-        
-        # Load data
-        zoning_loaded, property_loaded = self.load_data()
-        results['load_zoning'] = zoning_loaded
-        results['load_property'] = property_loaded
-        
-        # Clean data if loaded successfully
-        if zoning_loaded:
-            results['clean_zoning'] = self.clean_zoning_data()
-        if property_loaded:
-            results['clean_property'] = self.clean_property_data()
-            
-        # Merge data if both datasets are available
-        if zoning_loaded and property_loaded:
-            results['merge'] = self.merge_data()
-            
-        # Save processed data
-        results['save'] = self.save_processed_data()
-        
-        # Log overall status
-        success = all(results.values())
-        if success:
-            logger.info("Zoning processor completed all steps successfully")
-        else:
-            failed = [k for k, v in results.items() if not v]
-            logger.error(f"Failed steps in zoning processor: {', '.join(failed)}")
-        
-        return results 
+            logger.error(f"Error in zoning and property analysis: {str(e)}")
+            return False 

@@ -16,6 +16,8 @@ from plotly.subplots import make_subplots
 from src.config import settings
 import geopandas as gpd
 from typing import Dict, List, Optional, Tuple
+from src.utils.helpers import resolve_column_name
+from src.config.column_alias_map import column_aliases
 
 logger = logging.getLogger(__name__)
 
@@ -35,60 +37,27 @@ class Visualizer:
         self.business_data = None
         
     def load_data(self) -> bool:
-        """Load all required datasets."""
+        """Load all required datasets for visualization."""
         try:
-            # Load population data
+            self.population_data = pd.read_csv(settings.CENSUS_PROCESSED_PATH)
+            self.permit_data = pd.read_csv(settings.PERMITS_PROCESSED_PATH)
+            self.economic_data = pd.read_csv(settings.ECONOMIC_PROCESSED_PATH)
+            self.scenario_data = pd.read_csv(settings.PREDICTIONS_DIR / 'scenario_predictions.csv')
+            self.business_data = pd.read_csv(settings.BUSINESS_LICENSES_PROCESSED_PATH)
+            # Try to load retail deficit processed, fallback to analysis_results
             try:
-                self.population_data = pd.read_csv(self.data_dir / "census_processed.csv")
-                logger.info("Population data loaded successfully")
-            except Exception as e:
-                logger.error(f"Error loading population data: {str(e)}")
-                self.population_data = None
-            
-            # Load retail deficit data
-            try:
-                self.retail_deficit_data = pd.read_csv(self.data_dir / "retail_deficit_processed.csv")
-                logger.info("Retail deficit data loaded successfully")
-            except Exception as e:
-                logger.warning(f"Error loading retail deficit data: {str(e)}")
-                self.retail_deficit_data = None
-            
-            # Load permit data
-            try:
-                self.permit_data = pd.read_csv(self.data_dir / "permits_processed.csv")
-                logger.info("Permit data loaded successfully")
-            except Exception as e:
-                logger.error(f"Error loading permit data: {str(e)}")
-                self.permit_data = None
-            
-            # Load economic data
-            try:
-                self.economic_data = pd.read_csv(self.data_dir / "economic_processed.csv")
-                logger.info("Economic data loaded successfully")
-            except Exception as e:
-                logger.error(f"Error loading economic data: {str(e)}")
-                self.economic_data = None
-            
-            # Load scenario data
-            try:
-                self.scenario_data = pd.read_csv(settings.PREDICTIONS_DIR / "scenario_predictions.csv")
-                logger.info("Scenario data loaded successfully")
-            except Exception as e:
-                logger.warning(f"Error loading scenario data: {str(e)}")
-                self.scenario_data = None
-            
-            # Load business license data
-            try:
-                self.business_data = pd.read_csv(self.data_dir / "business_licenses_processed.csv")
-                logger.info("Business license data loaded successfully")
-            except Exception as e:
-                logger.warning(f"Error loading business license data: {str(e)}")
-                self.business_data = None
-            
+                self.retail_deficit_data = pd.read_csv(settings.PROCESSED_DATA_DIR / 'retail_deficit_processed.csv')
+            except FileNotFoundError:
+                try:
+                    self.retail_deficit_data = pd.read_csv(settings.ANALYSIS_RESULTS_DIR / 'retail_deficit_areas.csv')
+                    logger.warning("Loaded retail deficit data from analysis_results as fallback.")
+                except FileNotFoundError:
+                    self.retail_deficit_data = None
+                    logger.warning("Retail deficit data not found in processed or analysis_results.")
+            logger.info("All data loaded successfully")
             return True
-            
         except Exception as e:
-            logger.error(f"Error in load_data: {str(e)}")
+            logger.error(f"Error loading data: {str(e)}")
             return False
     
     def create_population_trend_chart(self, output_path: Optional[Path] = None) -> bool:
@@ -97,7 +66,7 @@ class Visualizer:
             if self.population_data is None:
                 logger.warning("Population data not available for trend chart")
                 return False
-            
+
             # Create population trend chart
             fig = px.line(
                 self.population_data,
@@ -106,7 +75,7 @@ class Visualizer:
                 color='zip_code',
                 title='Population Trends by ZIP Code'
             )
-            
+
             # Update layout
             fig.update_layout(
                 xaxis_title="Year",
@@ -114,15 +83,13 @@ class Visualizer:
                 showlegend=True,
                 template='plotly_white'
             )
-            
-            # Save chart
-            output_path = output_path or settings.VIZ_DIR / "population_trends.html"
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            fig.write_html(str(output_path))
-            
-            logger.info(f"Population trend chart saved to {output_path}")
-            return True
-            
+
+            return self._extracted_from_create_business_activity_chart_26(
+                output_path,
+                "population_trends.html",
+                fig,
+                'Population trend chart saved to ',
+            )
         except Exception as e:
             logger.error(f"Error creating population trend chart: {str(e)}")
             return False
@@ -133,7 +100,7 @@ class Visualizer:
             if self.retail_deficit_data is None:
                 logger.warning("Retail deficit data not available for map")
                 return False
-            
+
             # Create retail deficit map
             fig = px.choropleth(
                 self.retail_deficit_data,
@@ -145,60 +112,88 @@ class Visualizer:
                 title='Retail Deficit by ZIP Code',
                 hover_data=['zip_code', 'retail_deficit', 'total_population']
             )
-            
+
             # Update layout
             fig.update_layout(
                 mapbox_style="carto-positron",
                 margin={"r":0,"t":30,"l":0,"b":0},
                 coloraxis_colorbar_title="Retail Deficit ($)"
             )
-            
-            # Save map
-            output_path = output_path or settings.VIZ_DIR / "retail_deficit_map.html"
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            fig.write_html(str(output_path))
-            
-            logger.info(f"Retail deficit map saved to {output_path}")
-            return True
-            
+
+            return self._extracted_from_create_business_activity_chart_26(
+                output_path,
+                "retail_deficit_map.html",
+                fig,
+                'Retail deficit map saved to ',
+            )
         except Exception as e:
             logger.error(f"Error creating retail deficit map: {str(e)}")
             return False
     
-    def create_permit_analysis_charts(self, output_path: Optional[Path] = None) -> bool:
-        """Create permit analysis charts."""
+    def create_permit_analysis_charts(self) -> bool:
+        """Create permit analysis visualizations."""
         try:
             if self.permit_data is None:
-                logger.warning("Permit data not available for analysis charts")
+                logger.warning("Permit data not available for analysis")
+                return False
+
+            # Resolve column names
+            year_col = resolve_column_name(self.permit_data, 'year', column_aliases)
+            zip_col = resolve_column_name(self.permit_data, 'zip_code', column_aliases)
+            permits_col = resolve_column_name(self.permit_data, 'total_permits', column_aliases)
+            res_permits_col = resolve_column_name(self.permit_data, 'residential_permits', column_aliases)
+            comm_permits_col = resolve_column_name(self.permit_data, 'commercial_permits', column_aliases)
+            retail_permits_col = resolve_column_name(self.permit_data, 'retail_permits', column_aliases)
+            
+            if not all([year_col, zip_col, permits_col, res_permits_col, comm_permits_col, retail_permits_col]):
+                logger.error("Required columns not found for permit visualization")
                 return False
             
-            # Create permit trend chart
-            fig1 = px.line(
-                self.permit_data,
-                x='year',
-                y='total_permits',
-                color='zip_code',
-                title='Building Permits by ZIP Code'
+            # Create permits by year chart
+            yearly_permits = self.permit_data.groupby(year_col).agg({
+                res_permits_col: 'sum',
+                comm_permits_col: 'sum',
+                retail_permits_col: 'sum'
+            }).reset_index()
+            
+            fig = go.Figure()
+            for ptype in [res_permits_col, comm_permits_col, retail_permits_col]:
+                fig.add_trace(go.Scatter(
+                    x=yearly_permits[year_col],
+                    y=yearly_permits[ptype],
+                    name=ptype.replace('_permits', '').title(),
+                    mode='lines+markers'
+                ))
+            
+            fig.update_layout(
+                title='Building Permits by Year and Type',
+                xaxis_title='Year',
+                yaxis_title='Number of Permits',
+                template='plotly_white'
             )
             
-            # Create permit type distribution chart
-            permit_types = self.permit_data.groupby('permit_type')['total_permits'].sum()
-            fig2 = px.pie(
-                values=permit_types.values,
-                names=permit_types.index,
-                title='Distribution of Permit Types'
+            fig.write_html(str(settings.VISUALIZATIONS_DIR / 'permits_by_year.html'))
+            
+            # Create permits by ZIP code chart
+            zip_permits = self.permit_data.groupby(zip_col).agg({
+                permits_col: 'sum'
+            }).reset_index()
+            
+            fig = px.choropleth(
+                zip_permits,
+                geojson=settings.ZIP_GEOJSON_PATH,
+                locations=zip_col,
+                color=permits_col,
+                color_continuous_scale='Viridis',
+                title='Total Permits by ZIP Code'
             )
             
-            # Save charts
-            output_path = output_path or settings.VIZ_DIR
-            output_path.mkdir(parents=True, exist_ok=True)
+            fig.update_geos(fitbounds='locations', visible=False)
+            fig.write_html(str(settings.VISUALIZATIONS_DIR / 'permits_by_zip.html'))
             
-            fig1.write_html(str(output_path / "permit_trends.html"))
-            fig2.write_html(str(output_path / "permit_distribution.html"))
-            
-            logger.info(f"Permit analysis charts saved to {output_path}")
+            logger.info("Created permit analysis visualizations")
             return True
-            
+
         except Exception as e:
             logger.error(f"Error creating permit analysis charts: {str(e)}")
             return False
@@ -209,26 +204,25 @@ class Visualizer:
             if self.economic_data is None:
                 logger.warning("Economic data not available for indicators chart")
                 return False
-            
-            # Create economic indicators chart
             fig = go.Figure()
-            
             # Add GDP trend
-            fig.add_trace(go.Scatter(
-                x=self.economic_data['year'],
-                y=self.economic_data['gdp'],
-                name='GDP',
-                mode='lines+markers'
-            ))
-            
-            # Add employment trend
-            fig.add_trace(go.Scatter(
-                x=self.economic_data['year'],
-                y=self.economic_data['employment'],
-                name='Employment',
-                mode='lines+markers'
-            ))
-            
+            if 'gdp' in self.economic_data.columns:
+                fig.add_trace(go.Scatter(
+                    x=self.economic_data['year'],
+                    y=self.economic_data['gdp'],
+                    name='GDP',
+                    mode='lines+markers'
+                ))
+            # Add employment trend if available
+            if 'employment' in self.economic_data.columns:
+                fig.add_trace(go.Scatter(
+                    x=self.economic_data['year'],
+                    y=self.economic_data['employment'],
+                    name='Employment',
+                    mode='lines+markers'
+                ))
+            else:
+                logger.warning(f"Employment column not found in economic data. Columns: {self.economic_data.columns.tolist()}")
             # Update layout
             fig.update_layout(
                 title='Economic Indicators Over Time',
@@ -236,52 +230,61 @@ class Visualizer:
                 yaxis_title="Value",
                 template='plotly_white'
             )
-            
-            # Save chart
-            output_path = output_path or settings.VIZ_DIR / "economic_indicators.html"
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            fig.write_html(str(output_path))
-            
-            logger.info(f"Economic indicators chart saved to {output_path}")
-            return True
-            
+            return self._extracted_from_create_business_activity_chart_26(
+                output_path,
+                "economic_indicators.html",
+                fig,
+                'Economic indicators chart saved to ',
+            )
         except Exception as e:
             logger.error(f"Error creating economic indicators chart: {str(e)}")
             return False
     
     def create_scenario_impact_chart(self, output_path: Optional[Path] = None) -> bool:
-        """Create scenario impact chart."""
         try:
             if self.scenario_data is None:
                 logger.warning("Scenario data not available for impact chart")
                 return False
-            
-            # Create scenario impact chart
+            # Assert year column
+            if 'year' not in self.scenario_data.columns:
+                if self.scenario_data.index.name != 'year':
+                    logger.warning("'year' column not found in scenario data; using index as fallback.")
+                self.scenario_data['year'] = self.scenario_data.index
+            # Assert zip_code column
+            assert 'zip_code' in self.scenario_data.columns, "zip_code missing from scenario data!"
+            y_col = next(
+                (
+                    col
+                    for col in ['population', 'predicted_population']
+                    if col in self.scenario_data.columns
+                ),
+                None,
+            )
+            if not y_col:
+                # Fallback: pick first numeric column after 'year' and 'scenario'
+                numeric_cols = [c for c in self.scenario_data.columns if c not in ['year', 'scenario'] and self.scenario_data[c].dtype.kind in 'fi']
+                y_col = numeric_cols[0] if numeric_cols else self.scenario_data.columns[1]
             fig = px.line(
                 self.scenario_data,
                 x='year',
-                y='population',
-                color='scenario',
+                y=y_col,
+                color='scenario' if 'scenario' in self.scenario_data.columns else None,
                 title='Population Scenarios',
-                line_dash='scenario'
+                line_dash='scenario' if 'scenario' in self.scenario_data.columns else None
             )
-            
             # Update layout
             fig.update_layout(
                 xaxis_title="Year",
-                yaxis_title="Population",
+                yaxis_title=y_col.replace('_', ' ').title(),
                 showlegend=True,
                 template='plotly_white'
             )
-            
             # Save chart
             output_path = output_path or settings.VIZ_DIR / "scenario_impact.html"
             output_path.parent.mkdir(parents=True, exist_ok=True)
             fig.write_html(str(output_path))
-            
-            logger.info(f"Scenario impact chart saved to {output_path}")
+            logger.info("Scenario impact chart created successfully")
             return True
-            
         except Exception as e:
             logger.error(f"Error creating scenario impact chart: {str(e)}")
             return False
@@ -292,19 +295,18 @@ class Visualizer:
             if self.business_data is None:
                 logger.warning("Business license data not available for activity chart")
                 return False
-            
-            # Create business activity chart
             fig = go.Figure()
-            
-            # Add active licenses trend
-            fig.add_trace(go.Scatter(
-                x=self.business_data['year'],
-                y=self.business_data['active_licenses'],
-                name='Active Licenses',
-                mode='lines+markers'
-            ))
-            
-            # Add retail licenses trend
+            # Add active licenses trend (fallback to total_licenses if needed)
+            y_col = 'active_licenses' if 'active_licenses' in self.business_data.columns else (
+                'total_licenses' if 'total_licenses' in self.business_data.columns else None)
+            if y_col:
+                fig.add_trace(go.Scatter(
+                    x=self.business_data['year'],
+                    y=self.business_data[y_col],
+                    name='Active Licenses',
+                    mode='lines+markers'
+                ))
+            # Add retail licenses trend if available
             if 'retail_licenses' in self.business_data.columns:
                 fig.add_trace(go.Scatter(
                     x=self.business_data['year'],
@@ -312,26 +314,29 @@ class Visualizer:
                     name='Retail Licenses',
                     mode='lines+markers'
                 ))
-            
-            # Update layout
             fig.update_layout(
                 title='Business License Activity Over Time',
                 xaxis_title="Year",
                 yaxis_title="Number of Licenses",
                 template='plotly_white'
             )
-            
-            # Save chart
-            output_path = output_path or settings.VIZ_DIR / "business_activity.html"
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            fig.write_html(str(output_path))
-            
-            logger.info(f"Business activity chart saved to {output_path}")
-            return True
-            
+            return self._extracted_from_create_business_activity_chart_26(
+                output_path,
+                "business_activity.html",
+                fig,
+                'Business activity chart saved to ',
+            )
         except Exception as e:
             logger.error(f"Error creating business activity chart: {str(e)}")
             return False
+
+    # TODO Rename this here and in `create_population_trend_chart`, `create_retail_deficit_map`, `create_economic_indicators_chart` and `create_business_activity_chart`
+    def _extracted_from_create_business_activity_chart_26(self, output_path, arg1, fig, arg3):
+        output_path = output_path or settings.VIZ_DIR / arg1
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.write_html(str(output_path))
+        logger.info(f"{arg3}{output_path}")
+        return True
     
     def create_dashboard(self, output_path: Optional[Path] = None) -> bool:
         """Create HTML dashboard with all visualizations."""
@@ -406,14 +411,11 @@ class Visualizer:
                 data.plot()
             else:
                 plt.plot(data)
-            plt.title(title)
-            plt.xlabel(x_label)
-            plt.ylabel(y_label)
+            self._extracted_from_create_balance_analysis_charts_19(title, x_label, y_label)
             plt.tight_layout()
-            plt.savefig(output_path, dpi=300, bbox_inches='tight')
-            plt.close()
-            logger.info(f"Created trend plot: {output_path}")
-            return True
+            return self._extracted_from_create_map_plot_21(
+                output_path, 'Created trend plot: '
+            )
         except Exception as e:
             logger.error(f"Error creating trend plot: {str(e)}")
             return False
@@ -459,7 +461,7 @@ class Visualizer:
 
             # Add scale bar if requested
             if add_scalebar:
-                scalebar = ScaleBar(1, location='lower right')  # 1 degree = 111km at equator
+                scalebar = scalebar(1, location='lower right')  # 1 degree = 111km at equator
                 ax.add_artist(scalebar)
 
             # Remove axis labels as they're not typically needed for maps
@@ -470,22 +472,23 @@ class Visualizer:
 
             # Adjust layout and save
             plt.tight_layout()
-            
-            # Ensure output directory exists
-            output_dir = os.path.dirname(output_path)
-            if output_dir:
+
+            if output_dir := os.path.dirname(output_path):
                 os.makedirs(output_dir, exist_ok=True)
 
-            # Save the plot
-            plt.savefig(output_path, dpi=300, bbox_inches='tight')
-            plt.close()
-
-            logger.info(f"Successfully created map plot and saved to {output_path}")
-            return True
-
+            return self._extracted_from_create_map_plot_21(
+                output_path, 'Successfully created map plot and saved to '
+            )
         except Exception as e:
             logger.error(f"Error creating map plot: {str(e)}")
             return False
+
+    # TODO Rename this here and in `create_trend_plot` and `create_map_plot`
+    def _extracted_from_create_map_plot_21(self, output_path, arg1):
+        plt.savefig(output_path, dpi=300, bbox_inches='tight')
+        plt.close()
+        logger.info(f"{arg1}{output_path}")
+        return True
 
     def _add_north_arrow(self, ax):
         """Add a north arrow to the map."""
@@ -525,14 +528,15 @@ class Visualizer:
             plt.figure(figsize=(16, 8))
             sorted_data = balance_data.sort_values('balance_score', ascending=False)
             plt.bar(sorted_data['zip_code'].astype(str), sorted_data['balance_score'], color='skyblue')
-            plt.title('Housing-Retail Balance Score by ZIP Code')
-            plt.xlabel('ZIP Code')
-            plt.ylabel('Balance Score')
+            self._extracted_from_create_balance_analysis_charts_19(
+                'Housing-Retail Balance Score by ZIP Code',
+                'ZIP Code',
+                'Balance Score',
+            )
             plt.xticks(rotation=90)
-            plt.tight_layout()
-            plt.savefig(self.viz_dir / 'balance_score_by_zip.png', dpi=300, bbox_inches='tight')
-            plt.close()
-
+            self._extracted_from_create_balance_analysis_charts_44(
+                'balance_score_by_zip.png'
+            )
             # 2. Scatter plot: Housing Units vs Retail Space colored by Balance Score
             plt.figure(figsize=(12, 8))
             scatter = plt.scatter(
@@ -544,25 +548,37 @@ class Visualizer:
                 edgecolor='k'
             )
             plt.colorbar(scatter, label='Balance Score')
-            plt.title('Housing Units vs Retail Space by ZIP Code')
-            plt.xlabel('Housing Units')
-            plt.ylabel('Retail Space (sq ft)')
-            plt.tight_layout()
-            plt.savefig(self.viz_dir / 'housing_vs_retail_scatter.png', dpi=300, bbox_inches='tight')
-            plt.close()
-
+            self._extracted_from_create_balance_analysis_charts_19(
+                'Housing Units vs Retail Space by ZIP Code',
+                'Housing Units',
+                'Retail Space (sq ft)',
+            )
+            self._extracted_from_create_balance_analysis_charts_44(
+                'housing_vs_retail_scatter.png'
+            )
             # 3. Pie chart: Balance Category Distribution
             if 'balance_category' in balance_data.columns:
                 plt.figure(figsize=(8, 8))
                 category_counts = balance_data['balance_category'].value_counts()
                 plt.pie(category_counts, labels=category_counts.index, autopct='%1.1f%%', startangle=140)
                 plt.title('Distribution of Balance Categories')
-                plt.tight_layout()
-                plt.savefig(self.viz_dir / 'balance_category_pie.png', dpi=300, bbox_inches='tight')
-                plt.close()
-
+                self._extracted_from_create_balance_analysis_charts_44(
+                    'balance_category_pie.png'
+                )
             logger.info("Created housing-retail balance analysis charts")
             return True
         except Exception as e:
             logger.error(f"Error creating balance analysis charts: {str(e)}")
             return False 
+
+    # TODO Rename this here and in `create_trend_plot` and `create_balance_analysis_charts`
+    def _extracted_from_create_balance_analysis_charts_44(self, arg0):
+        plt.tight_layout()
+        plt.savefig(self.viz_dir / arg0, dpi=300, bbox_inches='tight')
+        plt.close() 
+
+    # TODO Rename this here and in `create_trend_plot` and `create_balance_analysis_charts`
+    def _extracted_from_create_balance_analysis_charts_19(self, arg0, arg1, arg2):
+        plt.title(arg0)
+        plt.xlabel(arg1)
+        plt.ylabel(arg2) 

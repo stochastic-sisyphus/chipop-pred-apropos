@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 from typing import Optional
+import pandas as pd
 
 from src.config import settings
 from src.data_processing.processor import DataProcessor
@@ -29,12 +30,48 @@ class Pipeline:
             settings.DATA_PROCESSED_DIR,
             settings.OUTPUT_DIR,
             settings.REPORTS_DIR,
-            settings.VISUALIZATIONS_DIR
+            settings.VISUALIZATIONS_DIR,
+            settings.MODELS_DIR,
+            settings.ANALYSIS_RESULTS_DIR
         ]
         
         for directory in directories:
             directory.mkdir(parents=True, exist_ok=True)
             logger.info(f"Ensured directory exists: {directory}")
+    
+    def _validate_processed_data(self) -> bool:
+        """Validate processed data files and their contents."""
+        try:
+            # Check processed files exist
+            required_processed = {
+                'Census': settings.CENSUS_PROCESSED_PATH,
+                'Permits': settings.PERMITS_PROCESSED_PATH,
+                'Business Licenses': settings.BUSINESS_LICENSES_PROCESSED_PATH,
+                'Merged Data': settings.MERGED_DATA_PATH,
+                'Retail Metrics': settings.PROCESSED_DATA_DIR / 'retail_metrics.csv',
+                'Retail Deficit': settings.PROCESSED_DATA_DIR / 'retail_deficit_processed.csv'
+            }
+            
+            for name, path in required_processed.items():
+                if not path.exists():
+                    logger.error(f"Missing {name} processed file: {path}")
+                    return False
+                
+                # Validate file contents
+                try:
+                    df = pd.read_csv(path)
+                    if 'zip_code' not in df.columns:
+                        logger.error(f"Missing zip_code column in {name} file")
+                        return False
+                except Exception as e:
+                    logger.error(f"Error reading {name} file: {str(e)}")
+                    return False
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error validating processed data: {str(e)}")
+            return False
     
     def run(self) -> bool:
         """
@@ -44,24 +81,70 @@ class Pipeline:
             bool: True if pipeline completed successfully, False otherwise.
         """
         try:
-            # Step 1: Process all data
+            # Step 1: Check required directories exist
+            logger.info("Checking required directories...")
+            self._create_directories()
+            
+            # Step 2: Check required input files exist
+            required_files = {
+                'Census': settings.CENSUS_DATA_PATH,
+                'Permits': settings.PERMITS_DATA_PATH,
+                'Business Licenses': settings.BUSINESS_LICENSES_PATH,
+                'Economic': settings.ECONOMIC_DATA_PATH
+            }
+            
+            missing_files = []
+            for name, path in required_files.items():
+                if not path.exists():
+                    missing_files.append(f"{name}: {path}")
+            
+            if missing_files:
+                logger.error("Missing required input files:")
+                for missing in missing_files:
+                    logger.error(f"  - {missing}")
+                return False
+            
+            # Step 3: Process all data
             logger.info("Starting data processing...")
             if not self.processor.process_all():
                 logger.error("Data processing failed")
                 return False
             logger.info("Data processing completed successfully")
             
-            # Step 2: Generate reports
+            # Step 4: Validate processed data
+            logger.info("Validating processed data...")
+            if not self._validate_processed_data():
+                logger.error("Data validation failed")
+                return False
+            logger.info("Data validation completed successfully")
+            
+            # Step 5: Generate reports
             logger.info("Generating reports...")
-            if not self.report_generator.generate_report():
-                logger.error("Report generation failed")
+            try:
+                if not self.report_generator.generate_report():
+                    logger.error("Report generation failed")
+                    return False
+            except Exception as e:
+                logger.error(f"Error generating reports: {str(e)}")
                 return False
             logger.info("Reports generated successfully")
             
-            # Step 3: Create visualizations
+            # Step 6: Create visualizations
             logger.info("Creating visualizations...")
-            if not self.visualizer.create_dashboard():
-                logger.error("Visualization creation failed")
+            try:
+                # Initialize visualizer with validated data
+                self.visualizer = Visualizer(
+                    population_data=pd.read_csv(settings.CENSUS_PROCESSED_PATH),
+                    permit_data=pd.read_csv(settings.PERMITS_PROCESSED_PATH),
+                    economic_data=pd.read_csv(settings.ECONOMIC_PROCESSED_PATH),
+                    business_data=pd.read_csv(settings.BUSINESS_LICENSES_PROCESSED_PATH)
+                )
+                
+                if not self.visualizer.create_all_visualizations():
+                    logger.error("Visualization creation failed")
+                    return False
+            except Exception as e:
+                logger.error(f"Error creating visualizations: {str(e)}")
                 return False
             logger.info("Visualizations created successfully")
             

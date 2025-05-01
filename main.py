@@ -24,6 +24,8 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from difflib import get_close_matches
 import pandas as pd
+from typing import List
+import traceback
 
 from src.config import settings
 from src.data_collection.collector import DataCollector
@@ -36,7 +38,6 @@ from src.visualization.visualizer import Visualizer
 from src.reporting.ten_year_growth_report import TenYearGrowthReport
 from src.reporting.retail_deficit_report import RetailDeficitReport
 from src.reporting.housing_retail_balance_report import HousingRetailBalanceReport
-
 
 # Set up logging
 logging.basicConfig(
@@ -254,200 +255,160 @@ def verify_api_keys():
     logger.info("All required API keys are present")
     return True
 
-def inspect_merged_dataset(merged_dataset_path, threshold_missing=0.8):
+def inspect_merged_dataset(df: pd.DataFrame, threshold_missing: float = 0.8) -> List[str]:
     """
-    Inspects the merged dataset:
-    - Lists all columns
-    - Shows % of missing values
-    - Highlights strong candidate features (low missingness)
+    Inspect merged dataset and return list of usable features.
+    
     Args:
-        merged_dataset_path (str): Path to the merged dataset CSV file.
-        threshold_missing (float): Max % missing allowed for "good" features (default = 80%).
+        df (pd.DataFrame): Merged dataset to inspect
+        threshold_missing (float): Maximum fraction of missing values allowed
+        
     Returns:
-        good_features (list): List of columns with <= threshold_missing missingness.
-        full_report (pd.DataFrame): DataFrame with missingness report.
+        List[str]: List of usable feature names
     """
-    df = pd.read_csv(merged_dataset_path)
-    print("\n=== Merged Dataset Columns Overview ===\n")
-    missing_pct = df.isnull().mean().sort_values()
-    full_report = missing_pct.to_frame(name="missing_pct")
-    good_features = full_report[full_report["missing_pct"] <= threshold_missing].index.tolist()
-    print(f"Total columns: {len(full_report)}")
-    print(f"Usable columns (≤ {int(threshold_missing * 100)}% missing): {len(good_features)}\n")
-    print("📋 Strong Candidate Features:")
-    for col in good_features:
-        miss = full_report.loc[col, "missing_pct"]
-        print(f"  - {col}: {miss:.1%} missing")
-    print("\n🚫 Highly Missing Columns (not recommended):")
-    for col in full_report[full_report["missing_pct"] > threshold_missing].index:
-        miss = full_report.loc[col, "missing_pct"]
-        print(f"  - {col}: {miss:.1%} missing")
-    print("\n✅ Inspection complete.\n")
+    try:
+        # Check for completely empty columns
+        empty_cols = df.columns[df.isna().all()].tolist()
+        if empty_cols:
+            logger.warning(f"Found completely empty columns: {empty_cols}")
 
-    # Save validation report
-    report_path = settings.OUTPUT_DIR / 'merged_dataset_validation.json'
-    full_report.to_json(report_path, orient='records', indent=2)
-    logger.info(f"Merged dataset validation report saved to {report_path}")
+        # Check for columns with too many missing values
+        high_missing = df.columns[df.isna().mean() > threshold_missing].tolist()
+        if high_missing:
+            logger.warning(f"Columns with >{threshold_missing*100}% missing values: {high_missing}")
 
-    return good_features, full_report
+        # Check for low variance columns
+        low_var = []
+        low_var.extend(
+            col
+            for col in df.select_dtypes(include=['number']).columns
+            if df[col].nunique() <= 1
+        )
+        if low_var:
+            logger.warning(f"Columns with no variance: {low_var}")
+
+        # Get good features (not empty, low missing values, has variance)
+        good_features = [
+            col for col in df.columns
+            if col not in empty_cols + high_missing + low_var
+            and df[col].notna().sum() > (1 - threshold_missing) * len(df)
+            and (col not in df.select_dtypes(include=['number']).columns or df[col].nunique() > 1)
+        ]
+
+        logger.info(f"Found {len(good_features)} usable features out of {len(df.columns)} total columns")
+        return good_features
+
+    except Exception as e:
+        logger.error(f"Error inspecting merged dataset: {str(e)}")
+        return []
 
 def run_pipeline():
     """Run the complete analysis pipeline."""
     try:
+        # Ensure directories exist
+        ensure_directories()
+        
+        # Verify API keys
+        verify_api_keys()
+        
         logger.info("Starting pipeline run...")
-
-        # Create timestamped output directories
-        run_timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-        run_viz_dir = create_timestamped_dir(settings.VISUALIZATIONS_DIR)
-        run_reports_dir = create_timestamped_dir(settings.REPORTS_DIR)
-        run_models_dir = create_timestamped_dir(settings.MODELS_DIR)
-
-        # Initialize pipeline components
+        
+        # Initialize components
         collector = DataCollector()
         processor = DataProcessor()
-
-        # Collect and process data
+        population_model = PopulationModel()
+        retail_model = RetailModel()
+        housing_model = HousingModel()
+        economic_model = EconomicModel()
+        visualizer = Visualizer()
+        
+        # Data collection
         logger.info("Starting data collection...")
         if not collector.collect_all_data():
             logger.error("Data collection failed")
             return False
-
+            
+        # Data processing
         logger.info("Starting data processing...")
         if not processor.process_all():
             logger.error("Data processing failed")
             return False
-
-        # Load merged dataset for modeling
-        merged_dataset_path = settings.PROCESSED_DATA_DIR / 'merged_dataset.csv'
-        merged_df = pd.read_csv(merged_dataset_path)
-
-        # Inspect and filter good features
-        good_features = [
-            col for col in merged_df.columns
-            if merged_df[col].notna().sum() > 0.8 * len(merged_df) and merged_df[col].nunique() > 1
-        ]
-
-        # Define feature sets
-        population_features = [f for f in good_features if f != 'total_population']
-        retail_features = [f for f in good_features if f != 'retail_construction_cost']
-        housing_features = [f for f in good_features if f not in ['housing_units', 'housing_unit_total']]
-        economic_features = [f for f in good_features if f != 'gdp']
-
-        # ======================
-        # Handle Population Model (Critical)
-        # ======================
-        population_target = 'total_population'
-        if population_target in merged_df.columns:
-            logger.info(f"[Population] Found exact target column: '{population_target}'")
-            population_model = PopulationModel()
-            if not population_model.run_analysis(feature_list=population_features, target_variable=population_target):
-                logger.error("Pipeline failed: Population modeling failed")
-                return False
-        else:
-            logger.error("[Population] Target column not found. Pipeline cannot proceed.")
-            return False
-
-        # ======================
-        # Handle Retail Model (Critical)
-        # ======================
-        retail_target = 'retail_construction_cost'
-        if retail_target in merged_df.columns:
-            logger.info(f"[Retail] Found exact target column: '{retail_target}'")
-            retail_model = RetailModel()
-            if not retail_model.run_analysis(feature_list=retail_features):
-                logger.error("Pipeline failed: Retail modeling failed")
-                return False
-        else:
-            logger.error("[Retail] Target column not found. Pipeline cannot proceed.")
-            return False
-
-        # ======================
-        # Handle Housing Model (Optional)
-        # ======================
-        housing_targets = ['housing_units', 'housing_unit_total']
-        if housing_target := next(
-            (col for col in housing_targets if col in merged_df.columns), None
-        ):
-            logger.info(f"[Housing] Found target column: '{housing_target}'")
-            housing_model = HousingModel()
-            if not housing_model.run_analysis(feature_list=housing_features):
-                logger.warning("[Housing] Housing modeling failed — continuing without housing predictions.")
-        else:
-            logger.warning("[Housing] No suitable target found — skipping housing modeling.")
-
-        # ======================
-        # Handle Economic Model (Optional)
-        # ======================
-        economic_target = 'gdp'
-        if economic_target in merged_df.columns:
-            logger.info(f"[Economic] Found target column: '{economic_target}'")
-            economic_model = EconomicModel()
-            if not economic_model.run_analysis(feature_list=economic_features):
-                logger.warning("[Economic] Economic modeling failed — continuing without economic predictions.")
-        else:
-            logger.warning("[Economic] No suitable target found — skipping economic modeling.")
-
-        # ======================
-        # (Optional) Visualizations and Reporting
-        # ======================
-        logger.info("Generating visualizations...")
-        visualizer = Visualizer(output_dir=str(run_viz_dir))
-        visualizer.generate_all()
-
-        logger.info("Generating reports...")
+            
+        # Load merged dataset
+        merged_df = pd.read_csv(settings.MERGED_DATA_PATH)
+        # PATCH: Add total_permits if missing
+        if 'total_permits' not in merged_df.columns:
+            merged_df['total_permits'] = (
+                merged_df.get('residential_permits', 0).fillna(0) +
+                merged_df.get('commercial_permits', 0).fillna(0) +
+                merged_df.get('retail_permits', 0).fillna(0)
+            )
+        
+        # Train population model
+        logger.info("Training population model...")
         try:
-            TenYearGrowthReport().generate_report()
-            RetailDeficitReport().generate_report()
-            HousingRetailBalanceReport().generate_report()
+            if not population_model.train(merged_df):
+                logger.error("Failed to train population model")
+                return False
         except Exception as e:
-            logger.warning(f"Report generation failed: {e}")
-
-        logger.info("Pipeline completed successfully")
-        archive_run_output(settings.OUTPUT_DIR, settings.OUTPUT_DIR / "run_archives")
+            logger.error(f"Unexpected error in PopulationModel: {str(e)}")
+            return False
+            
+        # Train retail model
+        logger.info("Training retail model...")
+        if not retail_model.train(merged_df):
+            logger.error("Failed to train retail model")
+            return False
+            
+        # Train housing model
+        logger.info("Training housing model...")
+        if not housing_model.train(merged_df):
+            logger.error("Failed to train housing model")
+            return False
+            
+        # Train economic model
+        logger.info("Training economic model...")
+        if not economic_model.train(merged_df):
+            logger.error("Failed to train economic model")
+            return False
+            
+        # Generate visualizations
+        logger.info("Generating visualizations...")
+        if not visualizer.create_dashboard():
+            logger.error("Failed to create visualizations")
+            return False
+            
+        # Generate reports
+        logger.info("Generating reports...")
+        reports = [
+            RetailDeficitReport(),
+            HousingRetailBalanceReport(),
+            TenYearGrowthReport()
+        ]
         
-        # Generate and save pipeline summary
-        summary = {
-            "timestamp": datetime.now().isoformat(),
-            "status": "Pipeline completed successfully", 
-            "models_run": ["Population", "Retail", "Housing", "Economic"],
-        }
-        
-        with open(settings.OUTPUT_DIR / 'pipeline_summary.md', 'w') as f:
-            f.write(f"# Pipeline Run Summary\n\n")
-            f.write(f"**Timestamp:** {summary['timestamp']}\n\n") 
-            f.write(f"**Status:** {summary['status']}\n\n")
-            f.write("**Models Run:**\n")
-            for model in summary['models_run']:
-                f.write(f"- {model}\n")
+        for report in reports:
+            if not report.generate_report():
+                logger.warning(f"Failed to generate {report.__class__.__name__}")
                 
+        logger.info("Pipeline completed successfully")
         return True
-
+        
     except Exception as e:
-        logger.error(f"Pipeline failed with error: {str(e)}")
+        logger.error(f"Pipeline failed: {str(e)}")
         return False
 
 def main():
     """Main function to run the Chicago population analysis pipeline."""
-    print("=" * 80)
-    print("Chicago Population Analysis Pipeline")
-    print(f"Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("=" * 80)
-
-    # Load environment variables
-    load_dotenv()
-
-    # Ensure directories exist
-    ensure_directories()
-
-    # Verify API keys
-    if not verify_api_keys():
-        sys.exit(1)
-
-    if run_pipeline():
-        logger.info("Pipeline completed successfully")
-        sys.exit(0)
-    else:
-        logger.error("Pipeline failed")
+    try:
+        run_pipeline()
+    except Exception as e:
+        logging.basicConfig(level=logging.ERROR)
+        logger = logging.getLogger("__main__")
+        logger.error("Uncaught exception in main pipeline:", exc_info=True)
+        print("\n\n================ PIPELINE FAILED ================")
+        print(f"Uncaught exception: {e}")
+        traceback.print_exc()
+        print("================================================\n\n")
         sys.exit(1)
 
 if __name__ == "__main__":

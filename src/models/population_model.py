@@ -11,8 +11,11 @@ from sklearn.metrics import mean_squared_error, r2_score
 import matplotlib.pyplot as plt
 import joblib
 from sklearn.model_selection import train_test_split
+from typing import Tuple
 
 from src.config import settings
+from src.utils.helpers import sanitize_features, match_features, resolve_column_name, safe_train_model
+from src.config.column_alias_map import column_aliases
 
 logger = logging.getLogger(__name__)
 
@@ -21,126 +24,140 @@ class PopulationModel:
     
     def __init__(self):
         """Initialize population model."""
-        self.full_feature_names = []
-        self.scenario_feature_names = [
-            'total_population', 'median_household_income', 'labor_force',
-            'total_permits', 'residential_permits', 'commercial_permits', 'retail_permits',
-            'total_construction_cost', 'residential_construction_cost',
-            'commercial_construction_cost', 'retail_construction_cost'
-        ]
-        self.model = None
+        self.model = RandomForestRegressor(
+            n_estimators=100,
+            max_depth=None,
+            min_samples_split=2,
+            min_samples_leaf=1,
+            random_state=42
+        )
+        self.scaler = StandardScaler()
         self.feature_names = None
+        self.target_col = None
         self.predictions = None
         self.scenarios = None
         # Create model directory if it doesn't exist
         settings.TRAINED_MODELS_DIR.mkdir(parents=True, exist_ok=True)
         
-    def prepare_features(self, df: pd.DataFrame, feature_list=None, mode: str = 'full', target_variable: str = 'total_population') -> tuple[pd.DataFrame, pd.Series]:
-        """
-        Prepare features for population modeling.
-        
-        Args:
-            df: Input DataFrame
-            feature_list: List of features to use (optional)
-            mode: 'full' or 'minimal' feature set
-            target_variable: Target variable to predict
-            
-        Returns:
-            Tuple of (X, y) for model training/prediction
-        """
+    def prepare_features(self, df: pd.DataFrame, feature_list=None) -> Tuple[pd.DataFrame, pd.Series]:
+        """Prepare features for population modeling."""
         try:
-            logger.info(f"Preparing population features for target: {target_variable}")
+            logger.info("Preparing population features...")
             
-            # Create copy to avoid modifying original
-            data = df.copy()
+            # Use dynamic feature selection if feature_list is provided
+            if feature_list is not None:
+                features = match_features(df, feature_list, column_aliases)
+            else:
+                # Default features
+                default_features = [
+                    'median_household_income',
+                    'median_home_value',
+                    'labor_force',
+                    'residential_permits',
+                    'commercial_permits',
+                    'retail_permits',
+                    'residential_construction_cost',
+                    'commercial_construction_cost',
+                    'retail_construction_cost'
+                ]
+                features = match_features(df, default_features, column_aliases)
             
-            # Add required features if missing
-            if 'month' not in data.columns:
-                data['month'] = 1  # Default to January
+            if not features:
+                logger.error("No usable features available for population modeling.")
+                return None, None
                 
-            if 'development_density' not in data.columns:
-                if 'housing_units' in data.columns and 'total_population' in data.columns:
-                    data['development_density'] = data['housing_units'] / data['total_population'].replace(0, np.nan)
-                else:
-                    data['development_density'] = 0.0  # Default value
-                    
-            # Fill NaN values
-            data['development_density'] = data['development_density'].fillna(0.0)
-            data['month'] = data['month'].fillna(1)
+            logger.info(f"Features used for population modeling: {features}")
             
-            # Get target variable
-            y = data[target_variable]
+            # Store feature names for reuse
+            self.feature_names = features
             
-            # Drop target from features
-            X = data.drop(columns=[target_variable], errors='ignore')
+            # Resolve target variable
+            target_col = resolve_column_name(df, 'total_population', column_aliases)
             
-            # Use provided feature list or all available features
-            if feature_list:
-                X = X[feature_list]
+            # Create feature matrix and target
+            X = df[features].copy()
+            y = df[target_col] if target_col else None
             
-            # Log feature list
-            logger.info(f"Features used for {mode} modeling: {list(X.columns)}")
+            # Convert all columns to numeric
+            for col in X.columns:
+                X[col] = pd.to_numeric(X[col], errors='coerce')
+            if y is not None:
+                y = pd.to_numeric(y, errors='coerce')
             
-            # Drop rows with NaN or inf values
-            mask = ~(X.isna().any(axis=1) | np.isinf(X).any(axis=1) | y.isna() | np.isinf(y))
-            if (~mask).any():
-                n_dropped = (~mask).sum()
-                logger.warning(f"Dropping {n_dropped} rows with NaN or inf in features or target.")
-                X = X[mask]
+            # Log missing value counts before dropping
+            logger.info("Missing values per column before drop:\n" + str(df[features + ([target_col] if target_col else [])].isnull().sum()))
+            
+            # Handle missing values and outliers
+            if y is not None:
+                mask = (~X.isnull().any(axis=1)) & (~y.isnull())
+            else:
+                mask = ~X.isnull().any(axis=1)
+            dropped = (~mask).sum()
+            if dropped > 0:
+                logger.warning(f"Dropping {dropped} rows with NaN values.")
+            X = X[mask]
+            if y is not None:
                 y = y[mask]
             
+            # Clip values to float64 range
+            float_max = np.finfo(np.float64).max
+            float_min = np.finfo(np.float64).min
+            X = X.clip(lower=float_min, upper=float_max)
+            if y is not None:
+                y = y.clip(lower=float_min, upper=float_max)
+            
+            # Log transform large numeric columns
+            large_value_cols = [
+                'median_household_income', 'median_home_value',
+                'residential_construction_cost', 'commercial_construction_cost',
+                'retail_construction_cost'
+            ]
+            for col in large_value_cols:
+                resolved_col = resolve_column_name(X, col, column_aliases)
+                if resolved_col in X.columns:
+                    X[resolved_col] = np.log1p(X[resolved_col])
+            
+            # Scale features
+            X = pd.DataFrame(
+                self.scaler.fit_transform(X),
+                columns=X.columns,
+                index=X.index
+            )
+            
+            logger.info("Population features prepared successfully")
             return X, y
             
         except Exception as e:
-            logger.error(f"Error preparing features: {str(e)}")
-            raise
-            
-    def train(self, df, feature_list=None, target_variable='total_population'):
+            logger.error(f"Error preparing population features: {str(e)}")
+            return None, None
+
+    def train(self, df: pd.DataFrame) -> bool:
         """Train the population model."""
         try:
             logger.info("Training population model...")
             
             # Prepare features
-            X, y = self.prepare_features(df, feature_list, target_variable)
+            X, y = self.prepare_features(df)
             if X is None or y is None:
                 logger.error("Failed to prepare features for training")
                 return False
+            
+            # Train model
+            success = safe_train_model(self.model, X, y, model_name="PopulationModel")
+            if success:
+                logger.info("Population model trained successfully")
                 
-            # Store feature names for prediction
-            self.feature_names = X.columns.tolist()
-            
-            # Split data
-            X_train, X_test, y_train, y_test = train_test_split(
-                X, y, test_size=0.2, random_state=42
-            )
-            
-            # Initialize and train model
-            self.model = RandomForestRegressor(
-                n_estimators=100,
-                max_depth=10,
-                random_state=42
-            )
-            self.model.fit(X_train, y_train)
-            
-            # Evaluate model
-            train_score = self.model.score(X_train, y_train)
-            test_score = self.model.score(X_test, y_test)
-            
-            # Save feature importances
-            importances = pd.DataFrame({
-                'feature': self.feature_names,
-                'importance': self.model.feature_importances_
-            }).sort_values('importance', ascending=False)
-            
-            importances.to_csv(settings.MODEL_METRICS_DIR / 'population_feature_importances.csv', index=False)
-            
-            logger.info(f"Model trained successfully. R² score: {test_score:.3f}")
-            return True
+                # Save model and scaler
+                joblib.dump(self.model, settings.TRAINED_MODELS_DIR / 'population_model.joblib')
+                joblib.dump(self.scaler, settings.TRAINED_MODELS_DIR / 'population_scaler.joblib')
+                logger.info("Model and scaler saved")
+                
+            return success
             
         except Exception as e:
-            logger.error(f"Error training model: {str(e)}")
+            logger.error(f"Error training population model: {str(e)}")
             return False
-            
+
     def generate_predictions(self):
         """Generate population predictions for all scenarios."""
         try:
@@ -149,12 +166,27 @@ class PopulationModel:
             # Load processed data
             df = pd.read_csv(settings.PROCESSED_DATA_DIR / 'merged_dataset.csv')
             
-            # Prepare features using the same feature set used for training
-            X, _ = self.prepare_features(df, feature_list=self.feature_names)
-            if X is None:
-                logger.error("Failed to prepare features for prediction generation")
+            # Get column names
+            zip_col = resolve_column_name(df, 'zip_code', column_aliases)
+            year_col = resolve_column_name(df, 'year', column_aliases)
+            
+            if not all([zip_col, year_col]):
+                logger.error("Required columns not found")
                 return None
-                
+            
+            # Prepare features using the same feature set used for training
+            expected_features = [
+                'median_household_income', 'median_home_value', 'labor_force',
+                'residential_permits', 'commercial_permits', 'retail_permits',
+                'residential_construction_cost', 'commercial_construction_cost',
+                'retail_construction_cost', 'total_licenses', 'unique_businesses',
+                'active_licenses', 'total_permits'
+            ]
+            
+            feature_cols = match_features(df, expected_features, column_aliases)
+            clean_df = sanitize_features(df, feature_cols)
+            X = clean_df[feature_cols]
+            
             # Store original index for later use
             original_index = X.index
                 
@@ -170,9 +202,8 @@ class PopulationModel:
                 X_scenario = X.copy()
                 
                 # Apply scenario adjustments
-                if scenario_name != 'base':
-                    population_factor = adjustments.get('population_growth', 1.0)
-                    X_scenario = X_scenario * population_factor
+                growth_factor = adjustments.get('growth_factor', 1.0)
+                X_scenario = X_scenario * growth_factor
                 
                 # Generate predictions for this scenario
                 predictions = self.model.predict(X_scenario)
@@ -182,11 +213,12 @@ class PopulationModel:
             
             # Create results DataFrame using the correct index
             results_df = pd.DataFrame({
-                'zip_code': df.loc[original_index, 'zip_code'],
-                'year': df.loc[original_index, 'year'],
-                'base_prediction': scenario_predictions['base'],
-                'high_growth_prediction': scenario_predictions['high_growth'],
-                'low_growth_prediction': scenario_predictions['low_growth']
+                zip_col: df.loc[original_index, zip_col],
+                year_col: df.loc[original_index, year_col],
+                'base_prediction': scenario_predictions.get('base'),
+                'optimistic_prediction': scenario_predictions.get('optimistic'),
+                'neutral_prediction': scenario_predictions.get('neutral'),
+                'pessimistic_prediction': scenario_predictions.get('pessimistic')
             })
             
             # Save predictions
@@ -194,11 +226,11 @@ class PopulationModel:
             logger.info("Generated population predictions successfully")
             
             return results_df
-            
+        
         except Exception as e:
             logger.error(f"Error generating predictions: {str(e)}")
             return None
-            
+
     def generate_scenarios(self):
         """Generate scenario predictions."""
         try:
@@ -206,6 +238,14 @@ class PopulationModel:
             
             if self.predictions is None:
                 logger.error("No base predictions available. Run generate_predictions first.")
+                return False
+            
+            # Get column names
+            zip_col = resolve_column_name(self.predictions, 'zip_code', column_aliases)
+            year_col = resolve_column_name(self.predictions, 'year', column_aliases)
+            
+            if not all([zip_col, year_col]):
+                logger.error("Required columns not found")
                 return False
             
             # Create scenario predictions
@@ -218,8 +258,9 @@ class PopulationModel:
                 # Map scenario name to prediction column
                 prediction_col = {
                     'base': 'base_prediction',
-                    'high_growth': 'high_growth_prediction',
-                    'low_growth': 'low_growth_prediction'
+                    'optimistic': 'optimistic_prediction',
+                    'neutral': 'neutral_prediction',
+                    'pessimistic': 'pessimistic_prediction'
                 }.get(scenario_name)
                 
                 if prediction_col not in scenario_df.columns:
@@ -229,10 +270,8 @@ class PopulationModel:
                 # Add scenario information
                 scenario_df['predicted_population'] = scenario_df[prediction_col]
                 scenario_df['scenario'] = scenario_name
-                scenario_df['population_growth_factor'] = factors.get('population_growth', 1.0)
-                scenario_df['gdp_growth_factor'] = factors.get('gdp_growth', 1.0)
-                scenario_df['employment_growth_factor'] = factors.get('employment_growth', 1.0)
-                scenario_df['income_growth_factor'] = factors.get('income_growth', 1.0)
+                scenario_df['growth_factor'] = factors.get('growth_factor', 1.0)
+                scenario_df['confidence'] = factors.get('confidence', 1.0)
                 
                 scenario_predictions.append(scenario_df)
             
@@ -249,19 +288,19 @@ class PopulationModel:
             self.scenarios = all_scenarios
             logger.info("Generated scenario predictions successfully")
             return True
-            
+        
         except Exception as e:
             logger.error(f"Error generating scenarios: {str(e)}")
             return False
             
-    def run_analysis(self, feature_list=None, target_variable='total_population'):
+    def run_analysis(self):
         """Run the complete population analysis pipeline."""
         try:
             # Load data
             df = pd.read_csv(settings.PROCESSED_DATA_DIR / 'merged_dataset.csv')
             
             # Train model
-            if not self.train(df, feature_list=feature_list, target_variable=target_variable):
+            if not self.train(df):
                 logger.error("Failed to train population model")
                 return False
                 
