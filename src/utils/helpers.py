@@ -6,12 +6,14 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Tuple
 import json
+from datetime import datetime
 
 import pandas as pd
 import numpy as np
 from sklearn.metrics import mean_squared_error, r2_score
 
 from src.config import settings
+from src.config.column_alias_map import column_aliases
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -321,4 +323,95 @@ def safe_train_model(model, X: pd.DataFrame, y: pd.Series, model_name: str = "mo
         return True
     except Exception as e:
         logger.error(f"{model_name}: Training failed - {str(e)}")
+        return False
+
+def ensure_output_structure() -> bool:
+    """
+    Ensure all required directories and files exist.
+    Creates directories if they don't exist and validates required files.
+    
+    Returns:
+        bool: True if successful, False if there were any errors
+    """
+    try:
+        # Create all required directories
+        for directory in [
+            settings.DATA_DIR,
+            settings.RAW_DATA_DIR,
+            settings.INTERIM_DATA_DIR,
+            settings.PROCESSED_DATA_DIR,
+            settings.OUTPUT_DIR,
+            settings.PREDICTIONS_DIR,
+            settings.VISUALIZATIONS_DIR,
+            settings.REPORTS_DIR,
+            settings.MODEL_METRICS_DIR,
+            settings.TRAINED_MODELS_DIR
+        ]:
+            directory.mkdir(parents=True, exist_ok=True)
+            logger.info(f"Ensured directory exists: {directory}")
+
+        # Create empty files for required outputs if they don't exist
+        for filename, directory in settings.REQUIRED_OUTPUTS.items():
+            filepath = directory / filename
+            if not filepath.exists():
+                filepath.touch()
+                logger.info(f"Created empty file: {filepath}")
+
+        # Create empty files for required reports
+        for filename, directory in settings.REQUIRED_REPORTS.items():
+            filepath = directory / filename
+            if not filepath.exists():
+                filepath.write_text("# " + filename.replace('.md', '').replace('_', ' ').title() + "\n\n")
+                logger.info(f"Created report template: {filepath}")
+
+        logger.info("Successfully ensured output structure")
+        return True
+
+    except Exception as e:
+        logger.error(f"Error ensuring output structure: {str(e)}")
+        return False
+
+def validate_outputs() -> bool:
+    """
+    Validate that all required outputs exist and have content.
+    
+    Returns:
+        bool: True if all outputs are valid, False otherwise
+    """
+    try:
+        # Check required CSV outputs
+        for filename, directory in settings.REQUIRED_OUTPUTS.items():
+            filepath = directory / filename
+            if not filepath.exists():
+                logger.error(f"Missing required output: {filepath}")
+                return False
+            if filepath.stat().st_size == 0:
+                logger.error(f"Empty output file: {filepath}")
+                return False
+
+        # Check required reports
+        for filename, directory in settings.REQUIRED_REPORTS.items():
+            filepath = directory / filename
+            if not filepath.exists():
+                logger.error(f"Missing required report: {filepath}")
+                return False
+            if filepath.stat().st_size == 0:
+                logger.error(f"Empty report file: {filepath}")
+                return False
+
+        # Check required visualizations
+        for filename, directory in settings.REQUIRED_VISUALIZATIONS.items():
+            filepath = directory / filename
+            if not filepath.exists():
+                logger.error(f"Missing required visualization: {filepath}")
+                return False
+            if filepath.stat().st_size == 0:
+                logger.error(f"Empty visualization file: {filepath}")
+                return False
+
+        logger.info("All required outputs validated successfully")
+        return True
+
+    except Exception as e:
+        logger.error(f"Error validating outputs: {str(e)}")
         return False

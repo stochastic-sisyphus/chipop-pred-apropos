@@ -1,57 +1,70 @@
-# Chicago Retail Deficit Analysis
-Generated on {{ generation_date }}
+# Retail Deficit Analysis Report
 
 ## Overview
-This report analyzes retail gaps and opportunities across Chicago's ZIP codes, identifying areas with significant retail deficits and quantifying potential market opportunities.
+This report analyzes retail development opportunities and deficits across Chicago ZIP codes.
 
-## Market Analysis
+## High Retail Deficit Areas
 
-### Current Retail Landscape
-{% if current_analysis.retail %}
-- Total Retail Space: {{ "{:,}".format(current_analysis.retail.total_space) }} sq ft
-- Retail Density: {{ "%.1f"|format(current_analysis.retail.density) }} sq ft per capita
-- Vacancy Rate: {{ "%.1f"|format(current_analysis.retail.vacancy_rate * 100) }}%
+{% for area in high_deficit_areas %}
+### {{ area.zip_code }}
+
+**Key Metrics:**
+- Population: {{ "{:,.0f}".format(area.total_population|default(0)) }}
+- Median Income: ${{ "{:,.0f}".format(area.median_household_income|default(0)) }}
+- Total Housing Units: {{ "{:,.0f}".format(area.total_housing_units|default(0)) }}
+{% if area.retail_space is defined %}
+- Retail Space: {{ "{:,.0f}".format(area.retail_space|default(0)) }} sq ft
+{% endif %}
+{% if area.spending_potential is defined %}
+- Spending Potential: ${{ "{:,.0f}".format(area.spending_potential|default(0)) }}
+{% endif %}
+{% if area.retail_gap is defined %}
+- Retail Gap: ${{ "{:,.0f}".format(area.retail_gap|default(0)) }}
 {% endif %}
 
-### Retail Deficit Areas
-{% if analysis_results.retail_deficit %}
-Top Deficit Areas by ZIP Code:
-{% for area in analysis_results.retail_deficit %}
-#### {{ area.zip_code }}
-- Spending Potential: ${{ "{:,.0f}".format(area.spending_potential) }}
-- Current Provision: ${{ "{:,.0f}".format(area.current_provision) }}
-- Retail Gap: ${{ "{:,.0f}".format(area.retail_gap) }}
-- Leakage Rate: {{ "%.1f"|format(area.leakage_rate * 100) }}%
+**Development Activity:**
+- Residential Permits: {{ "{:,.0f}".format(area.residential_permits|default(0)) }}
+- Retail Permits: {{ "{:,.0f}".format(area.retail_permits|default(0)) }}
+- Total Construction Cost: ${{ "{:,.2f}".format(area.total_construction_cost|default(0)) }}
+
 {% endfor %}
+
+## Retail Development Opportunities
+
+{% for zip_code, metrics in opportunity_areas.items() %}
+### {{ zip_code }}
+
+**Market Potential:**
+{% if metrics.retail_demand is defined %}
+- Estimated Retail Demand: ${{ "{:,.0f}".format(metrics.retail_demand|default(0)) }}
 {% endif %}
+{% if metrics.retail_supply is defined %}
+- Current Retail Supply: ${{ "{:,.0f}".format(metrics.retail_supply|default(0)) }}
+{% endif %}
+- Population Growth Rate: {{ "{:.1f}".format(metrics.population_growth_rate|default(0)) }}%
+- Income Growth Rate: {{ "{:.1f}".format(metrics.income_growth_rate|default(0)) }}%
 
-## Market Opportunities
+**Development Metrics:**
+- Housing Unit Growth: {{ "{:.1f}".format(metrics.housing_unit_growth|default(0)) }}%
+- Recent Retail Permits: {{ metrics.recent_retail_permits|default(0) }}
+- Recent Housing Permits: {{ metrics.recent_housing_permits|default(0) }}
 
-### Category Analysis
-{% if analysis_results.retail_categories %}
-{% for category in analysis_results.retail_categories %}
-#### {{ category.name }}
-- Market Gap: ${{ "{:,.0f}".format(category.market_gap) }}
-- Required Space: {{ "{:,}".format(category.required_space) }} sq ft
-- Potential Stores: {{ category.potential_stores }}
 {% endfor %}
-{% endif %}
 
-### Development Potential
-{% if analysis_results.development_potential %}
-{% for zip in analysis_results.development_potential %}
-#### {{ zip.code }}
-- Development Sites: {{ zip.available_sites }}
-- Potential GLA: {{ "{:,}".format(zip.potential_gla) }} sq ft
-- Investment Value: ${{ "{:,.0f}".format(zip.investment_value) }}
+## Recommendations
+
+{% for rec in recommendations %}
+- {{ rec }}
 {% endfor %}
-{% endif %}
+
+## Methodology Notes
+{{ methodology_notes }}
 
 ## Implementation Strategy
 
 ### Priority Actions
-{% if recommendations.retail %}
-{% for action in recommendations.retail %}
+{% if recommendations %}
+{% for action in recommendations %}
 1. {{ action }}
 {% endfor %}
 {% endif %}

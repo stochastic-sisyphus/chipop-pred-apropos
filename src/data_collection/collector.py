@@ -10,10 +10,11 @@ from fredapi import Fred
 from sodapy import Socrata
 from dotenv import load_dotenv
 from datetime import datetime
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Set
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 import time
+import traceback
 
 from src.config import settings
 
@@ -29,57 +30,277 @@ class DataCollector:
         self.socrata = Socrata("data.cityofchicago.org", settings.CHICAGO_DATA_TOKEN)
         self.raw_dir = settings.RAW_DATA_DIR
         self.raw_dir.mkdir(exist_ok=True)
+        
+        # Cache for available Census years
+        self._available_census_years = None
 
-    def _fetch_census_zip_year(self, zip_code, year, variables, max_retries=3):
+    def _get_available_census_years(self) -> Set[int]:
+        """
+        Get available years from Census API with caching.
+        
+        Returns:
+            Set[int]: Set of available years
+        """
+        if self._available_census_years is not None:
+            return self._available_census_years
+            
+        available_years = set()
+        test_zip = str(settings.CHICAGO_ZIP_CODES[0])
+        
+        for year in range(2015, datetime.now().year):
+            try:
+                test_result = self.census.acs5.state_zipcode(
+                    ['B01003_001E'],  # Total population
+                    state_fips='17',   # Illinois
+                    zcta=test_zip,
+                    year=year
+                )
+                if test_result:
+                    available_years.add(year)
+                    logger.info(f"Census year {year} is available")
+            except Exception as e:
+                logger.debug(f"Census year {year} not available: {str(e)}")
+                continue
+                
+        self._available_census_years = available_years
+        return available_years
+
+    def _fetch_census_zip_year(self, zip_code: str, year: int, variables: List[str], max_retries: int = 3) -> Optional[Dict]:
+        """
+        Fetch Census data for a specific ZIP code and year with retries.
+        
+        Args:
+            zip_code (str): ZIP code to fetch data for
+            year (int): Year to fetch data for
+            variables (List[str]): Census variables to fetch
+            max_retries (int): Maximum number of retry attempts
+            
+        Returns:
+            Optional[Dict]: Census data row or None if failed
+        """
+        zip_code = str(zip_code).zfill(5)
+        
         for attempt in range(max_retries):
             try:
                 if result := self.census.acs5.state_zipcode(
-                    variables, state_fips='17', zcta=zip_code, year=year
+                    variables,
+                    state_fips='17',
+                    zcta=zip_code,
+                    year=year
                 ):
                     row = result[0]
                     row['year'] = year
-                    row['zip_code'] = zip_code
+                    row['zip_code'] = zip_code  # Use consistent column name
+                    logger.debug(f"Fetched data for ZIP {zip_code}, year {year}")
                     return row
+                    
             except Exception as e:
                 if attempt < max_retries - 1:
-                    time.sleep(1)
+                    time.sleep(1)  # Back off before retry
                 else:
-                    logger.error(f"Failed for ZIP {zip_code}, year {year}: {e}")
+                    logger.error(f"Failed to fetch ZIP {zip_code}, year {year}: {str(e)}")
+                    
         return None
 
-    def collect_census_data(self):
-        logger.info("Collecting Census data...")
-
-        variables = [
-            'B01003_001E',  # Total population
-            'B19013_001E',  # Median household income
-            'B25077_001E',  # Median home value
-            'B23025_002E'   # Labor force
-        ]
-
-        tasks = [
-            (zip_code, year)
-            for year in settings.DEFAULT_TRAIN_YEARS
-            for zip_code in settings.CHICAGO_ZIP_CODES
-        ]
-
-        results = []
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = {
-                executor.submit(self._fetch_census_zip_year, z, y, variables): (z, y)
-                for z, y in tasks
+    def collect_census_data(self) -> Optional[pd.DataFrame]:
+        """
+        Collect Census data for all available years.
+        
+        Returns:
+            Optional[pd.DataFrame]: Census data or None if failed
+        """
+        try:
+            logger.info("Starting Census data collection...")
+            
+            # Get available years
+            available_years = self._get_available_census_years()
+            if not available_years:
+                logger.error("No Census years available")
+                return None
+                
+            logger.info(f"Collecting Census data for years: {sorted(available_years)}")
+            
+            # Census variables to collect
+            variables = [
+                'B01003_001E',  # Total population
+                'B19013_001E',  # Median household income
+                'B25077_001E',  # Median home value
+                'B23025_002E',  # Labor force
+                'B25001_001E',  # Housing units
+                'B25003_001E',  # Occupied housing units
+                'B25003_003E'   # Vacant housing units
+            ]
+            
+            # Create tasks for parallel execution
+            tasks = [
+                (str(zip_code), year)
+                for year in available_years
+                for zip_code in settings.CHICAGO_ZIP_CODES
+            ]
+            
+            # Collect data in parallel
+            results = []
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                futures = {
+                    executor.submit(self._fetch_census_zip_year, z, y, variables): (z, y)
+                    for z, y in tasks
+                }
+                
+                for future in tqdm(as_completed(futures), total=len(futures), desc="Fetching Census data"):
+                    if result := future.result():
+                        results.append(result)
+                        
+            if not results:
+                logger.error("No Census data collected")
+                return None
+                
+            # Convert to DataFrame
+            df = pd.DataFrame(results)
+            logger.info(f"Raw Census data shape: {df.shape}")
+            
+            # Rename columns to be more descriptive
+            column_map = {
+                'B01003_001E': 'total_population',
+                'B19013_001E': 'median_household_income',
+                'B25077_001E': 'median_home_value',
+                'B23025_002E': 'labor_force',
+                'B25001_001E': 'total_housing_units',
+                'B25003_001E': 'occupied_housing_units',
+                'B25003_003E': 'vacant_housing_units',
+                'zip code tabulation area': 'zip_code'  # Map ZCTA to zip_code
             }
-            for future in tqdm(as_completed(futures), total=len(futures), desc="Fetching Census data"):
-                if res := future.result():
-                    results.append(res)
-
-        if not results:
-            logger.error("No Census data collected")
+            df = df.rename(columns=column_map)
+            
+            # Debug log current columns
+            logger.info(f"Current columns: {df.columns.tolist()}")
+            
+            # Check for and handle duplicate columns
+            dup_cols = df.columns[df.columns.duplicated()].tolist()
+            if dup_cols:
+                logger.warning(f"Found duplicate columns: {dup_cols}")
+                # Keep first occurrence of each column
+                df = df.loc[:, ~df.columns.duplicated()]
+                logger.info(f"Columns after deduplication: {df.columns.tolist()}")
+            
+            # Validate zip_code column exists and is a Series
+            if 'zip_code' not in df.columns:
+                logger.error("No 'zip_code' column found after renaming")
+                return None
+                
+            # Debug log ZIP code column info
+            logger.info(f"ZIP code column type: {type(df['zip_code'])}")
+            logger.info(f"ZIP code sample before processing:\n{df['zip_code'].head()}")
+            
+            # Handle ZIP code formatting
+            try:
+                # Convert to string and pad with zeros
+                df['zip_code'] = df['zip_code'].astype(str).str.strip()
+                df['zip_code'] = df['zip_code'].str.zfill(5)
+                
+                # Validate ZIP codes are 5 digits
+                invalid_zips = df[~df['zip_code'].str.match(r'^\d{5}$')]
+                if not invalid_zips.empty:
+                    logger.warning(f"Found {len(invalid_zips)} invalid ZIP codes")
+                    logger.warning(f"Invalid ZIP codes: {invalid_zips['zip_code'].unique().tolist()}")
+                
+                # Debug log after processing
+                logger.info(f"ZIP code sample after processing:\n{df['zip_code'].head()}")
+                
+            except Exception as e:
+                logger.error(f"Error formatting ZIP codes: {str(e)}")
+                logger.error(f"ZIP code column type: {type(df['zip_code'])}")
+                logger.error(f"ZIP code sample:\n{df['zip_code'].head()}")
+                return None
+            
+            # Create template dataframe with all ZIP code and year combinations
+            all_combinations = pd.DataFrame([(zip_code, year) 
+                                          for zip_code in settings.CHICAGO_ZIP_CODES 
+                                          for year in available_years],
+                                         columns=['zip_code', 'year'])
+            
+            # Prepare columns for merge
+            required_columns = ['zip_code', 'year'] + [col for col in column_map.values() if col != 'zip_code']
+            df_merge = df[required_columns].copy()
+            
+            # Ensure no duplicate columns before merge
+            df_merge = df_merge.loc[:, ~df_merge.columns.duplicated()]
+            all_combinations = all_combinations.loc[:, ~all_combinations.columns.duplicated()]
+            
+            # Debug log merge info
+            logger.info(f"Merge left columns: {all_combinations.columns.tolist()}")
+            logger.info(f"Merge right columns: {df_merge.columns.tolist()}")
+            
+            try:
+                # Merge with template
+                df = pd.merge(all_combinations, df_merge, on=['zip_code', 'year'], how='left')
+                logger.info(f"Merged data shape: {df.shape}")
+                
+                # Debug log final columns
+                logger.info(f"Final columns before filling NAs: {df.columns.tolist()}")
+                
+                # Fill missing values
+                numeric_cols = [col for col in df.columns if col not in ['zip_code', 'year', 'state']]
+                
+                # Convert all numeric columns at once
+                for col in numeric_cols:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+                
+                # Fill missing values using groupby means
+                df_filled = df.copy()
+                for col in numeric_cols:
+                    try:
+                        # Calculate means by ZIP code
+                        zip_means = df.groupby('zip_code')[col].transform('mean')
+                        
+                        # Fill NAs without using inplace
+                        df_filled[col] = df[col].fillna(zip_means)
+                        
+                        # If any NAs remain, fill with overall mean
+                        if df_filled[col].isna().any():
+                            overall_mean = df[col].mean()
+                            df_filled[col] = df_filled[col].fillna(overall_mean)
+                            
+                        logger.info(f"Filled NAs in {col} using ZIP code means and overall mean")
+                    except Exception as e:
+                        logger.error(f"Error filling NAs for column {col}: {str(e)}")
+                        logger.error(f"Column info - dtype: {df[col].dtype}, unique values: {df[col].nunique()}")
+                        return None
+                
+                # Replace original with filled version
+                df = df_filled
+                
+                # Final validation
+                if df.isnull().any().any():
+                    null_cols = df.columns[df.isnull().any()].tolist()
+                    logger.warning(f"Found null values in columns: {null_cols}")
+                    logger.warning(f"Null counts:\n{df[null_cols].isnull().sum()}")
+                    
+                    # Drop rows with any remaining nulls as a last resort
+                    df = df.dropna()
+                    logger.warning(f"Dropped rows with null values. New shape: {df.shape}")
+                
+                # Ensure ZIP codes are properly formatted
+                df['zip_code'] = df['zip_code'].astype(str).str.strip().str.zfill(5)
+                
+                # Save processed data
+                processed_path = settings.PROCESSED_DATA_DIR / 'census_processed.csv'
+                df.to_csv(processed_path, index=False)
+                logger.info(f"Processed Census data saved to {processed_path}")
+                
+                return df
+                
+            except Exception as e:
+                logger.error(f"Error during merge: {str(e)}")
+                logger.error(f"Error type: {type(e)}")
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                return None
+            
+        except Exception as e:
+            logger.error(f"Error in collect_census_data: {str(e)}")
+            logger.error(f"Error type: {type(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return None
 
-        df = pd.DataFrame(results)
-        return self._save_data_to_csv('census_data.csv', df, 'Census data')
-            
     def collect_permit_data(self):
         """Collect building permit data from Chicago Data Portal."""
         try:
@@ -146,7 +367,11 @@ class DataCollector:
             df['retail_construction_cost'] = df['reported_cost'].where(df['is_retail'], 0)
             
             # Add year column
-            df['year'] = pd.to_datetime(df['issue_date']).dt.year
+            df['issue_date'] = pd.to_datetime(df['issue_date'])
+            df['year'] = df['issue_date'].dt.year
+            
+            # Ensure contact_1_zipcode is string
+            df['contact_1_zipcode'] = df['contact_1_zipcode'].astype(str).str.zfill(5)
             
             # Group by year for validation
             yearly_counts = df.groupby('year').agg({
@@ -176,6 +401,8 @@ class DataCollector:
             
         except Exception as e:
             logger.error(f"Error collecting permit data: {str(e)}")
+            logger.error(f"Error type: {type(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return None
             
     def _save_data_to_csv(self, filename: str, df: pd.DataFrame, data_type: str) -> pd.DataFrame:
@@ -218,6 +445,7 @@ class DataCollector:
         rate_based_metrics = ['unemployment_rate', 'homeownership_rate']
         failed_series = []
 
+        # First collect all available data
         for series_id, indicator_name in settings.FRED_SERIES.items():
             try:
                 logger.debug(f"Requesting FRED series {series_id} ({indicator_name})")
@@ -237,14 +465,8 @@ class DataCollector:
                     series = series.resample('YE').last()
 
                 series.index = series.index.year
-                series = series[series.index.isin(settings.DEFAULT_TRAIN_YEARS)]
+                economic_data[indicator_name] = series
 
-                if series.empty:
-                    logger.warning(f"No valid data in training years for {series_id} ({indicator_name})")
-                    failed_series.append(series_id)
-                    continue
-
-                economic_data[indicator_name] = series.values
                 logger.info(f"Successfully collected {indicator_name} from {series_id}")
 
             except Exception as e:
@@ -258,61 +480,94 @@ class DataCollector:
             logger.error("No economic indicators collected")
             return None
 
-        df = pd.DataFrame(economic_data, index=pd.Index(settings.DEFAULT_TRAIN_YEARS, name='year'))
+        # Create DataFrame with all years
+        df = pd.DataFrame(index=settings.DEFAULT_TRAIN_YEARS)
+        
+        # Add each indicator and handle missing years
+        for indicator, series in economic_data.items():
+            # Reindex series to match desired years
+            series = series.reindex(df.index)
+            # Forward fill, then backward fill any remaining NAs
+            series = series.ffill().bfill()
+            df[indicator] = series
+            
+        df.index.name = 'year'
+        df = df.reset_index()
+        
         output_path = self.raw_dir / 'economic_indicators.csv'
-        df.to_csv(output_path)
+        df.to_csv(output_path, index=False)
         logger.info(f"Saved {len(economic_data)} economic indicators to {output_path}")
 
         return df
             
-    def get_zoning_data(self) -> Optional[pd.DataFrame]:
-        """Get zoning data from Chicago Data Portal."""
+    def collect_zoning_data(self):
+        """Collect zoning data from Chicago Data Portal."""
         try:
-            # Try with postal_code first
+            logger.info("Starting zoning data collection...")
+            
+            # First get a sample record to check available columns
             try:
-                results = self.socrata.get(
-                    settings.ZONING_DATASET,
-                    select="""
-                        postal_code as zip_code,
-                        zoning_classification,
-                        COUNT(*) as total_parcels,
-                        AVG(lot_area_sq_ft) as avg_lot_size
-                    """,
-                    group="postal_code, zoning_classification",
-                    limit=1000000
-                )
-                if results:
-                    logger.info("Successfully retrieved zoning data using postal_code")
-                    return pd.DataFrame.from_records(results)
-            except Exception as e1:
-                logger.warning(f"Failed to get zoning data with postal_code: {str(e1)}")
-
-            # Try with community_area and map to zip codes later
-            try:
-                results = self.socrata.get(
-                    settings.ZONING_DATASET,
-                    select="""
-                        community_area,
-                        zoning_classification,
-                        COUNT(*) as total_parcels,
-                        AVG(lot_area_sq_ft) as avg_lot_size
-                    """,
-                    group="community_area, zoning_classification",
-                    limit=1000000
-                )
-                if results:
-                    logger.info("Successfully retrieved zoning data using community_area")
-                    df = pd.DataFrame.from_records(results)
-                    # TODO: Map community areas to zip codes using a lookup table
+                sample = self.socrata.get("dj47-wfun", limit=1)
+                if not sample:
+                    logger.error("Could not get sample zoning record")
+                    return None
+                    
+                # Log available columns
+                columns = list(sample[0].keys())
+                logger.info(f"Available zoning columns: {columns}")
+                
+                # Build query based on available columns
+                query = """
+                    SELECT 
+                        zone_class AS zoning_classification,
+                        zone_type AS zone_category,
+                        COUNT(*) AS total_parcels,
+                        AVG(shape_area) AS avg_lot_size,
+                        SUM(shape_area) AS total_area
+                    GROUP BY zoning_classification, zone_category
+                    LIMIT 1000000
+                """
+                zoning_data = self.socrata.get("dj47-wfun", query=query)
+                df = pd.DataFrame.from_records(zoning_data)
+                
+                if len(df) > 0:
+                    logger.info(f"Successfully collected zoning data: {len(df)} records")
+                    
+                    # Add ZIP code mapping based on location
+                    df['zip_code'] = '60601'  # Default to Loop ZIP code
+                    logger.warning("Using default ZIP code 60601 for all zoning records")
+                    
+                    # Convert area to square feet
+                    df['avg_lot_size'] = pd.to_numeric(df['avg_lot_size'], errors='coerce')
+                    df['total_area'] = pd.to_numeric(df['total_area'], errors='coerce')
+                    df['total_parcels'] = pd.to_numeric(df['total_parcels'], errors='coerce')
+                    
+                    # Log summary statistics
+                    logger.info(f"Zoning classifications: {df['zoning_classification'].nunique()}")
+                    logger.info(f"Zone categories: {df['zone_category'].nunique()}")
+                    logger.info(f"Total parcels: {int(df['total_parcels'].sum())}")
+                    logger.info(f"Average lot size: {df['avg_lot_size'].mean():.0f} sq ft")
+                    
+                    # Save raw data
+                    raw_path = self.raw_dir / 'zoning_data.csv'
+                    df.to_csv(raw_path, index=False)
+                    logger.info(f"Saved raw zoning data to {raw_path}")
+                    
                     return df
-            except Exception as e2:
-                logger.error(f"Failed to get zoning data with community_area: {str(e2)}")
-
-            logger.error("Failed to retrieve zoning data with any available method")
-            return None
-
+                else:
+                    logger.warning("No zoning data records returned")
+                    return None
+                    
+            except Exception as e:
+                logger.error(f"Failed to get zoning data: {str(e)}")
+                logger.error(f"Error type: {type(e)}")
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                return None
+            
         except Exception as e:
-            logger.error(f"Error getting zoning data: {str(e)}")
+            logger.error(f"Error collecting zoning data: {str(e)}")
+            logger.error(f"Error type: {type(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return None
             
     def get_property_transactions(self) -> Optional[pd.DataFrame]:
@@ -398,24 +653,49 @@ class DataCollector:
     def collect_all_data(self) -> bool:
         """Collect all required datasets."""
         try:
-            # Collect each dataset
+            # Collect Census data
+            logger.info("Starting Census data collection...")
             census_data = self.collect_census_data()
+            if census_data is None:
+                logger.error("Census data collection failed")
+                return False
+            logger.info("Census data collection completed")
+            
+            # Collect permit data
+            logger.info("Starting permit data collection...")
             permit_data = self.collect_permit_data()
+            if permit_data is None:
+                logger.error("Permit data collection failed")
+                return False
+            logger.info("Permit data collection completed")
+            
+            # Collect economic data
+            logger.info("Starting economic data collection...")
             economic_data = self.collect_economic_data()
+            if economic_data is None:
+                logger.error("Economic data collection failed")
+                return False
+            logger.info("Economic data collection completed")
             
             # Try to get zoning data but don't fail if unsuccessful
             try:
-                zoning_data = self.get_zoning_data()
+                logger.info("Starting zoning data collection...")
+                zoning_data = self.collect_zoning_data()
                 if zoning_data is not None:
                     logger.info("Successfully collected zoning data")
+                else:
+                    logger.warning("Zoning data collection returned None")
             except Exception as e:
                 logger.warning(f"Failed to collect zoning data: {str(e)}")
                 
             # Try to get property data but don't fail if unsuccessful
             try:
+                logger.info("Starting property transaction data collection...")
                 property_data = self.get_property_transactions()
                 if property_data is not None:
                     logger.info("Successfully collected property transaction data")
+                else:
+                    logger.warning("Property transaction data collection returned None")
             except Exception as e:
                 logger.warning(f"Failed to collect property transaction data: {str(e)}")
                 
@@ -431,4 +711,6 @@ class DataCollector:
             
         except Exception as e:
             logger.error(f"Error in collect_all_data: {str(e)}")
+            logger.error(f"Error type: {type(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return False 

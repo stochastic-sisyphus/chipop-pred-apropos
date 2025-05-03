@@ -24,7 +24,7 @@ A comprehensive tool for analyzing and predicting population shifts in Chicago b
 
 ## Requirements
 
-- Python 3.8+
+- Python 3.11+
 - Required packages listed in requirements.txt
 - API keys:
   - Census Bureau API key

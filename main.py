@@ -26,6 +26,8 @@ from difflib import get_close_matches
 import pandas as pd
 from typing import List
 import traceback
+import importlib
+from jinja2 import Template
 
 from src.config import settings
 from src.data_collection.collector import DataCollector
@@ -34,10 +36,12 @@ from src.models.population_model import PopulationModel
 from src.models.retail_model import RetailModel
 from src.models.housing_model import HousingModel
 from src.models.economic_model import EconomicModel
+from src.utils.validate_data import validate_data_files, validate_merged_dataset
 from src.visualization.visualizer import Visualizer
 from src.reporting.ten_year_growth_report import TenYearGrowthReport
 from src.reporting.retail_deficit_report import RetailDeficitReport
 from src.reporting.housing_retail_balance_report import HousingRetailBalanceReport
+from src.utils.helpers import ensure_output_structure, validate_outputs
 
 # Set up logging
 logging.basicConfig(
@@ -117,7 +121,7 @@ def create_timestamped_dir(base_dir: Path) -> Path:
 
 def archive_run_output(run_dir: Path, archive_dir: Path) -> bool:
     """
-    Archive the run output directory into a zip file.
+        Archive the run output directory into a zip file.
     
     Args:
         run_dir (Path): Directory containing run output
@@ -305,14 +309,13 @@ def inspect_merged_dataset(df: pd.DataFrame, threshold_missing: float = 0.8) -> 
 def run_pipeline():
     """Run the complete analysis pipeline."""
     try:
-        # Ensure directories exist
-        ensure_directories()
-        
-        # Verify API keys
-        verify_api_keys()
-        
-        logger.info("Starting pipeline run...")
-        
+        logger.info("Starting Chicago population analysis pipeline...")
+
+        # Ensure output structure
+        if not ensure_output_structure():
+            logger.error("Failed to ensure output structure")
+            return False
+
         # Initialize components
         collector = DataCollector()
         processor = DataProcessor()
@@ -321,95 +324,244 @@ def run_pipeline():
         housing_model = HousingModel()
         economic_model = EconomicModel()
         visualizer = Visualizer()
-        
-        # Data collection
-        logger.info("Starting data collection...")
-        if not collector.collect_all_data():
-            logger.error("Data collection failed")
+
+        # Collect data
+        logger.info("Collecting data...")
+        if not collector.collect_all():
+            logger.error("Failed to collect data")
             return False
-            
-        # Data processing
-        logger.info("Starting data processing...")
+
+        # Process data
+        logger.info("Processing data...")
         if not processor.process_all():
-            logger.error("Data processing failed")
+            logger.error("Failed to process data")
             return False
-            
-        # Load merged dataset
-        merged_df = pd.read_csv(settings.MERGED_DATA_PATH)
-        # PATCH: Add total_permits if missing
-        if 'total_permits' not in merged_df.columns:
-            merged_df['total_permits'] = (
-                merged_df.get('residential_permits', 0).fillna(0) +
-                merged_df.get('commercial_permits', 0).fillna(0) +
-                merged_df.get('retail_permits', 0).fillna(0)
-            )
-        
-        # Train population model
-        logger.info("Training population model...")
-        try:
-            if not population_model.train(merged_df):
-                logger.error("Failed to train population model")
+
+        # Train models
+        logger.info("Training models...")
+        models = {
+            'population': population_model,
+            'economic': economic_model,
+            'retail': retail_model,
+            'housing': housing_model
+        }
+
+        for name, model in models.items():
+            if not model.train(processor.get_processed_data()):
+                logger.error(f"Failed to train {name} model")
                 return False
-        except Exception as e:
-            logger.error(f"Unexpected error in PopulationModel: {str(e)}")
-            return False
-            
-        # Train retail model
-        logger.info("Training retail model...")
-        if not retail_model.train(merged_df):
-            logger.error("Failed to train retail model")
-            return False
-            
-        # Train housing model
-        logger.info("Training housing model...")
-        if not housing_model.train(merged_df):
-            logger.error("Failed to train housing model")
-            return False
-            
-        # Train economic model
-        logger.info("Training economic model...")
-        if not economic_model.train(merged_df):
-            logger.error("Failed to train economic model")
-            return False
-            
+
+        # Generate predictions and scenarios
+        logger.info("Generating predictions and scenarios...")
+        for name, model in models.items():
+            if not model.run_analysis():
+                logger.error(f"Failed to run {name} analysis")
+                return False
+
         # Generate visualizations
         logger.info("Generating visualizations...")
-        if not visualizer.create_dashboard():
-            logger.error("Failed to create visualizations")
+        if not visualizer.generate_all():
+            logger.error("Failed to generate visualizations")
+            return False
+
+        # Generate reports
+        logger.info("Generating reports...")
+        if not generate_reports():
+            logger.error("Failed to generate reports")
+            return False
+
+        # Validate outputs
+        logger.info("Validating outputs...")
+        if not validate_outputs():
+            logger.error("Failed to validate outputs")
+            return False
+
+        logger.info("Pipeline completed successfully")
+        return True
+
+    except Exception as e:
+        logger.error(f"Pipeline failed: {str(e)}")
+        return False
+
+def generate_reports() -> bool:
+    """Generate all reports."""
+    try:
+        logger.info("Generating reports...")
+
+        # Load processed data
+        census_data = pd.read_csv(settings.PROCESSED_DATA_DIR / 'census_processed.csv')
+        permit_data = pd.read_csv(settings.PROCESSED_DATA_DIR / 'permits_processed.csv')
+        economic_data = pd.read_csv(settings.PROCESSED_DATA_DIR / 'economic_processed.csv')
+        zoning_data = pd.read_csv(settings.PROCESSED_DATA_DIR / 'zoning_processed.csv')
+        retail_metrics = pd.read_csv(settings.PROCESSED_DATA_DIR / 'retail_metrics.csv')
+        retail_deficit = pd.read_csv(settings.PROCESSED_DATA_DIR / 'retail_deficit.csv')
+
+        # Initialize report generators
+        reports = {
+            'ten_year_growth': TenYearGrowthReport(),
+            'housing_retail_balance': HousingRetailBalanceReport(),
+            'retail_deficit': RetailDeficitReport()
+        }
+
+        # Generate each report
+        for name, report in reports.items():
+            try:
+                if not report.generate_report():
+                    logger.warning(f"Failed to generate {name} report")
+                else:
+                    logger.info(f"Generated {name} report")
+            except Exception as e:
+                logger.error(f"Error generating {name} report: {str(e)}")
+                logger.error(f"Error type: {type(e)}")
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                continue
+
+        # Generate executive summary
+        try:
+            summary_template = settings.TEMPLATES_DIR / 'reports/EXECUTIVE_SUMMARY.md'
+            with open(summary_template, 'r') as f:
+                template = Template(f.read())
+
+            # Calculate summary metrics
+            metrics = {
+                'generation_date': datetime.now().strftime('%Y-%m-%d'),
+                'current_analysis': {
+                    'population': {
+                        'metrics': {
+                            'total': int(census_data['total_population'].sum())
+                        },
+                        'demographics': {
+                            'population_growth': float(
+                                (census_data.groupby('year')['total_population'].sum().pct_change().mean() * 100)
+                            )
+                        }
+                    },
+                    'development': {
+                        'active_permits': int(permit_data['total_permits'].sum()),
+                        'pipeline_value': float(permit_data['total_construction_cost'].sum())
+                    }
+                },
+                'historical_trends': {
+                    'economic': {
+                        'gdp_growth': float(economic_data['real_gdp'].pct_change().mean()),
+                        'employment_change': float(economic_data['unemployment_rate'].pct_change().mean())
+                    }
+                },
+                'projections': {
+                    'period_start': datetime.now().year,
+                    'period_end': datetime.now().year + 10,
+                    'population': {
+                        'scenarios': [
+                            {
+                                'population_change': 0.15,  # 15% growth in base case
+                                'final_population': int(census_data['total_population'].sum() * 1.15)
+                            }
+                        ]
+                    }
+                },
+                'growth_areas': {
+                    'primary': [
+                        f"ZIP {zip_code}" for zip_code in census_data.groupby('zip_code')['total_population']
+                        .agg(['first', 'last'])
+                        .assign(growth=lambda x: (x['last'] - x['first']) / x['first'])
+                        .nlargest(3, 'growth').index
+                    ]
+                },
+                'recommendations': {
+                    'strategic': [
+                        "Focus development in high-growth areas",
+                        "Address retail deficits in underserved areas",
+                        "Promote mixed-use development in opportunity zones"
+                    ],
+                    'implementation': [
+                        "Update zoning regulations",
+                        "Streamline permit processes",
+                        "Engage community stakeholders"
+                    ]
+                }
+            }
+
+            # Generate summary
+            summary = template.render(**metrics)
+
+            # Save summary
+            summary_path = settings.REPORTS_DIR / 'EXECUTIVE_SUMMARY.md'
+            with open(summary_path, 'w') as f:
+                f.write(summary)
+            logger.info("Generated executive summary")
+
+        except Exception as e:
+            return _extracted_from_generate_reports_109(
+                'Failed to generate executive summary: ', e
+            )
+        return True
+
+    except Exception as e:
+        return _extracted_from_generate_reports_109('Failed to generate reports: ', e)
+
+
+# TODO Rename this here and in `generate_reports`
+def _extracted_from_generate_reports_109(arg0, e):
+    logger.error(f"{arg0}{str(e)}")
+    logger.error(f"Error type: {type(e)}")
+    logger.error(f"Traceback: {traceback.format_exc()}")
+    return False
+
+def main():
+    """Main execution function."""
+    try:
+        logger.info("Starting pipeline...")
+        
+        # Initialize components
+        collector = DataCollector()
+        processor = DataProcessor()
+        
+        # Collect data
+        logger.info("Collecting data...")
+        census_data = collector.collect_census_data()
+        if census_data is None:
+            logger.error("Failed to collect Census data")
+            return False
+            
+        permit_data = collector.collect_permit_data()
+        if permit_data is None:
+            logger.error("Failed to collect permit data")
+            return False
+            
+        economic_data = collector.collect_economic_data()
+        if economic_data is None:
+            logger.error("Failed to collect economic data")
+            return False
+            
+        zoning_data = collector.collect_zoning_data()
+        if zoning_data is None:
+            logger.warning("Failed to collect zoning data")
+        
+        # Process data
+        logger.info("Processing data...")
+        if not processor.process_all_data(
+            census_data=census_data,
+            permit_data=permit_data,
+            economic_data=economic_data,
+            zoning_data=zoning_data
+        ):
+            logger.error("Failed to process data")
             return False
             
         # Generate reports
         logger.info("Generating reports...")
-        reports = [
-            RetailDeficitReport(),
-            HousingRetailBalanceReport(),
-            TenYearGrowthReport()
-        ]
-        
-        for report in reports:
-            if not report.generate_report():
-                logger.warning(f"Failed to generate {report.__class__.__name__}")
-                
+        if not generate_reports():
+            logger.error("Failed to generate reports")
+            return False
+            
         logger.info("Pipeline completed successfully")
         return True
         
     except Exception as e:
         logger.error(f"Pipeline failed: {str(e)}")
+        logger.error(f"Error type: {type(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return False
-
-def main():
-    """Main function to run the Chicago population analysis pipeline."""
-    try:
-        run_pipeline()
-    except Exception as e:
-        logging.basicConfig(level=logging.ERROR)
-        logger = logging.getLogger("__main__")
-        logger.error("Uncaught exception in main pipeline:", exc_info=True)
-        print("\n\n================ PIPELINE FAILED ================")
-        print(f"Uncaught exception: {e}")
-        traceback.print_exc()
-        print("================================================\n\n")
-        sys.exit(1)
 
 if __name__ == "__main__":
     main()  

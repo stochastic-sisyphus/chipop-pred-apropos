@@ -18,48 +18,331 @@ import geopandas as gpd
 from typing import Dict, List, Optional, Tuple
 from src.utils.helpers import resolve_column_name
 from src.config.column_alias_map import column_aliases
+import traceback
 
 logger = logging.getLogger(__name__)
 
 class Visualizer:
-    """Handles creation of all visualizations for the Chicago Population Analysis project"""
+    """Class for creating visualizations."""
     
-    def __init__(self, data_dir: Path = None):
-        """Initialize the visualizer with data paths."""
-        self.data_dir = data_dir or settings.DATA_PROCESSED_DIR
+    def __init__(self):
+        """Initialize the visualizer."""
+        # Set style
+        plt.style.use('seaborn-v0_8')
         
-        # Initialize data attributes as None
-        self.population_data = None
-        self.retail_deficit_data = None
-        self.permit_data = None
-        self.economic_data = None
-        self.scenario_data = None
-        self.business_data = None
+        # Set default figure size
+        plt.rcParams['figure.figsize'] = [12, 8]
         
-    def load_data(self) -> bool:
-        """Load all required datasets for visualization."""
+        # Set font sizes
+        plt.rcParams['font.size'] = 12
+        plt.rcParams['axes.titlesize'] = 14
+        plt.rcParams['axes.labelsize'] = 12
+        
+        # Set color palette
+        self.colors = sns.color_palette('husl', n_colors=59)  # Match exact number of Chicago ZIP codes
+        
+        # Set output directory
+        self.output_dir = settings.VISUALIZATIONS_DIR
+        
+    def create_balance_analysis_charts(self, data: pd.DataFrame) -> None:
+        """Create visualizations for housing-retail balance analysis."""
         try:
-            self.population_data = pd.read_csv(settings.CENSUS_PROCESSED_PATH)
-            self.permit_data = pd.read_csv(settings.PERMITS_PROCESSED_PATH)
-            self.economic_data = pd.read_csv(settings.ECONOMIC_PROCESSED_PATH)
-            self.scenario_data = pd.read_csv(settings.PREDICTIONS_DIR / 'scenario_predictions.csv')
-            self.business_data = pd.read_csv(settings.BUSINESS_LICENSES_PROCESSED_PATH)
-            # Try to load retail deficit processed, fallback to analysis_results
-            try:
-                self.retail_deficit_data = pd.read_csv(settings.PROCESSED_DATA_DIR / 'retail_deficit_processed.csv')
-            except FileNotFoundError:
-                try:
-                    self.retail_deficit_data = pd.read_csv(settings.ANALYSIS_RESULTS_DIR / 'retail_deficit_areas.csv')
-                    logger.warning("Loaded retail deficit data from analysis_results as fallback.")
-                except FileNotFoundError:
-                    self.retail_deficit_data = None
-                    logger.warning("Retail deficit data not found in processed or analysis_results.")
-            logger.info("All data loaded successfully")
-            return True
+            # Create output directory if it doesn't exist
+            output_dir = Path(self.output_dir) / 'balance_analysis'
+            output_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Create scatter plot of housing vs retail
+            plt.figure(figsize=(12, 8))
+            sns.scatterplot(
+                data=data,
+                x='total_housing_units',
+                y='retail_space',
+                hue='balance_score' if 'balance_score' in data.columns else None,
+                size='total_population',
+                sizes=(50, 400),
+                alpha=0.6
+            )
+            plt.title('Housing Units vs Retail Space by ZIP Code')
+            plt.xlabel('Total Housing Units')
+            plt.ylabel('Retail Space (sq ft)')
+            plt.savefig(output_dir / 'housing_vs_retail_scatter.png')
+            plt.close()
+            
+            # Balance score distribution by ZIP code
+            plt.figure(figsize=(12, 8))
+            sns.barplot(
+                data=data,
+                x='zip_code',
+                y='balance_score',
+                hue='zip_code',
+                legend=False,
+                palette=self.colors
+            )
+            plt.xticks(rotation=45)
+            plt.title('Housing-Retail Balance Score by ZIP Code')
+            plt.xlabel('ZIP Code')
+            plt.ylabel('Balance Score')
+            plt.tight_layout()
+            plt.savefig(output_dir / 'balance_score_by_zip.png')
+            plt.close()
+            
+            # Create pie chart of balance categories
+            if 'balance_category' in data.columns:
+                plt.figure(figsize=(10, 10))
+                balance_counts = data['balance_category'].value_counts()
+                plt.pie(
+                    balance_counts,
+                    labels=balance_counts.index,
+                    autopct='%1.1f%%',
+                    colors=self.colors
+                )
+                plt.title('Distribution of Balance Categories')
+                plt.savefig(output_dir / 'balance_category_pie.png')
+                plt.close()
+            
+            logger.info(f"Balance analysis charts saved to {output_dir}")
+            
         except Exception as e:
-            logger.error(f"Error loading data: {str(e)}")
-            return False
-    
+            logger.error(f"Error creating balance analysis charts: {str(e)}")
+            logger.error(f"Error type: {type(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            
+    def create_retail_deficit_charts(self, data: pd.DataFrame) -> None:
+        """Create charts for retail deficit analysis."""
+        try:
+            # Create output directory
+            charts_dir = self.output_dir / 'retail_deficit'
+            charts_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Create bar plot of retail gaps
+            plt.figure(figsize=(12, 8))
+            sns.barplot(
+                data=data.sort_values('retail_gap' if 'retail_gap' in data.columns else 'zip_code', ascending=False),
+                x='zip_code',
+                y='retail_gap' if 'retail_gap' in data.columns else 'retail_space',
+                palette='viridis'
+            )
+            plt.title('Retail Gap by ZIP Code')
+            plt.xlabel('ZIP Code')
+            plt.ylabel('Retail Gap ($)')
+            plt.xticks(rotation=45)
+            plt.tight_layout()
+            plt.savefig(charts_dir / 'retail_gap_by_zip.png')
+            plt.close()
+            
+            # Create scatter plot of population vs retail gap
+            plt.figure(figsize=(12, 8))
+            sns.scatterplot(
+                data=data,
+                x='total_population',
+                y='retail_gap' if 'retail_gap' in data.columns else 'retail_space',
+                size='total_housing_units',
+                sizes=(50, 400),
+                alpha=0.6
+            )
+            plt.title('Population vs Retail Gap')
+            plt.xlabel('Total Population')
+            plt.ylabel('Retail Gap ($)')
+            plt.savefig(charts_dir / 'population_vs_retail_gap.png')
+            plt.close()
+            
+            # Create heatmap of retail metrics
+            if all(col in data.columns for col in ['retail_demand', 'retail_supply', 'retail_gap']):
+                plt.figure(figsize=(12, 8))
+                metrics_df = data[['retail_demand', 'retail_supply', 'retail_gap']].corr()
+                sns.heatmap(metrics_df, annot=True, cmap='coolwarm', center=0)
+                plt.title('Correlation of Retail Metrics')
+                plt.tight_layout()
+                plt.savefig(charts_dir / 'retail_metrics_correlation.png')
+                plt.close()
+            
+            logger.info(f"Retail deficit charts saved to {charts_dir}")
+            
+        except Exception as e:
+            logger.error(f"Error creating retail deficit charts: {str(e)}")
+            logger.error(f"Error type: {type(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            
+    def create_development_charts(self, data: pd.DataFrame) -> None:
+        """Create charts for development analysis."""
+        try:
+            # Create output directory
+            charts_dir = self.output_dir / 'development'
+            charts_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Create line plot of permits over time
+            plt.figure(figsize=(12, 8))
+            permits_by_year = data.groupby('year')['total_permits'].sum()
+            plt.plot(permits_by_year.index, permits_by_year.values, marker='o')
+            plt.title('Building Permits Over Time')
+            plt.xlabel('Year')
+            plt.ylabel('Number of Permits')
+            plt.grid(True)
+            plt.savefig(charts_dir / 'permits_by_year.png')
+            plt.close()
+            
+            # Create bar plot of permits by type
+            if all(col in data.columns for col in ['residential_permits', 'commercial_permits', 'retail_permits']):
+                plt.figure(figsize=(12, 8))
+                permit_types = ['residential_permits', 'commercial_permits', 'retail_permits']
+                permit_counts = [data[col].sum() for col in permit_types]
+                plt.bar(
+                    ['Residential', 'Commercial', 'Retail'],
+                    permit_counts,
+                    color=self.colors[:3]
+                )
+                plt.title('Permits by Type')
+                plt.xlabel('Permit Type')
+                plt.ylabel('Number of Permits')
+                plt.savefig(charts_dir / 'permits_by_type.png')
+                plt.close()
+            
+            # Create box plot of construction costs
+            plt.figure(figsize=(12, 8))
+            sns.boxplot(
+                data=data,
+                x='year',
+                y='total_construction_cost',
+                palette='viridis'
+            )
+            plt.title('Construction Costs Distribution by Year')
+            plt.xlabel('Year')
+            plt.ylabel('Construction Cost ($)')
+            plt.xticks(rotation=45)
+            plt.tight_layout()
+            plt.savefig(charts_dir / 'construction_costs_distribution.png')
+            plt.close()
+            
+            logger.info(f"Development charts saved to {charts_dir}")
+            
+        except Exception as e:
+            logger.error(f"Error creating development charts: {str(e)}")
+            logger.error(f"Error type: {type(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            
+    def create_population_charts(self, data: pd.DataFrame) -> None:
+        """Create charts for population analysis."""
+        try:
+            # Create output directory
+            charts_dir = self.output_dir / 'population'
+            charts_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Create line plot of total population over time
+            plt.figure(figsize=(12, 8))
+            pop_by_year = data.groupby('year')['total_population'].sum()
+            plt.plot(pop_by_year.index, pop_by_year.values, marker='o')
+            plt.title('Total Population Over Time')
+            plt.xlabel('Year')
+            plt.ylabel('Population')
+            plt.grid(True)
+            plt.savefig(charts_dir / 'total_population_trend.png')
+            plt.close()
+            
+            # Create box plot of population distribution
+            plt.figure(figsize=(12, 8))
+            sns.boxplot(
+                data=data,
+                x='year',
+                y='total_population',
+                palette='viridis'
+            )
+            plt.title('Population Distribution by Year')
+            plt.xlabel('Year')
+            plt.ylabel('Population')
+            plt.xticks(rotation=45)
+            plt.tight_layout()
+            plt.savefig(charts_dir / 'population_distribution.png')
+            plt.close()
+            
+            # Create line plot of median income over time
+            plt.figure(figsize=(12, 8))
+            income_by_year = data.groupby('year')['median_household_income'].mean()
+            plt.plot(income_by_year.index, income_by_year.values, marker='o')
+            plt.title('Median Household Income Over Time')
+            plt.xlabel('Year')
+            plt.ylabel('Income ($)')
+            plt.grid(True)
+            plt.savefig(charts_dir / 'median_income_trend.png')
+            plt.close()
+            
+            logger.info(f"Population charts saved to {charts_dir}")
+            
+        except Exception as e:
+            logger.error(f"Error creating population charts: {str(e)}")
+            logger.error(f"Error type: {type(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            
+    def create_economic_charts(self, data: pd.DataFrame) -> None:
+        """Create charts for economic analysis."""
+        try:
+            # Create output directory
+            charts_dir = self.output_dir / 'economic'
+            charts_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Create line plot of GDP over time
+            if 'real_gdp' in data.columns:
+                plt.figure(figsize=(12, 8))
+                gdp_by_year = data.groupby('year')['real_gdp'].mean()
+                plt.plot(gdp_by_year.index, gdp_by_year.values, marker='o')
+                plt.title('Real GDP Over Time')
+                plt.xlabel('Year')
+                plt.ylabel('GDP')
+                plt.grid(True)
+                plt.savefig(charts_dir / 'gdp_trend.png')
+                plt.close()
+            
+            # Create line plot of unemployment rate
+            if 'unemployment_rate' in data.columns:
+                plt.figure(figsize=(12, 8))
+                unemp_by_year = data.groupby('year')['unemployment_rate'].mean()
+                plt.plot(unemp_by_year.index, unemp_by_year.values, marker='o')
+                plt.title('Unemployment Rate Over Time')
+                plt.xlabel('Year')
+                plt.ylabel('Unemployment Rate (%)')
+                plt.grid(True)
+                plt.savefig(charts_dir / 'unemployment_trend.png')
+                plt.close()
+            
+            # Create scatter plot of income vs home value
+            plt.figure(figsize=(12, 8))
+            sns.scatterplot(
+                data=data,
+                x='median_household_income',
+                y='median_home_value',
+                size='total_population',
+                sizes=(50, 400),
+                alpha=0.6
+            )
+            plt.title('Income vs Home Value')
+            plt.xlabel('Median Household Income ($)')
+            plt.ylabel('Median Home Value ($)')
+            plt.savefig(charts_dir / 'income_vs_home_value.png')
+            plt.close()
+            
+            logger.info(f"Economic charts saved to {charts_dir}")
+            
+        except Exception as e:
+            logger.error(f"Error creating economic charts: {str(e)}")
+            logger.error(f"Error type: {type(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            
+    def create_all_charts(self, data: Dict[str, pd.DataFrame]) -> None:
+        """Create all charts."""
+        try:
+            # Create each type of chart
+            self.create_balance_analysis_charts(data['merged'])
+            self.create_retail_deficit_charts(data['merged'])
+            self.create_development_charts(data['merged'])
+            self.create_population_charts(data['merged'])
+            self.create_economic_charts(data['merged'])
+            
+            logger.info("All charts created successfully")
+            
+        except Exception as e:
+            logger.error(f"Error creating charts: {str(e)}")
+            logger.error(f"Error type: {type(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+
     def create_population_trend_chart(self, output_path: Optional[Path] = None) -> bool:
         """Create population trend chart."""
         try:
@@ -517,64 +800,9 @@ class Visualizer:
             logger.warning(f"Failed to add north arrow: {str(e)}")
             # Don't raise the error as this is a non-critical feature 
 
-    def create_balance_analysis_charts(self, balance_data: pd.DataFrame) -> bool:
-        """Create visualizations for housing-retail balance analysis."""
-        try:
-            logger.info("Creating housing-retail balance analysis charts...")
-            # Ensure output directory exists
-            self.viz_dir.mkdir(parents=True, exist_ok=True)
-
-            # 1. Bar plot: Balance Score by ZIP Code
-            plt.figure(figsize=(16, 8))
-            sorted_data = balance_data.sort_values('balance_score', ascending=False)
-            plt.bar(sorted_data['zip_code'].astype(str), sorted_data['balance_score'], color='skyblue')
-            self._extracted_from_create_balance_analysis_charts_19(
-                'Housing-Retail Balance Score by ZIP Code',
-                'ZIP Code',
-                'Balance Score',
-            )
-            plt.xticks(rotation=90)
-            self._extracted_from_create_balance_analysis_charts_44(
-                'balance_score_by_zip.png'
-            )
-            # 2. Scatter plot: Housing Units vs Retail Space colored by Balance Score
-            plt.figure(figsize=(12, 8))
-            scatter = plt.scatter(
-                balance_data['housing_units'],
-                balance_data['retail_space'],
-                c=balance_data['balance_score'],
-                cmap='coolwarm',
-                alpha=0.7,
-                edgecolor='k'
-            )
-            plt.colorbar(scatter, label='Balance Score')
-            self._extracted_from_create_balance_analysis_charts_19(
-                'Housing Units vs Retail Space by ZIP Code',
-                'Housing Units',
-                'Retail Space (sq ft)',
-            )
-            self._extracted_from_create_balance_analysis_charts_44(
-                'housing_vs_retail_scatter.png'
-            )
-            # 3. Pie chart: Balance Category Distribution
-            if 'balance_category' in balance_data.columns:
-                plt.figure(figsize=(8, 8))
-                category_counts = balance_data['balance_category'].value_counts()
-                plt.pie(category_counts, labels=category_counts.index, autopct='%1.1f%%', startangle=140)
-                plt.title('Distribution of Balance Categories')
-                self._extracted_from_create_balance_analysis_charts_44(
-                    'balance_category_pie.png'
-                )
-            logger.info("Created housing-retail balance analysis charts")
-            return True
-        except Exception as e:
-            logger.error(f"Error creating balance analysis charts: {str(e)}")
-            return False 
-
-    # TODO Rename this here and in `create_trend_plot` and `create_balance_analysis_charts`
     def _extracted_from_create_balance_analysis_charts_44(self, arg0):
         plt.tight_layout()
-        plt.savefig(self.viz_dir / arg0, dpi=300, bbox_inches='tight')
+        plt.savefig(self.output_dir / arg0, dpi=300, bbox_inches='tight')
         plt.close() 
 
     # TODO Rename this here and in `create_trend_plot` and `create_balance_analysis_charts`

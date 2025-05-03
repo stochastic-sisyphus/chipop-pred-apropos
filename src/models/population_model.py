@@ -7,11 +7,12 @@ import numpy as np
 from pathlib import Path
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 import matplotlib.pyplot as plt
 import joblib
-from sklearn.model_selection import train_test_split
-from typing import Tuple
+from sklearn.model_selection import train_test_split, cross_val_score
+from typing import Tuple, Dict, Optional, List
+import seaborn as sns
 
 from src.config import settings
 from src.utils.helpers import sanitize_features, match_features, resolve_column_name, safe_train_model
@@ -36,87 +37,278 @@ class PopulationModel:
         self.target_col = None
         self.predictions = None
         self.scenarios = None
-        # Create model directory if it doesn't exist
-        settings.TRAINED_MODELS_DIR.mkdir(parents=True, exist_ok=True)
+        self.metrics = {}
         
-    def prepare_features(self, df: pd.DataFrame, feature_list=None) -> Tuple[pd.DataFrame, pd.Series]:
-        """Prepare features for population modeling."""
+        # Create required directories
+        for directory in [settings.TRAINED_MODELS_DIR, settings.MODEL_METRICS_DIR]:
+            directory.mkdir(parents=True, exist_ok=True)
+            
+    def _get_feature_list(self, df: pd.DataFrame, feature_list: Optional[List[str]] = None) -> List[str]:
+        """
+        Get the list of features to use for modeling.
+        
+        Args:
+            df: Input DataFrame
+            feature_list: Optional specific features to use
+            
+        Returns:
+            List of feature names to use
+        """
+        if feature_list is not None:
+            matched = match_features(df, feature_list, column_aliases)
+            if not matched:
+                logger.error("No valid features found in provided feature list")
+                return []
+            return matched
+            
+        # Core features that must be present
+        core_features = [
+            'median_household_income',
+            'median_home_value',
+            'labor_force'
+        ]
+        
+        # Optional permit-related features
+        permit_features = [
+            'residential_permits',
+            'commercial_permits',
+            'retail_permits',
+            'total_permits'
+        ]
+        
+        # Optional cost-related features
+        cost_features = [
+            'residential_construction_cost',
+            'commercial_construction_cost',
+            'retail_construction_cost',
+            'total_construction_cost'
+        ]
+        
+        # Optional housing-related features
+        housing_features = [
+            'total_housing_units',
+            'occupied_housing_units',
+            'vacant_housing_units'
+        ]
+        
+        # Start with core features
+        features = [f for f in core_features if f in df.columns]
+        if len(features) != len(core_features):
+            missing = set(core_features) - set(features)
+            logger.error(f"Missing core features: {missing}")
+            return []
+            
+        # Add available optional features
+        for feature_set in [permit_features, cost_features, housing_features]:
+            for feature in feature_set:
+                if feature in df.columns and not df[feature].isna().all():
+                    features.append(feature)
+                    logger.debug(f"Added optional feature: {feature}")
+                    
+        logger.info(f"Selected features ({len(features)}): {features}")
+        return features
+
+    def _clean_features(self, X: pd.DataFrame) -> pd.DataFrame:
+        """
+        Clean and impute missing values in features.
+        
+        Args:
+            X: Feature DataFrame
+            
+        Returns:
+            Cleaned DataFrame
+        """
+        X = X.copy()
+        
+        # Log initial state
+        missing_vals = X.isnull().sum()
+        logger.info("Missing values before cleaning:")
+        for col, count in missing_vals[missing_vals > 0].items():
+            logger.info(f"{col}: {count} missing values")
+            
+        for col in X.columns:
+            # Convert to numeric first
+            X[col] = pd.to_numeric(X[col], errors='coerce')
+            
+            # Handle missing values based on column type
+            if X[col].isnull().any():
+                if col.endswith(('_permits', '_construction_cost')):
+                    # Fill missing permit/cost data with 0
+                    X[col] = X[col].fillna(0)
+                else:
+                    # For other columns, use ZIP code median then overall median
+                    zip_medians = X.groupby('zip_code')[col].transform('median')
+                    X[col] = X[col].fillna(zip_medians)
+                    if X[col].isnull().any():
+                        overall_median = X[col].median()
+                        X[col] = X[col].fillna(overall_median)
+                        logger.info(f"Used overall median ({overall_median}) for remaining {col} NaN values")
+                        
+            # Handle infinite values
+            if np.isinf(X[col]).any():
+                X[col] = X[col].replace([np.inf, -np.inf], X[col].median())
+                logger.warning(f"Replaced infinite values in {col} with median")
+                
+        return X
+
+    def _clean_target(self, y: pd.Series) -> pd.Series:
+        """
+        Clean and validate target variable.
+        
+        Args:
+            y: Target Series
+            
+        Returns:
+            Cleaned Series
+        """
+        y = y.copy()
+        
+        # Convert to numeric
+        y = pd.to_numeric(y, errors='coerce')
+        
+        # Handle missing values
+        if y.isnull().any():
+            # First try ZIP code median
+            zip_medians = y.groupby('zip_code').transform('median')
+            y = y.fillna(zip_medians)
+            
+            # For any remaining NaN, use overall median
+            if y.isnull().any():
+                overall_median = y.median()
+                y = y.fillna(overall_median)
+                logger.info(f"Used overall median ({overall_median}) for remaining target NaN values")
+                
+        # Validate range
+        if (y <= 0).any():
+            logger.error("Found non-positive population values")
+            min_val = y[y > 0].min()
+            y = y.clip(lower=min_val)
+            logger.info(f"Clipped population values to minimum of {min_val}")
+            
+        return y
+
+    def _transform_features(self, X: pd.DataFrame) -> pd.DataFrame:
+        """
+        Apply transformations to features.
+        
+        Args:
+            X: Feature DataFrame
+            
+        Returns:
+            Transformed DataFrame
+        """
+        X = X.copy()
+        
+        # Features that should be log-transformed
+        log_transform_cols = [
+            'median_household_income',
+            'median_home_value',
+            'labor_force',
+            'total_housing_units',
+            'occupied_housing_units'
+        ]
+        
+        # Features that should be ratio-transformed
+        ratio_cols = [
+            ('vacant_housing_units', 'total_housing_units', 'vacancy_rate'),
+            ('occupied_housing_units', 'total_housing_units', 'occupancy_rate')
+        ]
+        
+        # Apply log transforms
+        for col in log_transform_cols:
+            if col in X.columns:
+                min_val = X[col].min()
+                if min_val <= 0:
+                    offset = abs(min_val) + 1
+                    X[col] = X[col] + offset
+                X[col] = np.log1p(X[col])
+                logger.debug(f"Applied log transform to {col}")
+                
+        # Create ratio features
+        for numerator, denominator, new_col in ratio_cols:
+            if numerator in X.columns and denominator in X.columns:
+                X[new_col] = X[numerator] / X[denominator]
+                X[new_col] = X[new_col].fillna(X[new_col].median())
+                logger.debug(f"Created ratio feature: {new_col}")
+                
+        return X
+
+    def _validate_features(self, X: pd.DataFrame, y: pd.Series) -> bool:
+        """
+        Validate prepared features and target.
+        
+        Args:
+            X: Feature DataFrame
+            y: Target Series
+            
+        Returns:
+            bool: Whether validation passed
+        """
+        # Check for NaN values
+        if X.isnull().any().any():
+            logger.error("NaN values remain in features:")
+            logger.error(X.isnull().sum()[X.isnull().sum() > 0])
+            return False
+            
+        if y.isnull().any():
+            logger.error(f"NaN values remain in target: {y.isnull().sum()}")
+            return False
+            
+        # Check for infinite values
+        if np.isinf(X).any().any():
+            logger.error("Infinite values found in features:")
+            logger.error(np.isinf(X).sum()[np.isinf(X).sum() > 0])
+            return False
+            
+        if np.isinf(y).any():
+            logger.error(f"Infinite values found in target: {np.isinf(y).sum()}")
+            return False
+            
+        # Verify dimensions
+        if len(X) != len(y):
+            logger.error(f"Feature/target length mismatch: X={len(X)}, y={len(y)}")
+            return False
+            
+        return True
+
+    def prepare_features(self, df: pd.DataFrame, feature_list: Optional[List[str]] = None) -> Tuple[Optional[pd.DataFrame], Optional[pd.Series]]:
+        """
+        Prepare features for population modeling.
+        
+        Args:
+            df: Input DataFrame
+            feature_list: Optional specific features to use
+            
+        Returns:
+            Tuple of (features DataFrame, target Series) or (None, None) on error
+        """
         try:
             logger.info("Preparing population features...")
             
-            # Use dynamic feature selection if feature_list is provided
-            if feature_list is not None:
-                features = match_features(df, feature_list, column_aliases)
-            else:
-                # Default features
-                default_features = [
-                    'median_household_income',
-                    'median_home_value',
-                    'labor_force',
-                    'residential_permits',
-                    'commercial_permits',
-                    'retail_permits',
-                    'residential_construction_cost',
-                    'commercial_construction_cost',
-                    'retail_construction_cost'
-                ]
-                features = match_features(df, default_features, column_aliases)
-            
+            # Get feature list
+            features = self._get_feature_list(df, feature_list)
             if not features:
-                logger.error("No usable features available for population modeling.")
                 return None, None
                 
-            logger.info(f"Features used for population modeling: {features}")
-            
-            # Store feature names for reuse
-            self.feature_names = features
-            
-            # Resolve target variable
-            target_col = resolve_column_name(df, 'total_population', column_aliases)
-            
-            # Create feature matrix and target
+            # Prepare feature matrix and target
             X = df[features].copy()
-            y = df[target_col] if target_col else None
+            y = df['total_population'].copy()
             
-            # Convert all columns to numeric
-            for col in X.columns:
-                X[col] = pd.to_numeric(X[col], errors='coerce')
-            if y is not None:
-                y = pd.to_numeric(y, errors='coerce')
+            # Store feature names
+            self.feature_names = features
+            self.target_col = 'total_population'
             
-            # Log missing value counts before dropping
-            logger.info("Missing values per column before drop:\n" + str(df[features + ([target_col] if target_col else [])].isnull().sum()))
+            # Clean data
+            X = self._clean_features(X)
+            y = self._clean_target(y)
             
-            # Handle missing values and outliers
-            if y is not None:
-                mask = (~X.isnull().any(axis=1)) & (~y.isnull())
-            else:
-                mask = ~X.isnull().any(axis=1)
-            dropped = (~mask).sum()
-            if dropped > 0:
-                logger.warning(f"Dropping {dropped} rows with NaN values.")
-            X = X[mask]
-            if y is not None:
-                y = y[mask]
+            # Transform features
+            X = self._transform_features(X)
             
-            # Clip values to float64 range
-            float_max = np.finfo(np.float64).max
-            float_min = np.finfo(np.float64).min
-            X = X.clip(lower=float_min, upper=float_max)
-            if y is not None:
-                y = y.clip(lower=float_min, upper=float_max)
-            
-            # Log transform large numeric columns
-            large_value_cols = [
-                'median_household_income', 'median_home_value',
-                'residential_construction_cost', 'commercial_construction_cost',
-                'retail_construction_cost'
-            ]
-            for col in large_value_cols:
-                resolved_col = resolve_column_name(X, col, column_aliases)
-                if resolved_col in X.columns:
-                    X[resolved_col] = np.log1p(X[resolved_col])
-            
+            # Validate
+            if not self._validate_features(X, y):
+                return None, None
+                
             # Scale features
             X = pd.DataFrame(
                 self.scaler.fit_transform(X),
@@ -124,36 +316,51 @@ class PopulationModel:
                 index=X.index
             )
             
-            logger.info("Population features prepared successfully")
+            logger.info(f"Features prepared successfully: {X.shape}")
             return X, y
             
         except Exception as e:
-            logger.error(f"Error preparing population features: {str(e)}")
+            logger.error(f"Error preparing features: {str(e)}")
             return None, None
 
     def train(self, df: pd.DataFrame) -> bool:
         """Train the population model."""
         try:
             logger.info("Training population model...")
-            
+
             # Prepare features
             X, y = self.prepare_features(df)
             if X is None or y is None:
                 logger.error("Failed to prepare features for training")
                 return False
-            
-            # Train model
-            success = safe_train_model(self.model, X, y, model_name="PopulationModel")
-            if success:
+
+            # Log training data shape
+            logger.info(f"Training data shape: X={X.shape}, y={y.shape}")
+
+            # Verify no NaN values
+            if X.isnull().any().any() or y.isnull().any():
+                logger.error("Found NaN values after feature preparation")
+                return False
+
+            if success := safe_train_model(
+                self.model, X, y, model_name="PopulationModel"
+            ):
                 logger.info("Population model trained successfully")
-                
+
                 # Save model and scaler
                 joblib.dump(self.model, settings.TRAINED_MODELS_DIR / 'population_model.joblib')
                 joblib.dump(self.scaler, settings.TRAINED_MODELS_DIR / 'population_scaler.joblib')
+
+                # Save feature names
+                feature_names_df = pd.DataFrame({'feature': X.columns})
+                feature_names_df.to_csv(settings.TRAINED_MODELS_DIR / 'population_feature_names.csv', index=False)
+
                 logger.info("Model and scaler saved")
-                
-            return success
-            
+                return True
+            else:
+                logger.error("Failed to train population model")
+                return False
+
         except Exception as e:
             logger.error(f"Error training population model: {str(e)}")
             return False

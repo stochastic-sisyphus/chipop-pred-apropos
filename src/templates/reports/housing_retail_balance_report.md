@@ -26,7 +26,7 @@ This report analyzes the balance between housing development and retail provisio
 {% if analysis_results.imbalance_areas %}
 {% for area in analysis_results.imbalance_areas %}
 #### {{ area.zip_code }}
-- Housing Units: {{ "{:,}".format(area.housing_units) }}
+- Housing Units: {{ "{:,}".format(area.total_housing_units) }}
 - Retail Space: {{ "{:,}".format(area.retail_space) }} sq ft
 - Balance Score: {{ "%.1f"|format(area.balance_score) }}
 - Primary Need: {{ area.primary_need }}
