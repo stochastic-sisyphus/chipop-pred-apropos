@@ -129,6 +129,11 @@ class DataProcessor:
             else:
                 logger.warning("No zip_code column found, attempting to extract from address")
 
+            # Filter to valid Chicago ZIPs only
+            df_valid, df_invalid = self.validate_zip_codes(df, 'zip_code')
+            logger.info(f"Filtered out {len(df_invalid)} records with invalid ZIPs from permits data.")
+            df = df_valid
+
             # Categorize permits
             df['residential_permits'] = df['work_description'].str.contains(
                 'residential|house|apartment|condo|dwelling|home|townhouse|multi-family|single-family',
@@ -950,6 +955,9 @@ class DataProcessor:
             # Save processing summary
             self._save_processing_summary()
 
+            # Validate processed data integrity
+            self.validate_processed_data()
+
             return True
 
         except Exception as e:
@@ -1140,6 +1148,11 @@ class DataProcessor:
             bool: True if successful, False otherwise
         """
         try:
+            # Filter to valid Chicago ZIPs only
+            data_valid, data_invalid = self.validate_zip_codes(data, 'zip_code')
+            logger.info(f"Filtered out {len(data_invalid)} records with invalid ZIPs from retail data.")
+            data = data_valid
+
             # Get census data for population and income
             census_data = pd.read_csv(settings.PROCESSED_DATA_DIR / 'census_processed.csv')
             current_year = census_data['year'].max()
@@ -1261,4 +1274,29 @@ class DataProcessor:
             logger.warning(f"Non-Chicago ZIP found in address: {address}")
             return all_zips[0]
         logger.warning(f"No valid ZIP found in address: {address}")
-        return None 
+        return None
+
+    def is_valid_chicago_zip(self, zip_code):
+        return isinstance(zip_code, str) and re.match(r'^606\d{2}$', zip_code)
+
+    def validate_zip_codes(self, df, zip_col='zip_code'):
+        valid = df[zip_col].astype(str).str.match(r'^606[0-9]{2}$')
+        percent_valid = valid.mean() * 100
+        logger.info(f"Valid Chicago ZIPs: {percent_valid:.2f}% ({valid.sum()} of {len(df)})")
+        return df[valid].copy(), df[~valid].copy()
+
+    def validate_processed_data(self):
+        files = [
+            'data/processed/permits_processed.csv',
+            'data/processed/retail_metrics.csv',
+            'data/processed/retail_deficit.csv'
+        ]
+        for file in files:
+            df = pd.read_csv(file)
+            print(f"\n{file}:")
+            print(f"  Shape: {df.shape}")
+            print(f"  Columns: {list(df.columns)}")
+            if 'zip_code' in df.columns:
+                valid = df['zip_code'].astype(str).str.match(r'^606[0-9]{2}$')
+                print(f"  Valid ZIPs: {valid.sum()} / {len(df)} ({valid.mean()*100:.2f}%)")
+            print(f"  Nulls per column:\n{df.isnull().sum()}") 

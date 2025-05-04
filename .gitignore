@@ -30,20 +30,11 @@ env/
 .env
 
 # Data Files
-data/raw/*
-data/interim/*
-data/processed/*
+
 !data/raw/.gitkeep
 !data/interim/.gitkeep
 !data/processed/.gitkeep
 
-# Output Files
-output/models/*
-output/visualizations/*
-output/reports/*
-!output/models/.gitkeep
-!output/visualizations/.gitkeep
-!output/reports/.gitkeep
 
 # Logs
 logs/*
@@ -86,3 +77,11 @@ site/
 .gitkeep
 .hintrc
 .cursor/
+.cursorrules
+# Ignore all timestamped directories/files in any output folder
+**/output/**/*_*-*-*
+
+# More specifically, catch all common timestamp patterns:
+**/output/**/*[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*
+**/output/**/*[0-9][0-9][0-9][0-9]_[0-9][0-9]_[0-9][0-9]*
+

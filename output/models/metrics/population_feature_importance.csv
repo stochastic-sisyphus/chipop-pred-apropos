@@ -1,0 +1,17 @@
+feature,importance
+total_population_lag1,0.7361814790090021
+total_population_lag2,0.2535193473367253
+income_per_capita,0.00780919790636906
+permits_per_capita,0.0008893430602946203
+total_population_growth,0.0004584168907835744
+median_household_income_lag1,0.00043392354461696964
+median_household_income_growth,0.00018252902638875507
+total_permits_lag1,0.0001223430186682403
+gdp_change,8.248696403470037e-05
+unemployment_rate_change,7.496818327243615e-05
+gdp,5.6878025207112886e-05
+personal_income,4.479031393299331e-05
+per_capita_income,4.09646326074365e-05
+personal_income_change,3.740785064907945e-05
+unemployment_rate,3.6832394923927655e-05
+per_capita_income_change,2.9091842523658075e-05

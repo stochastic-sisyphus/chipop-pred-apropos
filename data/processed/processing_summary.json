@@ -1,0 +1,18 @@
+{
+  "timestamp": "2025-05-04T01:13:55.445192",
+  "processed_files": {
+    "census": "/Users/vanessa/Library/CloudStorage/Dropbox/allCode/achipos/data/processed/census_processed.csv",
+    "permits": "/Users/vanessa/Library/CloudStorage/Dropbox/allCode/achipos/data/processed/permits_processed.csv",
+    "economic": "/Users/vanessa/Library/CloudStorage/Dropbox/allCode/achipos/data/processed/economic_processed.csv",
+    "retail_metrics": "/Users/vanessa/Library/CloudStorage/Dropbox/allCode/achipos/data/processed/retail_metrics.csv"
+  },
+  "metrics": {
+    "census_records": 531,
+    "permit_records": 0,
+    "economic_indicators": 0,
+    "retail_metrics": 0,
+    "permits_records": 5249,
+    "economic_records": 11,
+    "retail_metrics_records": 567
+  }
+}
