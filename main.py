@@ -383,140 +383,149 @@ def run_pipeline():
         logger.error(f"Pipeline failed: {str(e)}")
         return False
 
+def load_processed_data():
+    try:
+        return {
+            'census_data': pd.read_csv(settings.PROCESSED_DATA_DIR / 'census_processed.csv'),
+            'permit_data': pd.read_csv(settings.PROCESSED_DATA_DIR / 'permits_processed.csv'),
+            'economic_data': pd.read_csv(settings.PROCESSED_DATA_DIR / 'economic_processed.csv'),
+            'zoning_data': pd.read_csv(settings.PROCESSED_DATA_DIR / 'zoning_processed.csv'),
+            'retail_metrics': pd.read_csv(settings.PROCESSED_DATA_DIR / 'retail_metrics.csv'),
+            'retail_deficit': pd.read_csv(settings.PROCESSED_DATA_DIR / 'retail_deficit.csv'),
+        }
+    except Exception as e:
+        logger.error(f"Error loading processed data: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return None
+
+def generate_all_reports():
+    reports = {
+        'ten_year_growth': TenYearGrowthReport(),
+        'housing_retail_balance': HousingRetailBalanceReport(),
+        'retail_deficit': RetailDeficitReport()
+    }
+    all_success = True
+    for name, report in reports.items():
+        try:
+            if not report.generate_report():
+                logger.warning(f"Failed to generate {name} report")
+                all_success = False
+            else:
+                logger.info(f"Generated {name} report")
+        except Exception as e:
+            logger.error(f"Error generating {name} report: {str(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            all_success = False
+    return all_success
+
+def generate_executive_summary(data: dict) -> bool:
+    try:
+        summary_template = settings.TEMPLATES_DIR / 'reports/EXECUTIVE_SUMMARY.md'
+        with open(summary_template, 'r') as f:
+            template = Template(f.read())
+
+        census_data = data['census_data']
+        permit_data = data['permit_data']
+        economic_data = data['economic_data']
+
+        metrics = {
+            'generation_date': datetime.now().strftime('%Y-%m-%d'),
+            'current_analysis': {
+                'population': {
+                    'metrics': {
+                        'total': int(census_data['total_population'].sum())
+                    },
+                    'demographics': {
+                        'population_growth': float(
+                            (census_data.groupby('year')['total_population'].sum().pct_change().mean() * 100)
+                        )
+                    }
+                },
+                'development': {
+                    'active_permits': int(permit_data['total_permits'].sum()) if 'total_permits' in permit_data.columns else 0,
+                    'pipeline_value': float(permit_data['total_construction_cost'].sum()) if 'total_construction_cost' in permit_data.columns else 0.0
+                }
+            },
+            'historical_trends': {
+                'economic': {
+                    'gdp_growth': float(economic_data['real_gdp'].pct_change().mean()) if 'real_gdp' in economic_data.columns else 0.0,
+                    'employment_change': float(economic_data['unemployment_rate'].pct_change().mean()) if 'unemployment_rate' in economic_data.columns else 0.0
+                }
+            },
+            'projections': {
+                'period_start': datetime.now().year,
+                'period_end': datetime.now().year + 10,
+                'population': {
+                    'scenarios': [
+                        {
+                            'population_change': 0.15,  # 15% growth in base case
+                            'final_population': int(census_data['total_population'].sum() * 1.15)
+                        }
+                    ]
+                }
+            },
+            'growth_areas': {
+                'primary': [
+                    f"ZIP {zip_code}" for zip_code in census_data.groupby('zip_code')['total_population']
+                    .agg(['first', 'last'])
+                    .assign(growth=lambda x: (x['last'] - x['first']) / x['first'])
+                    .nlargest(3, 'growth').index
+                ]
+            },
+            'recommendations': {
+                'strategic': [
+                    "Focus development in high-growth areas",
+                    "Address retail deficits in underserved areas",
+                    "Promote mixed-use development in opportunity zones"
+                ],
+                'implementation': [
+                    "Update zoning regulations",
+                    "Streamline permit processes",
+                    "Engage community stakeholders"
+                ]
+            }
+        }
+
+        # Inject avg_household_size for template safety and accuracy
+        if 'total_population' in census_data.columns and 'occupied_housing_units' in census_data.columns:
+            total_pop = census_data['total_population'].sum()
+            total_households = census_data['occupied_housing_units'].sum()
+            avg_household_size = (total_pop / total_households) if total_households > 0 else None
+        else:
+            avg_household_size = None
+        if 'current_analysis' in metrics and 'population' in metrics['current_analysis']:
+            metrics['current_analysis']['population']['avg_household_size'] = avg_household_size
+
+        summary = template.render(**metrics)
+        summary_path = settings.REPORTS_DIR / 'EXECUTIVE_SUMMARY.md'
+        with open(summary_path, 'w') as f:
+            f.write(summary)
+        logger.info("Generated executive summary")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to generate executive summary: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return False
+
 def generate_reports() -> bool:
     """Generate all reports."""
     try:
         logger.info("Generating reports...")
-
-        # Load processed data
-        census_data = pd.read_csv(settings.PROCESSED_DATA_DIR / 'census_processed.csv')
-        permit_data = pd.read_csv(settings.PROCESSED_DATA_DIR / 'permits_processed.csv')
-        economic_data = pd.read_csv(settings.PROCESSED_DATA_DIR / 'economic_processed.csv')
-        zoning_data = pd.read_csv(settings.PROCESSED_DATA_DIR / 'zoning_processed.csv')
-        retail_metrics = pd.read_csv(settings.PROCESSED_DATA_DIR / 'retail_metrics.csv')
-        retail_deficit = pd.read_csv(settings.PROCESSED_DATA_DIR / 'retail_deficit.csv')
-
-        # Initialize report generators
-        reports = {
-            'ten_year_growth': TenYearGrowthReport(),
-            'housing_retail_balance': HousingRetailBalanceReport(),
-            'retail_deficit': RetailDeficitReport()
-        }
-
-        # Generate each report
-        for name, report in reports.items():
-            try:
-                if not report.generate_report():
-                    logger.warning(f"Failed to generate {name} report")
-                else:
-                    logger.info(f"Generated {name} report")
-            except Exception as e:
-                logger.error(f"Error generating {name} report: {str(e)}")
-                logger.error(f"Error type: {type(e)}")
-                logger.error(f"Traceback: {traceback.format_exc()}")
-                continue
-
-        # Generate executive summary
-        try:
-            summary_template = settings.TEMPLATES_DIR / 'reports/EXECUTIVE_SUMMARY.md'
-            with open(summary_template, 'r') as f:
-                template = Template(f.read())
-
-            # Calculate summary metrics
-            metrics = {
-                'generation_date': datetime.now().strftime('%Y-%m-%d'),
-                'current_analysis': {
-                    'population': {
-                        'metrics': {
-                            'total': int(census_data['total_population'].sum())
-                        },
-                        'demographics': {
-                            'population_growth': float(
-                                (census_data.groupby('year')['total_population'].sum().pct_change().mean() * 100)
-                            )
-                        }
-                    },
-                    'development': {
-                        'active_permits': int(permit_data['total_permits'].sum()),
-                        'pipeline_value': float(permit_data['total_construction_cost'].sum())
-                    }
-                },
-                'historical_trends': {
-                    'economic': {
-                        'gdp_growth': float(economic_data['real_gdp'].pct_change().mean()),
-                        'employment_change': float(economic_data['unemployment_rate'].pct_change().mean())
-                    }
-                },
-                'projections': {
-                    'period_start': datetime.now().year,
-                    'period_end': datetime.now().year + 10,
-                    'population': {
-                        'scenarios': [
-                            {
-                                'population_change': 0.15,  # 15% growth in base case
-                                'final_population': int(census_data['total_population'].sum() * 1.15)
-                            }
-                        ]
-                    }
-                },
-                'growth_areas': {
-                    'primary': [
-                        f"ZIP {zip_code}" for zip_code in census_data.groupby('zip_code')['total_population']
-                        .agg(['first', 'last'])
-                        .assign(growth=lambda x: (x['last'] - x['first']) / x['first'])
-                        .nlargest(3, 'growth').index
-                    ]
-                },
-                'recommendations': {
-                    'strategic': [
-                        "Focus development in high-growth areas",
-                        "Address retail deficits in underserved areas",
-                        "Promote mixed-use development in opportunity zones"
-                    ],
-                    'implementation': [
-                        "Update zoning regulations",
-                        "Streamline permit processes",
-                        "Engage community stakeholders"
-                    ]
-                }
-            }
-
-            # Inject avg_household_size for template safety and accuracy
-            if 'total_population' in census_data.columns and 'occupied_housing_units' in census_data.columns:
-                total_pop = census_data['total_population'].sum()
-                total_households = census_data['occupied_housing_units'].sum()
-                avg_household_size = (total_pop / total_households) if total_households > 0 else None
-            else:
-                avg_household_size = None
-            # Ensure nested dict exists
-            if 'current_analysis' in metrics and 'population' in metrics['current_analysis']:
-                metrics['current_analysis']['population']['avg_household_size'] = avg_household_size
-
-            # Generate summary
-            summary = template.render(**metrics)
-
-            # Save summary
-            summary_path = settings.REPORTS_DIR / 'EXECUTIVE_SUMMARY.md'
-            with open(summary_path, 'w') as f:
-                f.write(summary)
-            logger.info("Generated executive summary")
-
-        except Exception as e:
-            return _extracted_from_generate_reports_109(
-                'Failed to generate executive summary: ', e
-            )
+        data = load_processed_data()
+        if data is None:
+            logger.error("Failed to load processed data")
+            return False
+        if not generate_all_reports():
+            logger.error("Failed to generate one or more reports")
+            return False
+        if not generate_executive_summary(data):
+            logger.error("Failed to generate executive summary")
+            return False
         return True
-
     except Exception as e:
-        return _extracted_from_generate_reports_109('Failed to generate reports: ', e)
-
-
-# TODO Rename this here and in `generate_reports`
-def _extracted_from_generate_reports_109(arg0, e):
-    logger.error(f"{arg0}{str(e)}")
-    logger.error(f"Error type: {type(e)}")
-    logger.error(f"Traceback: {traceback.format_exc()}")
-    return False
+        logger.error(f"Failed to generate reports: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return False
 
 def main():
     """Main execution function."""

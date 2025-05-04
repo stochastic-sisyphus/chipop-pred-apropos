@@ -219,10 +219,10 @@ class TenYearGrowthReport:
             trends['population'] = {
                 'period_start': period_start,
                 'period_end': period_end,
-                'total_growth': float(total_growth),
-                'cagr': float(cagr),
+                'total_growth': total_growth,
+                'cagr': cagr,
                 'start_value': int(population_start),
-                'end_value': int(population_end)
+                'end_value': int(population_end),
             }
             logger.info(f"Population trends: {trends['population']}")
         else:
@@ -250,10 +250,10 @@ class TenYearGrowthReport:
             trends['housing'] = {
                 'period_start': period_start,
                 'period_end': period_end,
-                'total_growth': float(total_growth),
-                'cagr': float(cagr),
+                'total_growth': total_growth,
+                'cagr': cagr,
                 'start_value': int(housing_start),
-                'end_value': int(housing_end)
+                'end_value': int(housing_end),
             }
             logger.info(f"Housing trends: {trends['housing']}")
         else:
@@ -312,13 +312,13 @@ class TenYearGrowthReport:
         trends['economic'] = {
             'period_start': period_start,
             'period_end': period_end,
-            'total_growth': float(total_growth),
-            'cagr': float(cagr),
-            'start_value': float(gdp_start),
-            'end_value': float(gdp_end),
-            'gdp_growth': float(cagr),
-            'employment_change': float(employment_change),
-            'income_growth': float(income_growth)
+            'total_growth': total_growth,
+            'cagr': cagr,
+            'start_value': gdp_start,
+            'end_value': gdp_end,
+            'gdp_growth': cagr,
+            'employment_change': employment_change,
+            'income_growth': float(income_growth),
         }
         logger.info(f"Economic trends: {trends['economic']}")
         # Development trends (permits)
