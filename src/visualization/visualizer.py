@@ -50,7 +50,7 @@ class Visualizer:
             # Create output directory if it doesn't exist
             output_dir = Path(self.output_dir) / 'balance_analysis'
             output_dir.mkdir(parents=True, exist_ok=True)
-            
+
             # Create scatter plot of housing vs retail
             plt.figure(figsize=(12, 8))
             sns.scatterplot(
@@ -62,12 +62,14 @@ class Visualizer:
                 sizes=(50, 400),
                 alpha=0.6
             )
-            plt.title('Housing Units vs Retail Space by ZIP Code')
-            plt.xlabel('Total Housing Units')
-            plt.ylabel('Retail Space (sq ft)')
+            self._extracted_from__extracted_from_create_balance_analysis_charts_19_19(
+                'Housing Units vs Retail Space by ZIP Code',
+                'Total Housing Units',
+                'Retail Space (sq ft)',
+            )
             plt.savefig(output_dir / 'housing_vs_retail_scatter.png')
             plt.close()
-            
+
             # Balance score distribution by ZIP code
             plt.figure(figsize=(12, 8))
             sns.barplot(
@@ -79,13 +81,15 @@ class Visualizer:
                 palette=self.colors
             )
             plt.xticks(rotation=45)
-            plt.title('Housing-Retail Balance Score by ZIP Code')
-            plt.xlabel('ZIP Code')
-            plt.ylabel('Balance Score')
+            self._extracted_from__extracted_from_create_balance_analysis_charts_19_19(
+                'Housing-Retail Balance Score by ZIP Code',
+                'ZIP Code',
+                'Balance Score',
+            )
             plt.tight_layout()
             plt.savefig(output_dir / 'balance_score_by_zip.png')
             plt.close()
-            
+
             # Create pie chart of balance categories
             if 'balance_category' in data.columns:
                 plt.figure(figsize=(10, 10))
@@ -99,9 +103,9 @@ class Visualizer:
                 plt.title('Distribution of Balance Categories')
                 plt.savefig(output_dir / 'balance_category_pie.png')
                 plt.close()
-            
+
             logger.info(f"Balance analysis charts saved to {output_dir}")
-            
+
         except Exception as e:
             logger.error(f"Error creating balance analysis charts: {str(e)}")
             logger.error(f"Error type: {type(e)}")
@@ -113,7 +117,7 @@ class Visualizer:
             # Create output directory
             charts_dir = self.output_dir / 'retail_deficit'
             charts_dir.mkdir(parents=True, exist_ok=True)
-            
+
             # Create bar plot of retail gaps
             plt.figure(figsize=(12, 8))
             sns.barplot(
@@ -122,14 +126,13 @@ class Visualizer:
                 y='retail_gap' if 'retail_gap' in data.columns else 'retail_space',
                 palette='viridis'
             )
-            plt.title('Retail Gap by ZIP Code')
-            plt.xlabel('ZIP Code')
-            plt.ylabel('Retail Gap ($)')
+            self._extracted_from__extracted_from_create_balance_analysis_charts_19_19(
+                'Retail Gap by ZIP Code', 'ZIP Code', 'Retail Gap ($)'
+            )
             plt.xticks(rotation=45)
-            plt.tight_layout()
-            plt.savefig(charts_dir / 'retail_gap_by_zip.png')
-            plt.close()
-            
+            self._extracted_from_create_retail_deficit_charts_46(
+                charts_dir, 'retail_gap_by_zip.png'
+            )
             # Create scatter plot of population vs retail gap
             plt.figure(figsize=(12, 8))
             sns.scatterplot(
@@ -140,28 +143,33 @@ class Visualizer:
                 sizes=(50, 400),
                 alpha=0.6
             )
-            plt.title('Population vs Retail Gap')
-            plt.xlabel('Total Population')
-            plt.ylabel('Retail Gap ($)')
+            self._extracted_from__extracted_from_create_balance_analysis_charts_19_19(
+                'Population vs Retail Gap', 'Total Population', 'Retail Gap ($)'
+            )
             plt.savefig(charts_dir / 'population_vs_retail_gap.png')
             plt.close()
-            
+
             # Create heatmap of retail metrics
             if all(col in data.columns for col in ['retail_demand', 'retail_supply', 'retail_gap']):
                 plt.figure(figsize=(12, 8))
                 metrics_df = data[['retail_demand', 'retail_supply', 'retail_gap']].corr()
                 sns.heatmap(metrics_df, annot=True, cmap='coolwarm', center=0)
                 plt.title('Correlation of Retail Metrics')
-                plt.tight_layout()
-                plt.savefig(charts_dir / 'retail_metrics_correlation.png')
-                plt.close()
-            
+                self._extracted_from_create_retail_deficit_charts_46(
+                    charts_dir, 'retail_metrics_correlation.png'
+                )
             logger.info(f"Retail deficit charts saved to {charts_dir}")
-            
+
         except Exception as e:
             logger.error(f"Error creating retail deficit charts: {str(e)}")
             logger.error(f"Error type: {type(e)}")
             logger.error(f"Traceback: {traceback.format_exc()}")
+
+    # TODO Rename this here and in `create_retail_deficit_charts`
+    def _extracted_from_create_retail_deficit_charts_46(self, charts_dir, arg1):
+        plt.tight_layout()
+        plt.savefig(charts_dir / arg1)
+        plt.close()
             
     def create_development_charts(self, data: pd.DataFrame) -> None:
         """Create charts for development analysis."""
@@ -169,18 +177,18 @@ class Visualizer:
             # Create output directory
             charts_dir = self.output_dir / 'development'
             charts_dir.mkdir(parents=True, exist_ok=True)
-            
+
             # Create line plot of permits over time
             plt.figure(figsize=(12, 8))
             permits_by_year = data.groupby('year')['total_permits'].sum()
             plt.plot(permits_by_year.index, permits_by_year.values, marker='o')
-            plt.title('Building Permits Over Time')
-            plt.xlabel('Year')
-            plt.ylabel('Number of Permits')
+            self._extracted_from__extracted_from_create_balance_analysis_charts_19_19(
+                'Building Permits Over Time', 'Year', 'Number of Permits'
+            )
             plt.grid(True)
             plt.savefig(charts_dir / 'permits_by_year.png')
             plt.close()
-            
+
             # Create bar plot of permits by type
             if all(col in data.columns for col in ['residential_permits', 'commercial_permits', 'retail_permits']):
                 plt.figure(figsize=(12, 8))
@@ -191,12 +199,12 @@ class Visualizer:
                     permit_counts,
                     color=self.colors[:3]
                 )
-                plt.title('Permits by Type')
-                plt.xlabel('Permit Type')
-                plt.ylabel('Number of Permits')
+                self._extracted_from__extracted_from_create_balance_analysis_charts_19_19(
+                    'Permits by Type', 'Permit Type', 'Number of Permits'
+                )
                 plt.savefig(charts_dir / 'permits_by_type.png')
                 plt.close()
-            
+
             # Create box plot of construction costs
             plt.figure(figsize=(12, 8))
             sns.boxplot(
@@ -205,16 +213,18 @@ class Visualizer:
                 y='total_construction_cost',
                 palette='viridis'
             )
-            plt.title('Construction Costs Distribution by Year')
-            plt.xlabel('Year')
-            plt.ylabel('Construction Cost ($)')
+            self._extracted_from__extracted_from_create_balance_analysis_charts_19_19(
+                'Construction Costs Distribution by Year',
+                'Year',
+                'Construction Cost ($)',
+            )
             plt.xticks(rotation=45)
             plt.tight_layout()
             plt.savefig(charts_dir / 'construction_costs_distribution.png')
             plt.close()
-            
+
             logger.info(f"Development charts saved to {charts_dir}")
-            
+
         except Exception as e:
             logger.error(f"Error creating development charts: {str(e)}")
             logger.error(f"Error type: {type(e)}")
@@ -226,18 +236,18 @@ class Visualizer:
             # Create output directory
             charts_dir = self.output_dir / 'population'
             charts_dir.mkdir(parents=True, exist_ok=True)
-            
+
             # Create line plot of total population over time
             plt.figure(figsize=(12, 8))
             pop_by_year = data.groupby('year')['total_population'].sum()
             plt.plot(pop_by_year.index, pop_by_year.values, marker='o')
-            plt.title('Total Population Over Time')
-            plt.xlabel('Year')
-            plt.ylabel('Population')
+            self._extracted_from__extracted_from_create_balance_analysis_charts_19_19(
+                'Total Population Over Time', 'Year', 'Population'
+            )
             plt.grid(True)
             plt.savefig(charts_dir / 'total_population_trend.png')
             plt.close()
-            
+
             # Create box plot of population distribution
             plt.figure(figsize=(12, 8))
             sns.boxplot(
@@ -246,27 +256,27 @@ class Visualizer:
                 y='total_population',
                 palette='viridis'
             )
-            plt.title('Population Distribution by Year')
-            plt.xlabel('Year')
-            plt.ylabel('Population')
+            self._extracted_from__extracted_from_create_balance_analysis_charts_19_19(
+                'Population Distribution by Year', 'Year', 'Population'
+            )
             plt.xticks(rotation=45)
             plt.tight_layout()
             plt.savefig(charts_dir / 'population_distribution.png')
             plt.close()
-            
+
             # Create line plot of median income over time
             plt.figure(figsize=(12, 8))
             income_by_year = data.groupby('year')['median_household_income'].mean()
             plt.plot(income_by_year.index, income_by_year.values, marker='o')
-            plt.title('Median Household Income Over Time')
-            plt.xlabel('Year')
-            plt.ylabel('Income ($)')
+            self._extracted_from__extracted_from_create_balance_analysis_charts_19_19(
+                'Median Household Income Over Time', 'Year', 'Income ($)'
+            )
             plt.grid(True)
             plt.savefig(charts_dir / 'median_income_trend.png')
             plt.close()
-            
+
             logger.info(f"Population charts saved to {charts_dir}")
-            
+
         except Exception as e:
             logger.error(f"Error creating population charts: {str(e)}")
             logger.error(f"Error type: {type(e)}")
@@ -278,31 +288,31 @@ class Visualizer:
             # Create output directory
             charts_dir = self.output_dir / 'economic'
             charts_dir.mkdir(parents=True, exist_ok=True)
-            
+
             # Create line plot of GDP over time
             if 'real_gdp' in data.columns:
                 plt.figure(figsize=(12, 8))
                 gdp_by_year = data.groupby('year')['real_gdp'].mean()
                 plt.plot(gdp_by_year.index, gdp_by_year.values, marker='o')
-                plt.title('Real GDP Over Time')
-                plt.xlabel('Year')
-                plt.ylabel('GDP')
+                self._extracted_from__extracted_from_create_balance_analysis_charts_19_19(
+                    'Real GDP Over Time', 'Year', 'GDP'
+                )
                 plt.grid(True)
                 plt.savefig(charts_dir / 'gdp_trend.png')
                 plt.close()
-            
+
             # Create line plot of unemployment rate
             if 'unemployment_rate' in data.columns:
                 plt.figure(figsize=(12, 8))
                 unemp_by_year = data.groupby('year')['unemployment_rate'].mean()
                 plt.plot(unemp_by_year.index, unemp_by_year.values, marker='o')
-                plt.title('Unemployment Rate Over Time')
-                plt.xlabel('Year')
-                plt.ylabel('Unemployment Rate (%)')
+                self._extracted_from__extracted_from_create_balance_analysis_charts_19_19(
+                    'Unemployment Rate Over Time', 'Year', 'Unemployment Rate (%)'
+                )
                 plt.grid(True)
                 plt.savefig(charts_dir / 'unemployment_trend.png')
                 plt.close()
-            
+
             # Create scatter plot of income vs home value
             plt.figure(figsize=(12, 8))
             sns.scatterplot(
@@ -313,14 +323,16 @@ class Visualizer:
                 sizes=(50, 400),
                 alpha=0.6
             )
-            plt.title('Income vs Home Value')
-            plt.xlabel('Median Household Income ($)')
-            plt.ylabel('Median Home Value ($)')
+            self._extracted_from__extracted_from_create_balance_analysis_charts_19_19(
+                'Income vs Home Value',
+                'Median Household Income ($)',
+                'Median Home Value ($)',
+            )
             plt.savefig(charts_dir / 'income_vs_home_value.png')
             plt.close()
-            
+
             logger.info(f"Economic charts saved to {charts_dir}")
-            
+
         except Exception as e:
             logger.error(f"Error creating economic charts: {str(e)}")
             logger.error(f"Error type: {type(e)}")
@@ -807,6 +819,12 @@ class Visualizer:
 
     # TODO Rename this here and in `create_trend_plot` and `create_balance_analysis_charts`
     def _extracted_from_create_balance_analysis_charts_19(self, arg0, arg1, arg2):
+        self._extracted_from__extracted_from_create_balance_analysis_charts_19_19(
+            arg0, arg1, arg2
+        ) 
+
+    # TODO Rename this here and in `create_balance_analysis_charts`, `create_retail_deficit_charts`, `create_development_charts`, `create_population_charts`, `create_economic_charts` and `_extracted_from_create_balance_analysis_charts_19`
+    def _extracted_from__extracted_from_create_balance_analysis_charts_19_19(self, arg0, arg1, arg2):
         plt.title(arg0)
         plt.xlabel(arg1)
         plt.ylabel(arg2) 

@@ -29,14 +29,14 @@ class ZoningProcessor:
         try:
             # Resolve column names
             zip_col = resolve_column_name(df, 'zip_code', column_aliases)
-            
+
             if not zip_col:
                 logger.error("ZIP code column not found in zoning data")
                 return pd.DataFrame()
-            
+
             # Clean ZIP codes
             df[zip_col] = df[zip_col].astype(str).str.extract(r'(\d{5})').fillna('00000')
-            
+
             # Calculate zoning metrics
             metrics = df.groupby(zip_col).agg({
                 'zoning_area': 'sum',
@@ -44,18 +44,16 @@ class ZoningProcessor:
                 'commercial_area': 'sum',
                 'retail_area': 'sum'
             }).reset_index()
-            
+
             # Calculate percentages
             for col in ['residential_area', 'commercial_area', 'retail_area']:
                 metrics[f'{col}_pct'] = metrics[col] / metrics['zoning_area'] * 100
-            
-            # Save processed data
-            output_path = self.processed_data_dir / 'zoning_processed.csv'
-            metrics.to_csv(output_path, index=False)
-            logger.info("Successfully processed zoning data")
-            
-            return metrics
-            
+
+            return self._extracted_from_process_property_data_27(
+                'zoning_processed.csv',
+                metrics,
+                "Successfully processed zoning data",
+            )
         except Exception as e:
             logger.error(f"Error processing zoning data: {str(e)}")
             return pd.DataFrame()
@@ -65,14 +63,14 @@ class ZoningProcessor:
         try:
             # Resolve column names
             zip_col = resolve_column_name(df, 'zip_code', column_aliases)
-            
+
             if not zip_col:
                 logger.error("ZIP code column not found in property data")
                 return pd.DataFrame()
-            
+
             # Clean ZIP codes
             df[zip_col] = df[zip_col].astype(str).str.extract(r'(\d{5})').fillna('00000')
-            
+
             # Calculate property metrics
             metrics = df.groupby(zip_col).agg({
                 'property_area': 'sum',
@@ -81,21 +79,26 @@ class ZoningProcessor:
                 'market_value': 'mean',
                 'year_built': 'mean'
             }).reset_index()
-            
+
             # Calculate derived metrics
             metrics['building_density'] = metrics['building_area'] / metrics['property_area']
             metrics['value_per_sqft'] = metrics['market_value'] / metrics['building_area']
-            
-            # Save processed data
-            output_path = self.processed_data_dir / 'property_processed.csv'
-            metrics.to_csv(output_path, index=False)
-            logger.info("Successfully processed property data")
-            
-            return metrics
-            
+
+            return self._extracted_from_process_property_data_27(
+                'property_processed.csv',
+                metrics,
+                "Successfully processed property data",
+            )
         except Exception as e:
             logger.error(f"Error processing property data: {str(e)}")
             return pd.DataFrame()
+
+    # TODO Rename this here and in `process_zoning_data` and `process_property_data`
+    def _extracted_from_process_property_data_27(self, arg0, metrics, arg2):
+        output_path = self.processed_data_dir / arg0
+        metrics.to_csv(output_path, index=False)
+        logger.info(arg2)
+        return metrics
             
     def analyze_zoning_patterns(self, df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
         """Analyze zoning patterns and trends."""
@@ -230,6 +233,7 @@ class ZoningProcessor:
             
             logger.info("Zoning and property analysis completed")
             return True
+        
             
         except Exception as e:
             logger.error(f"Error in zoning and property analysis: {str(e)}")

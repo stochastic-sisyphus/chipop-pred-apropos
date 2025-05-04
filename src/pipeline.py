@@ -84,7 +84,7 @@ class Pipeline:
             # Step 1: Check required directories exist
             logger.info("Checking required directories...")
             self._create_directories()
-            
+
             # Step 2: Check required input files exist
             required_files = {
                 'Census': settings.CENSUS_DATA_PATH,
@@ -92,32 +92,33 @@ class Pipeline:
                 'Business Licenses': settings.BUSINESS_LICENSES_PATH,
                 'Economic': settings.ECONOMIC_DATA_PATH
             }
-            
+
             missing_files = []
-            for name, path in required_files.items():
-                if not path.exists():
-                    missing_files.append(f"{name}: {path}")
-            
+            missing_files.extend(
+                f"{name}: {path}"
+                for name, path in required_files.items()
+                if not path.exists()
+            )
             if missing_files:
                 logger.error("Missing required input files:")
                 for missing in missing_files:
                     logger.error(f"  - {missing}")
                 return False
-            
+
             # Step 3: Process all data
             logger.info("Starting data processing...")
             if not self.processor.process_all():
                 logger.error("Data processing failed")
                 return False
             logger.info("Data processing completed successfully")
-            
+
             # Step 4: Validate processed data
             logger.info("Validating processed data...")
             if not self._validate_processed_data():
                 logger.error("Data validation failed")
                 return False
             logger.info("Data validation completed successfully")
-            
+
             # Step 5: Generate reports
             logger.info("Generating reports...")
             try:
@@ -128,7 +129,7 @@ class Pipeline:
                 logger.error(f"Error generating reports: {str(e)}")
                 return False
             logger.info("Reports generated successfully")
-            
+
             # Step 6: Create visualizations
             logger.info("Creating visualizations...")
             try:
@@ -139,7 +140,7 @@ class Pipeline:
                     economic_data=pd.read_csv(settings.ECONOMIC_PROCESSED_PATH),
                     business_data=pd.read_csv(settings.BUSINESS_LICENSES_PROCESSED_PATH)
                 )
-                
+
                 if not self.visualizer.create_all_visualizations():
                     logger.error("Visualization creation failed")
                     return False
@@ -147,10 +148,10 @@ class Pipeline:
                 logger.error(f"Error creating visualizations: {str(e)}")
                 return False
             logger.info("Visualizations created successfully")
-            
+
             logger.info("Pipeline completed successfully")
             return True
-            
+
         except Exception as e:
             logger.error(f"Pipeline failed with error: {str(e)}")
             return False
@@ -175,12 +176,10 @@ def main():
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
-    
+
     # Run pipeline
     pipeline = Pipeline()
-    success = pipeline.run()
-    
-    if success:
+    if success := pipeline.run():
         logger.info("Pipeline completed successfully")
     else:
         logger.error("Pipeline failed")

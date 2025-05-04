@@ -34,6 +34,16 @@ class DataCollector:
         # Cache for available Census years
         self._available_census_years = None
 
+    def map_permit_type(self, permit_type: str) -> str:
+        """
+        Maps raw permit_type strings to standardized categories.
+        """
+        mapping = {
+            "PERMIT – EXPRESS PERMIT PROGRAM": "EXPRESS_PERMIT",
+            "PERMIT - FOR EXTENSION OF PMT": "EXTENSION_PERMIT"
+        }
+        return mapping.get(permit_type, "OTHER")
+
     def _get_available_census_years(self) -> Set[int]:
         """
         Get available years from Census API with caching.
@@ -85,7 +95,6 @@ class DataCollector:
                     variables,
                     state_fips='17',
                     zcta=zip_code,
-                    year=year
                 ):
                     row = result[0]
                     row['year'] = year
@@ -393,6 +402,9 @@ class DataCollector:
             logger.info(f"- Residential: ${df['residential_construction_cost'].sum():,.2f}")
             logger.info(f"- Commercial: ${df['commercial_construction_cost'].sum():,.2f}")
             logger.info(f"- Retail: ${df['retail_construction_cost'].sum():,.2f}")
+
+            # Map permit_type using new function
+            df['permit_type'] = df['permit_type'].apply(self.map_permit_type)
 
             return self._save_data_to_csv(
                 'building_permits.csv', df, 'Building permit data'
@@ -715,3 +727,47 @@ class DataCollector:
         logger.error(f"Error type: {type(e)}")
         logger.error(f"Traceback: {traceback.format_exc()}")
         return arg2 
+
+PERMIT_TYPE_MAP = {
+    "PERMIT – EXPRESS PERMIT PROGRAM": "EXPRESS_PERMIT",
+    "PERMIT - FOR EXTENSION OF PMT": "EXTENSION_PERMIT",
+    "NEW CONSTRUCTION": "NEW_CONSTRUCTION",
+    "RENOVATION/ALTERATION": "RENOVATION",
+    "ADDITION": "ADDITION",
+    "DEMOLITION": "DEMOLITION",
+    "SIGN": "SIGN",
+    "PORCH": "PORCH",
+    "ELECTRICAL": "ELECTRICAL",
+    "PLUMBING": "PLUMBING",
+    "MECHANICAL": "MECHANICAL",
+    "FENCE": "FENCE",
+    "ROOF": "ROOF",
+    "WINDOWS": "WINDOWS",
+    "GARAGE": "GARAGE",
+    "FOUNDATION": "FOUNDATION",
+    "FIRE": "FIRE",
+    "ELEVATOR": "ELEVATOR",
+    "SOLAR": "SOLAR",
+    "POOL": "POOL",
+    "DECK": "DECK",
+    "SHED": "SHED",
+    "MISCELLANEOUS": "MISCELLANEOUS",
+    "EASY PERMIT PROCESS": "EASY_PERMIT",
+    "SCAFFOLDING": "SCAFFOLDING",
+    "REINSTATE REVOKED PMT": "REINSTATE_REVOCATION",
+    # Add more as needed
+}
+logged_missing_permit_types = set()
+
+def map_permit_type(permit_type: str) -> str:
+    """Map raw permit_type to standardized value, logging unknowns only once."""
+    if not isinstance(permit_type, str):
+        return "OTHER"
+    permit_type_upper = permit_type.strip().upper()
+    for key, val in PERMIT_TYPE_MAP.items():
+        if key in permit_type_upper:
+            return val
+    if permit_type_upper not in logged_missing_permit_types:
+        logging.warning(f"Unknown permit_type encountered: {permit_type}")
+        logged_missing_permit_types.add(permit_type_upper)
+    return "OTHER" 

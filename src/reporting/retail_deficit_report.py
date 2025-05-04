@@ -122,7 +122,7 @@ class RetailDeficitReport:
         """Analyze retail deficit patterns."""
         try:
             merged_data = data['merged']
-            
+
             # Ensure required columns exist
             required_cols = {
                 'total_population': 'total_population',
@@ -133,24 +133,18 @@ class RetailDeficitReport:
                 'retail_demand': 'retail_demand',
                 'retail_supply': 'retail_supply'
             }
-            
+
             # Map column names and provide defaults
-            for target_col, source_col in required_cols.items():
+            for source_col in required_cols.values():
                 if source_col not in merged_data.columns:
                     logger.warning(f"Missing required column: {source_col}")
-                    if source_col == 'retail_space':
+                    if source_col in ['retail_gap', 'retail_demand']:
+                        # Calculate retail gap as 30% of total income
+                        merged_data[source_col] = merged_data['median_household_income'] * merged_data['total_population'] * 0.3
+                    elif source_col in ['retail_space', 'retail_supply']:
                         merged_data[source_col] = 0
                     elif source_col == 'vacancy_rate':
                         merged_data[source_col] = 0.1  # Default 10% vacancy
-                    elif source_col == 'retail_gap':
-                        # Calculate retail gap as 30% of total income
-                        merged_data[source_col] = merged_data['median_household_income'] * merged_data['total_population'] * 0.3
-                    elif source_col == 'retail_demand':
-                        # Estimate retail demand as 30% of total income
-                        merged_data[source_col] = merged_data['median_household_income'] * merged_data['total_population'] * 0.3
-                    elif source_col == 'retail_supply':
-                        merged_data[source_col] = 0
-            
             # Calculate summary metrics
             metrics = {
                 'total_retail_space': float(merged_data['retail_space'].sum()),
@@ -158,23 +152,23 @@ class RetailDeficitReport:
                 'total_deficit': float(merged_data['retail_gap'].sum()),
                 'avg_deficit_per_capita': float(merged_data['retail_gap'].sum() / merged_data['total_population'].sum())
             }
-            
+
             # Calculate metrics by ZIP
             zip_metrics = []
             for zip_code in merged_data['zip_code'].unique():
                 zip_data = merged_data[merged_data['zip_code'] == zip_code]
-                
+
                 # Calculate metrics
                 population = int(zip_data['total_population'].sum())
                 retail_space = float(zip_data['retail_space'].sum())
                 retail_gap = float(zip_data['retail_gap'].sum())
                 retail_demand = float(zip_data['retail_demand'].sum())
                 retail_supply = float(zip_data['retail_supply'].sum())
-                
+
                 # Calculate per capita metrics
                 retail_per_capita = retail_space / population if population > 0 else 0
                 gap_per_capita = retail_gap / population if population > 0 else 0
-                
+
                 zip_metrics.append({
                     'location': f"ZIP {zip_code}",
                     'total_population': population,
@@ -187,15 +181,15 @@ class RetailDeficitReport:
                     'required_space': int(retail_gap / 300),  # Assuming $300/sqft
                     'potential_stores': int(retail_gap / 1000000)  # Assuming $1M per store
                 })
-            
+
             # Sort by market gap
             zip_metrics.sort(key=lambda x: x['market_gap'], reverse=True)
-            
+
             return {
                 'summary': metrics,
                 'zip_metrics': zip_metrics[:5]  # Top 5 deficit areas
             }
-            
+
         except Exception as e:
             logger.error(f"Failed to analyze retail deficit: {str(e)}")
             logger.error(f"Error type: {type(e)}")
@@ -211,12 +205,9 @@ class RetailDeficitReport:
                 logger.error("Failed to load required data")
                 return False
             
-            # Ensure all required retail columns exist
-            required_cols = ["retail_space", "retail_demand", "retail_gap", "vacancy_rate", "retail_supply"]
-            for col in required_cols:
-                if col not in data['retail'].columns:
-                    data['retail'][col] = 0
-                    logger.warning(f"Added missing column {col} to retail_data with default value 0")
+            # After loading retail_data, ensure required columns
+            retail_data = data['retail']
+            retail_data = self.ensure_retail_columns(retail_data)
             
             # Analyze retail deficit
             analysis = self.analyze_retail_deficit(data)
@@ -292,6 +283,20 @@ class RetailDeficitReport:
             logger.error(f"Traceback: {traceback.format_exc()}")
             return False
 
+    def ensure_retail_columns(self, retail_data: pd.DataFrame) -> pd.DataFrame:
+        """Ensure all required retail columns exist, adding with default 0 if missing. Log only once per column."""
+        REQUIRED_RETAIL_COLUMNS = [
+            "retail_space", "retail_demand", "retail_gap", "vacancy_rate", "retail_supply"
+        ]
+        logged_missing_retail_columns = set()
+        for col in REQUIRED_RETAIL_COLUMNS:
+            if col not in retail_data.columns:
+                if col not in logged_missing_retail_columns:
+                    logging.warning(f"Added missing column {col} to retail_data with default value 0")
+                    logged_missing_retail_columns.add(col)
+                retail_data[col] = 0
+        return retail_data
+
 def generate_report(census_data, permit_data, economic_data, zoning_data, retail_metrics, retail_deficit):
     """Generate retail deficit analysis report."""
     try:
@@ -299,7 +304,7 @@ def generate_report(census_data, permit_data, economic_data, zoning_data, retail
         template_path = settings.TEMPLATES_DIR / 'reports/retail_deficit_analysis.md'
         with open(template_path, 'r') as f:
             template = Template(f.read())
-            
+
         # Prepare opportunity dataframe
         opportunity_df = pd.merge(
             census_data[['zip_code', 'total_population', 'median_household_income']],
@@ -307,13 +312,13 @@ def generate_report(census_data, permit_data, economic_data, zoning_data, retail
             on='zip_code',
             how='left'
         )
-        
+
         # Fill missing retail metrics with 0
         if 'retail_space' not in opportunity_df.columns:
             opportunity_df['retail_space'] = 0
         if 'vacancy_rate' not in opportunity_df.columns:
             opportunity_df['vacancy_rate'] = 0
-            
+
         # Calculate retail metrics
         metrics = {
             'total_population': int(census_data['total_population'].sum()),
@@ -323,36 +328,32 @@ def generate_report(census_data, permit_data, economic_data, zoning_data, retail
             'total_spending_potential': (opportunity_df['total_population'] * opportunity_df['median_household_income'] * 0.3).sum(),
             'total_retail_gap': (opportunity_df['total_population'] * opportunity_df['median_household_income'] * 0.3 - opportunity_df['retail_space'] * 300).sum()
         }
-        
+
         # Calculate retail deficit areas
         deficit_areas = opportunity_df.copy()
         deficit_areas['spending_potential'] = deficit_areas['total_population'] * deficit_areas['median_household_income'] * 0.3
         deficit_areas['current_provision'] = deficit_areas['retail_space'] * 300  # $300 sales per sq ft
         deficit_areas['retail_gap'] = deficit_areas['spending_potential'] - deficit_areas['current_provision']
         deficit_areas['leakage_rate'] = deficit_areas['retail_gap'] / deficit_areas['spending_potential']
-        
+
         # Sort and get top deficit areas
         top_deficit_areas = deficit_areas.sort_values('retail_gap', ascending=False).head(5).to_dict('records')
-        
-        # Generate report content
-        report = template.render(
+
+        return template.render(
             generation_date=datetime.now().strftime('%Y-%m-%d'),
             current_analysis={
                 'retail': {
                     'total_space': metrics['total_retail_space'],
                     'density': metrics['retail_per_capita'],
-                    'vacancy_rate': metrics['vacancy_rate']
+                    'vacancy_rate': metrics['vacancy_rate'],
                 }
             },
             analysis_results={
                 'retail_deficit': top_deficit_areas,
                 'retail_categories': [],
-                'development_potential': []
-            }
+                'development_potential': [],
+            },
         )
-        
-        return report
-        
     except Exception as e:
         logger.error(f"Failed to generate retail deficit report: {str(e)}")
         logger.error(f"Error type: {type(e)}")

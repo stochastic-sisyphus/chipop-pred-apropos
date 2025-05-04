@@ -8,6 +8,7 @@ from typing import Dict, Optional, Tuple, List, Union
 import json
 import os
 import traceback
+import re
 
 import numpy as np
 import pandas as pd
@@ -63,53 +64,52 @@ class DataProcessor:
         """Process economic data."""
         try:
             logger.info(f"Processing economic data with shape: {df.shape}")
-            
+
             # Ensure required columns exist
             required_cols = ['year', 'unemployment_rate', 'real_gdp', 'per_capita_income', 'personal_income']
-            missing_cols = [col for col in required_cols if col not in df.columns]
-            
-            if missing_cols:
+            if missing_cols := [
+                col for col in required_cols if col not in df.columns
+            ]:
                 logger.error(f"Required columns missing from economic data: {missing_cols}")
                 return False
-            
+
             # Convert year to numeric
             df['year'] = pd.to_numeric(df['year'], errors='coerce')
-            
+
             # Drop rows with invalid years
             valid_years = df['year'].between(2010, 2030)
             if not valid_years.all():
                 logger.warning(f"Found {(~valid_years).sum()} records with invalid years")
                 df = df[valid_years]
-            
+
             # Convert numeric columns
             numeric_cols = ['unemployment_rate', 'real_gdp', 'per_capita_income', 'personal_income']
             for col in numeric_cols:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-                missing_pct = (df[col].isna().sum() / len(df)) * 100
-                logger.info(f"✅ {col} present, {missing_pct:.2f}% missing")
-            
+                if col in df.columns and (missing_pct := (df[col].isna().sum() / len(df)) * 100) is not None:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+                    logger.info(f"✅ {col} present, {missing_pct:.2f}% missing")
+
             # Fill missing values with forward fill then backward fill
             df = df.sort_values('year')
             df[numeric_cols] = df[numeric_cols].ffill().bfill()
-            
+
             # Calculate year-over-year changes
             for col in numeric_cols:
                 pct_change_col = f"{col}_pct_change"
                 df[pct_change_col] = df[col].pct_change() * 100
                 df[pct_change_col] = df[pct_change_col].fillna(0)
-            
+
             # Save processed data
             processed_path = self.processed_data_dir / 'economic_processed.csv'
             df.to_csv(processed_path, index=False)
             logger.info(f"Processed economic data saved to {processed_path}")
-            
+
             return True
-            
+
         except Exception as e:
-            logger.error(f"Error processing economic data: {str(e)}")
-            logger.error(f"Error type: {type(e)}")
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            return False
+            return self._extracted_from_process_retail_data_48(
+                'Error processing economic data: ', e, False
+            )
     
     def process_permits_data(self) -> bool:
         """Process building permit data."""
@@ -119,40 +119,40 @@ class DataProcessor:
             if not permit_file.exists():
                 logger.error("Permit file not found")
                 return False
-            
+
             df = pd.read_csv(permit_file)
             logger.info(f"Loaded {len(df):,} raw permit records")
-            
+
             # Ensure ZIP code is string type
             if 'contact_1_zipcode' in df.columns:
                 df['zip_code'] = df['contact_1_zipcode'].astype(str).str.strip().str.zfill(5)
             else:
                 logger.warning("No zip_code column found, attempting to extract from address")
-            
+
             # Categorize permits
             df['residential_permits'] = df['work_description'].str.contains(
                 'residential|house|apartment|condo|dwelling|home|townhouse|multi-family|single-family',
                 case=False, regex=True
             ).astype(int)
-            
+
             df['commercial_permits'] = df['work_description'].str.contains(
                 'office|industrial|warehouse|factory|manufacturing|corporate|wholesale|distribution',
                 case=False, regex=True
             ).astype(int)
-            
+
             df['retail_permits'] = df['work_description'].str.contains(
                 'retail|store|shop|restaurant|commercial|business|mall|market|sales',
                 case=False, regex=True
             ).astype(int)
-            
+
             # Calculate costs by type
             for permit_type in ['residential', 'commercial', 'retail']:
                 cost_col = f'{permit_type}_construction_cost'
                 df[cost_col] = df['reported_cost'].where(df[f'{permit_type}_permits'] == 1, 0)
-            
+
             # Group by ZIP code and year
             df['year'] = pd.to_datetime(df['issue_date']).dt.year
-            
+
             agg_dict = {
                 'residential_permits': 'sum',
                 'commercial_permits': 'sum', 
@@ -162,24 +162,23 @@ class DataProcessor:
                 'retail_construction_cost': 'sum',
                 'reported_cost': 'sum'
             }
-            
+
             df_grouped = df.groupby(['zip_code', 'year']).agg(agg_dict).reset_index()
-            
+
             # Ensure ZIP codes are strings
             df_grouped['zip_code'] = df_grouped['zip_code'].astype(str).str.strip().str.zfill(5)
-            
+
             # Save processed data
             output_path = settings.PROCESSED_DATA_DIR / 'permits_processed.csv'
             df_grouped.to_csv(output_path, index=False)
             logger.info(f"Processed permit data saved to {output_path}")
-            
+
             return True
-            
+
         except Exception as e:
-            logger.error(f"Error processing permit data: {str(e)}")
-            logger.error(f"Error type: {type(e)}")
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            return False
+            return self._extracted_from_process_retail_data_48(
+                'Error processing permit data: ', e, False
+            )
     
     def _process_core_sources(self) -> Dict[str, bool]:
         """Process core data sources."""
@@ -363,9 +362,8 @@ class DataProcessor:
                 return False
                 
             # Process retail deficit
-            retail_deficit_success = self.process_retail_deficit()
-            if not retail_deficit_success:
-                logger.warning("Retail deficit processing failed - some analyses may be incomplete")
+            if not (processed_deficit := self.process_retail_deficit()):
+                logger.warning("Retail deficit processing failed")
             
             logger.info("Data processing pipeline completed successfully")
             return True
@@ -378,7 +376,13 @@ class DataProcessor:
         """Process census data."""
         try:
             logger.info(f"🔍 Raw census data columns: {df.columns.tolist()}")
-            
+
+            # Deduplicate 'zip_code' columns if present
+            cols = df.columns.tolist()
+            if cols.count('zip_code') > 1:
+                df = df.loc[:, ~df.columns.duplicated()]
+                logger.warning("Duplicate 'zip_code' columns found and removed in census data.")
+
             # Rename columns to match our schema
             column_map = {
                 'zip code tabulation area': 'zip_code',
@@ -387,59 +391,56 @@ class DataProcessor:
                 'B25077_001E': 'median_home_value',
                 'B23025_002E': 'labor_force'
             }
-            
+
             # Apply column mapping
             df = df.rename(columns=column_map)
             logger.info(f"Census columns after renaming: {df.columns.tolist()}")
-            
+
             # Ensure required columns exist
             required_cols = ['total_population', 'median_household_income', 'median_home_value', 'labor_force', 'zip_code', 'year']
-            
-            # Check for missing columns
-            missing_cols = [col for col in required_cols if col not in df.columns]
-            if missing_cols:
+
+            if missing_cols := [
+                col for col in required_cols if col not in df.columns
+            ]:
                 logger.error(f"Required columns missing from census data: {missing_cols}")
                 return None
-                
+
             # Validate ZIP code column
             if 'zip_code' not in df.columns:
                 # Try alternative column names
-                zcta_cols = [col for col in df.columns if any(x in col.lower() for x in ['zcta', 'zip', 'tabulation'])]
-                if zcta_cols:
+                if zcta_cols := [col for col in df.columns if any(x in col.lower() for x in ['zcta', 'zip', 'tabulation'])]:
                     logger.info(f"Found ZCTA column: {zcta_cols[0]}")
                     df = df.rename(columns={zcta_cols[0]: 'zip_code'})
                 else:
                     logger.error("No ZCTA/ZIP column found")
                     logger.error(f"Available columns: {df.columns.tolist()}")
                     return None
-            
+
             # Format ZIP codes
             df['zip_code'] = df['zip_code'].astype(str).str.strip().str.zfill(5)
-            
+
             # Convert numeric columns
             numeric_cols = ['total_population', 'median_household_income', 'median_home_value', 'labor_force']
             for col in numeric_cols:
-                if col in df.columns:
+                if col in df.columns and (missing_pct := (df[col].isna().sum() / len(df)) * 100) is not None:
                     df[col] = pd.to_numeric(df[col], errors='coerce')
-                    missing_pct = (df[col].isna().sum() / len(df)) * 100
                     logger.info(f"✅ {col} present after mapping, {missing_pct:.2f}% missing")
-            
+
             # Drop rows with missing values
             df = df.dropna(subset=numeric_cols)
             logger.info(f"Shape after dropping missing values: {df.shape}")
-            
+
             # Save processed data
             processed_path = self.processed_data_dir / 'census_processed.csv'
             df.to_csv(processed_path, index=False)
             logger.info(f"Processed census data saved to {processed_path}")
-            
+
             return df
-            
+
         except Exception as e:
-            logger.error(f"Error processing census data: {str(e)}")
-            logger.error(f"Error type: {type(e)}")
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            return None
+            return self._extracted_from_process_retail_data_48(
+                'Error processing census data: ', e, None
+            )
     
     def process_retail_deficit(self) -> bool:
         """Process retail deficit data."""
@@ -454,48 +455,47 @@ class DataProcessor:
                     return False
             else:
                 retail_metrics = pd.read_csv(retail_metrics_path)
-            
+
             # Calculate expected retail demand based on population and income
             retail_metrics['expected_retail_demand'] = (
                 retail_metrics['total_population'] * 
                 retail_metrics['median_household_income'] * 
                 0.3  # Assume 30% of income goes to retail
             )
-            
+
             # Calculate actual retail supply based on permits and construction
             retail_metrics['actual_retail_supply'] = retail_metrics['retail_construction_cost'].fillna(0)
-            
+
             # Calculate retail deficit
             retail_metrics['retail_deficit'] = (
                 retail_metrics['expected_retail_demand'] - 
                 retail_metrics['actual_retail_supply']
             )
-            
+
             # Calculate retail deficit per capita
             retail_metrics['retail_deficit_per_capita'] = (
                 retail_metrics['retail_deficit'] / 
                 retail_metrics['total_population']
             )
-            
+
             # Save retail deficit metrics
             retail_deficit_path = self.processed_data_dir / 'retail_deficit.csv'
             retail_metrics.to_csv(retail_deficit_path, index=False)
             logger.info(f"Saved retail deficit metrics to {retail_deficit_path}")
-            
+
             # Log summary statistics
             logger.info("Retail deficit summary:")
             logger.info(f"- Total expected demand: ${retail_metrics['expected_retail_demand'].sum():,.2f}")
             logger.info(f"- Total actual supply: ${retail_metrics['actual_retail_supply'].sum():,.2f}")
             logger.info(f"- Total deficit: ${retail_metrics['retail_deficit'].sum():,.2f}")
             logger.info(f"- Average deficit per capita: ${retail_metrics['retail_deficit_per_capita'].mean():,.2f}")
-            
+
             return True
-            
+
         except Exception as e:
-            logger.error(f"Error processing retail deficit: {str(e)}")
-            logger.error(f"Error type: {type(e)}")
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            return False
+            return self._extracted_from_process_retail_data_48(
+                'Error processing retail deficit: ', e, False
+            )
 
     def process_business_licenses(self) -> bool:
         """Process business license data and add active_licenses as total_licenses."""
@@ -766,59 +766,57 @@ class DataProcessor:
             if df is None:
                 logger.warning("No zoning data provided for processing")
                 return False
-                
+
             logger.info(f"Processing zoning data with shape: {df.shape}")
-            
+
             # Ensure required columns exist
             required_cols = ['zip_code', 'zoning_classification', 'zone_category', 'total_parcels', 'avg_lot_size']
-            missing_cols = [col for col in required_cols if col not in df.columns]
-            
-            if missing_cols:
+            if missing_cols := [
+                col for col in required_cols if col not in df.columns
+            ]:
                 logger.error(f"Required columns missing from zoning data: {missing_cols}")
                 return False
-            
+
             # Convert numeric columns
             numeric_cols = ['total_parcels', 'avg_lot_size', 'total_area']
             for col in numeric_cols:
-                if col in df.columns:
+                if col in df.columns and (missing_pct := (df[col].isna().sum() / len(df)) * 100) is not None:
                     df[col] = pd.to_numeric(df[col], errors='coerce')
-                    missing_pct = (df[col].isna().sum() / len(df)) * 100
                     logger.info(f"✅ {col} present, {missing_pct:.2f}% missing")
-            
+
             # Fill missing values with forward fill then backward fill
             df = df.sort_values(['zip_code', 'zoning_classification'])
             df[numeric_cols] = df[numeric_cols].ffill().bfill()
-            
+
             # Calculate zoning metrics
             metrics = df.groupby('zip_code').agg({
                 'total_parcels': 'sum',
                 'avg_lot_size': 'mean',
                 'total_area': 'sum'
             }).reset_index()
-            
+
             # Add zoning diversity metrics
             zoning_counts = df.groupby('zip_code')['zoning_classification'].nunique()
             metrics['zoning_diversity'] = metrics['zip_code'].map(zoning_counts)
-            
+
             # Save processed data
             processed_path = self.processed_data_dir / 'zoning_processed.csv'
             metrics.to_csv(processed_path, index=False)
             logger.info(f"Processed zoning data saved to {processed_path}")
-            
+
             # Log summary statistics
             logger.info("Zoning metrics summary:")
             logger.info(f"- Total parcels: {metrics['total_parcels'].sum():,}")
             logger.info(f"- Average lot size: {metrics['avg_lot_size'].mean():,.0f} sq ft")
             logger.info(f"- Total area: {metrics['total_area'].sum():,.0f} sq ft")
             logger.info(f"- Average zoning diversity: {metrics['zoning_diversity'].mean():.1f} classifications per ZIP")
-            
+
             return True
-            
+
         except Exception as e:
-            logger.error(f"Error processing zoning data: {str(e)}")
-            logger.error(f"Error type: {type(e)}")
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            return False
+            return self._extracted_from_process_retail_data_48(
+                'Error processing zoning data: ', e, False
+            )
 
     def run_pipeline(self) -> bool:
         """Run the full data processing pipeline."""
@@ -894,7 +892,7 @@ class DataProcessor:
         """Process all data sources."""
         try:
             logger.info("Starting data processing pipeline...")
-            
+
             # Process census data
             if census_data is not None:
                 processed_census = self.process_census_data(census_data)
@@ -905,7 +903,7 @@ class DataProcessor:
             else:
                 logger.warning("No census data provided for processing")
                 return False
-            
+
             # Process permit data
             if permit_data is not None:
                 processed_permits = self.process_permit_data(permit_data)
@@ -916,7 +914,7 @@ class DataProcessor:
             else:
                 logger.warning("No permit data provided for processing")
                 return False
-            
+
             # Process economic data
             if economic_data is not None:
                 processed_economic = self.process_economic_data(economic_data)
@@ -927,7 +925,7 @@ class DataProcessor:
             else:
                 logger.warning("No economic data provided for processing")
                 return False
-            
+
             # Process zoning data
             if zoning_data is not None:
                 processed_zoning = self.process_zoning_data(zoning_data)
@@ -937,78 +935,73 @@ class DataProcessor:
                 logger.info("Successfully processed zoning data")
             else:
                 logger.warning("No zoning data provided for processing")
-            
-            # Process business licenses
-            processed_licenses = self.process_business_licenses()
-            if not processed_licenses:
-                logger.warning("Business license processing failed")
-            else:
+
+            if processed_licenses := self.process_business_licenses():
                 logger.info("Successfully processed business license data")
-            
+
+            else:
+                logger.warning("Business license processing failed")
             # Process retail deficit
-            processed_deficit = self.process_retail_deficit()
-            if not processed_deficit:
+            if not (processed_deficit := self.process_retail_deficit()):
                 logger.warning("Retail deficit processing failed")
             else:
                 logger.info("Successfully processed retail deficit data")
-            
+
             # Save processing summary
             self._save_processing_summary()
-            
+
             return True
-            
+
         except Exception as e:
-            logger.error(f"Error in data processing pipeline: {str(e)}")
-            logger.error(f"Error type: {type(e)}")
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            return False 
+            return self._extracted_from_process_retail_data_48(
+                'Error in data processing pipeline: ', e, False
+            ) 
 
     def process_permit_data(self, df):
         """Process building permit data."""
         try:
             logger.info(f"Loaded {len(df)} raw permit records")
-            
+
             # Check for permit ID column
             if 'permit_id' not in df.columns:
                 logger.warning("No permit ID column found, using index")
                 df['permit_id'] = df.index
-            
+
             # Ensure required columns exist
             required_cols = ['permit_id', 'permit_type', 'total_fee', 'reported_cost']
-            missing_cols = [col for col in required_cols if col not in df.columns]
-            
-            if missing_cols:
+            if missing_cols := [
+                col for col in required_cols if col not in df.columns
+            ]:
                 logger.warning(f"Missing columns: {missing_cols}")
                 for col in missing_cols:
                     df[col] = None
                 logger.warning(f"Added missing column {col} with default value")
-            
+
             # Extract ZIP code from address if needed
             if 'zip_code' not in df.columns:
                 logger.warning("No zip_code column found, attempting to extract from address")
-                
+
                 # Try to extract from contact_1_zipcode first
                 if 'contact_1_zipcode' in df.columns:
                     df['zip_code'] = df['contact_1_zipcode'].astype(str).str.strip().str.zfill(5)
                     logger.info("Extracted ZIP codes from contact_1_zipcode")
-                    
+
                 # If still no ZIP codes, try to extract from address
                 elif all(col in df.columns for col in ['street_number', 'street_direction', 'street_name']):
                     df['address'] = df['street_number'].astype(str) + ' ' + \
-                                  df['street_direction'].astype(str) + ' ' + \
-                                  df['street_name'].astype(str)
-                    
-                    # Use a default ZIP code if we can't extract it
-                    df['zip_code'] = '60601'  # Default to Loop ZIP code
-                    logger.warning("Could not extract ZIP codes, using default: 60601")
+                                          df['street_direction'].astype(str) + ' ' + \
+                                          df['street_name'].astype(str)
+
+                    # Use the improved ZIP extraction logic
+                    df['zip_code'] = df['address'].apply(self.extract_zip)
                 else:
                     logger.error("No address columns found to extract ZIP code")
                     return False
-            
+
             # Clean permit types
             df['permit_type'] = df['permit_type'].fillna('Other')
             df['permit_type'] = df['permit_type'].str.strip().str.title()
-            
+
             # Map permit types to categories
             permit_type_map = {
                 'New Construction': 'Residential',
@@ -1025,34 +1018,34 @@ class DataProcessor:
                 'Store': 'Retail',
                 'Shop': 'Retail'
             }
-            
+
             # Apply mapping with fallback to 'Other'
             df['permit_category'] = df['permit_type'].map(permit_type_map).fillna('Other')
-            
+
             # Log permit type distribution
             type_counts = df['permit_category'].value_counts()
             logger.info("Permit type distribution:")
             for category, count in type_counts.items():
                 logger.info(f"- {category}: {count:,} permits")
-            
+
             # Convert costs to numeric
             df['reported_cost'] = pd.to_numeric(df['reported_cost'], errors='coerce')
             df['total_fee'] = pd.to_numeric(df['total_fee'], errors='coerce')
-            
+
             # Add year column if missing
             if 'year' not in df.columns and 'issue_date' in df.columns:
                 df['year'] = pd.to_datetime(df['issue_date']).dt.year
             elif 'year' not in df.columns:
                 df['year'] = datetime.now().year
                 logger.warning(f"No year column found, using current year: {df['year'].iloc[0]}")
-            
+
             # Aggregate by type and year
             logger.info("Aggregating permits by type and year...")
             agg_df = df.groupby(['zip_code', 'year', 'permit_category']).agg({
                 'permit_id': 'count',
                 'reported_cost': 'sum'
             }).reset_index()
-            
+
             # Pivot to get permit counts and costs by type
             permits_pivot = agg_df.pivot_table(
                 index=['zip_code', 'year'],
@@ -1060,43 +1053,42 @@ class DataProcessor:
                 values=['permit_id', 'reported_cost'],
                 fill_value=0
             ).reset_index()
-            
+
             # Flatten column names
             permits_pivot.columns = [
                 f"{col[1].lower()}_{col[0]}" if col[1] != "" 
                 else col[0] for col in permits_pivot.columns
             ]
-            
+
             # Add total columns
             permits_pivot['total_permits'] = permits_pivot[[col for col in permits_pivot.columns 
                                                           if col.endswith('permit_id')]].sum(axis=1)
             permits_pivot['total_construction_cost'] = permits_pivot[[col for col in permits_pivot.columns 
                                                                     if col.endswith('reported_cost')]].sum(axis=1)
-            
+
             # Log summary statistics
             logger.info(f"Processed {len(df):,} permits:")
             for category in ['Residential', 'Commercial', 'Retail']:
                 col = f"{category.lower()}_permit_id"
                 if col in permits_pivot.columns:
                     logger.info(f"- {category}: {int(permits_pivot[col].sum()):,} permits")
-            
+
             logger.info(f"Total construction cost: ${permits_pivot['total_construction_cost'].sum():,.2f}")
-            
+
             # Save processed data
             processed_path = self.processed_data_dir / 'permits_processed.csv'
             permits_pivot.to_csv(processed_path, index=False)
             logger.info(f"Processed permit data saved to {processed_path}")
-            
+
             # Log column names for debugging
             logger.info(f"Processed permits columns: {permits_pivot.columns.tolist()}")
-            
+
             return True
-            
+
         except Exception as e:
-            logger.error(f"Error processing permit data: {str(e)}")
-            logger.error(f"Error type: {type(e)}")
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            return False 
+            return self._extracted_from_process_retail_data_48(
+                'Error processing permit data: ', e, False
+            ) 
 
     def _save_processing_summary(self):
         """Save processing summary to JSON."""
@@ -1116,7 +1108,7 @@ class DataProcessor:
                     'retail_metrics': 0
                 }
             }
-            
+
             # Count records in each file
             for file_type, file_path in summary['processed_files'].items():
                 path = Path(file_path)
@@ -1126,18 +1118,17 @@ class DataProcessor:
                         summary['metrics'][f'{file_type}_records'] = len(df)
                     except Exception as e:
                         logger.warning(f"Could not read {file_type} file: {str(e)}")
-            
+
             # Save summary
             summary_path = self.processed_data_dir / 'processing_summary.json'
             with open(summary_path, 'w') as f:
                 json.dump(summary, f, indent=2)
             logger.info(f"Saved processing summary to {summary_path}")
-            
+
         except Exception as e:
-            logger.error(f"Error saving processing summary: {str(e)}")
-            logger.error(f"Error type: {type(e)}")
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            return False 
+            return self._extracted_from_process_retail_data_48(
+                'Error saving processing summary: ', e, False
+            ) 
 
     def process_retail_data(self, data: pd.DataFrame) -> bool:
         """Process retail data.
@@ -1153,20 +1144,20 @@ class DataProcessor:
             census_data = pd.read_csv(settings.PROCESSED_DATA_DIR / 'census_processed.csv')
             current_year = census_data['year'].max()
             census_current = census_data[census_data['year'] == current_year]
-            
+
             # Calculate retail space from permits
             retail_space = data.groupby(['zip_code', 'year']).agg({
                 'retail_permits': 'sum',
                 'retail_construction_cost': 'sum'
             }).reset_index()
-            
+
             # Merge with census data
             retail_metrics = retail_space.merge(
                 census_current[['zip_code', 'total_population', 'median_household_income']],
                 on='zip_code',
                 how='outer'
             )
-            
+
             # Fill missing values
             retail_metrics = retail_metrics.fillna({
                 'retail_permits': 0,
@@ -1175,69 +1166,99 @@ class DataProcessor:
                 'median_household_income': retail_metrics['median_household_income'].mean(),
                 'year': current_year
             })
-            
+
             # Estimate retail space from construction cost
             # Assuming average cost of $200 per square foot for retail construction
             retail_metrics['retail_space'] = retail_metrics['retail_construction_cost'] / 200
-            
+
             # Estimate annual retail spending per capita (30% of income)
             retail_metrics['retail_demand'] = retail_metrics['total_population'] * retail_metrics['median_household_income'] * 0.3
-            
+
             # Calculate retail supply (annual sales per square foot)
             retail_metrics['retail_supply'] = retail_metrics['retail_space'] * 300  # Assume $300 annual sales per sq ft
-            
+
             # Calculate retail gap (demand - supply)
             retail_metrics['retail_gap'] = retail_metrics['retail_demand'] - retail_metrics['retail_supply']
-            
+
             # Calculate retail leakage (gap / demand)
             retail_metrics['retail_leakage'] = retail_metrics['retail_gap'] / retail_metrics['retail_demand']
-            
+
             # Calculate vacancy rate (assume 10% base + gap factor)
             retail_metrics['vacancy_rate'] = 0.10 + (retail_metrics['retail_gap'] / retail_metrics['retail_demand']).clip(0, 0.2)
-            
+
             # Calculate retail opportunity score (normalized gap)
             retail_metrics['opportunity_score'] = (retail_metrics['retail_gap'] - retail_metrics['retail_gap'].mean()) / retail_metrics['retail_gap'].std()
-            
+
             # Identify high opportunity areas
             retail_metrics['high_opportunity'] = retail_metrics['opportunity_score'] > 1.0
-            
+
             # Save retail metrics
             retail_metrics.to_csv(settings.PROCESSED_DATA_DIR / 'retail_metrics.csv', index=False)
-            
+
             # Calculate and save retail deficit metrics
             retail_deficit = retail_metrics.copy()
             retail_deficit['retail_deficit'] = retail_deficit['retail_gap'].clip(lower=0)
             retail_deficit['retail_surplus'] = retail_deficit['retail_gap'].clip(upper=0).abs()
             retail_deficit.to_csv(settings.PROCESSED_DATA_DIR / 'retail_deficit.csv', index=False)
-            
+
             # Log summary statistics
             total_demand = retail_metrics['retail_demand'].sum()
             total_supply = retail_metrics['retail_supply'].sum()
             total_deficit = retail_metrics['retail_gap'].sum()
             avg_deficit_per_capita = retail_metrics['retail_gap'].mean() / retail_metrics['total_population'].mean()
-            
+
             logger.info("Retail deficit summary:")
             logger.info(f"- Total expected demand: ${total_demand:,.2f}")
             logger.info(f"- Total actual supply: ${total_supply:,.2f}")
             logger.info(f"- Total deficit: ${total_deficit:,.2f}")
             logger.info(f"- Average deficit per capita: ${avg_deficit_per_capita:,.2f}")
-            
+
             # Save summary metrics
             summary_metrics = pd.DataFrame({
                 'metric': ['total_demand', 'total_supply', 'total_deficit', 'avg_deficit_per_capita'],
                 'value': [total_demand, total_supply, total_deficit, avg_deficit_per_capita]
             })
             summary_metrics.to_csv(settings.PROCESSED_DATA_DIR / 'retail_summary_metrics.csv', index=False)
-            
+
             # Save retail metrics to a separate file for each ZIP code
             for zip_code in retail_metrics['zip_code'].unique():
                 zip_metrics = retail_metrics[retail_metrics['zip_code'] == zip_code]
                 zip_metrics.to_csv(settings.PROCESSED_DATA_DIR / f'retail_metrics_{zip_code}.csv', index=False)
-            
+
             return True
-            
+
         except Exception as e:
-            logger.error(f"Error processing retail data: {str(e)}")
-            logger.error(f"Error type: {type(e)}")
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            return False 
+            return self._extracted_from_process_retail_data_48(
+                'Error processing retail data: ', e, False
+            ) 
+
+    # TODO Rename this here and in `process_economic_data`, `process_permits_data`, `process_census_data`, `process_retail_deficit`, `process_zoning_data`, `process_all_data`, `process_permit_data`, `_save_processing_summary` and `process_retail_data`
+    def _extracted_from_process_retail_data_48(self, arg0, e, arg2):
+        logger.error(f"{arg0}{str(e)}")
+        logger.error(f"Error type: {type(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return arg2 
+
+    def process_retail_metrics(self, df):
+        required_cols = ['retail_space', 'retail_demand', 'retail_gap', 'vacancy_rate', 'retail_supply']
+        for col in required_cols:
+            if col in df.columns:
+                df[col] = df[col].fillna(0)
+            elif col == 'retail_gap' and 'retail_demand' in df.columns and 'retail_supply' in df.columns:
+                df['retail_gap'] = df['retail_demand'] - df['retail_supply']
+            else:
+                df[col] = 0
+                logger.warning(f"Added missing column {col} to retail data with default value 0")
+        return df
+
+    def extract_zip(self, address):
+        # Extract 5-digit ZIP codes, prefer those starting with 606 (Chicago)
+        if not isinstance(address, str):
+            return None
+        if zips := re.findall(r'\b60\d{3}\b', address):
+            return zips[0]
+        if all_zips := re.findall(r'\b\d{5}\b', address):
+            logger.warning(f"Non-Chicago ZIP found in address: {address}")
+            return all_zips[0]
+        logger.warning(f"No valid ZIP found in address: {address}")
+        return None 
