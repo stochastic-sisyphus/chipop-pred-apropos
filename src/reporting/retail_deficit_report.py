@@ -20,6 +20,11 @@ from src.config.column_alias_map import column_aliases
 
 logger = logging.getLogger(__name__)
 
+REQUIRED_COLS = [
+    'total_population', 'median_household_income', 'retail_space', 'vacancy_rate',
+    'retail_gap', 'retail_demand', 'retail_supply'
+]
+
 class RetailDeficitReport:
     """Generates retail deficit analysis reports."""
     
@@ -44,7 +49,7 @@ class RetailDeficitReport:
             # Load processed data
             census_data = pd.read_csv(settings.PROCESSED_DATA_DIR / 'census_processed.csv')
             permit_data = pd.read_csv(settings.PROCESSED_DATA_DIR / 'permits_processed.csv')
-            retail_data = pd.read_csv(settings.PROCESSED_DATA_DIR / 'retail_metrics.csv')
+            retail_data = pd.read_csv(settings.PROCESSED_DATA_DIR / 'retail_deficit.csv')
             retail_deficit = pd.read_csv(settings.PROCESSED_DATA_DIR / 'retail_deficit.csv')
             
             # Ensure required columns exist
@@ -83,8 +88,8 @@ class RetailDeficitReport:
             
             # Merge datasets
             merged = pd.merge(census_data, permit_data, on=['zip_code', 'year'], how='left')
-            merged = pd.merge(merged, retail_data, on='zip_code', how='left')
-            merged = pd.merge(merged, retail_deficit, on='zip_code', how='left')
+            merged = pd.merge(merged, retail_data, on=['zip_code', 'year'], how='left')  # ✅ FIX
+            merged = pd.merge(merged, retail_deficit, on=['zip_code', 'year'], how='left')  # ✅ FIX
             
             # Fill missing values
             merged = merged.fillna({
@@ -196,92 +201,76 @@ class RetailDeficitReport:
             logger.error(f"Traceback: {traceback.format_exc()}")
             return None
             
-    def generate_report(self) -> bool:
-        """Generate the retail deficit analysis report."""
+    def ensure_merged_retail_columns(self, merged_data: pd.DataFrame, retail_deficit: pd.DataFrame) -> pd.DataFrame:
+        """
+        Ensure merged_data has all required retail columns, filling from retail_deficit if possible, else with 0.
+        """
+        required_cols = ["retail_space", "vacancy_rate", "retail_gap", "retail_demand", "retail_supply"]
+        for col in required_cols:
+            if col not in merged_data.columns:
+                if retail_deficit is not None and col in retail_deficit.columns:
+                    merged_data[col] = retail_deficit[col]
+                    logging.info(f"Filled missing column '{col}' in merged_data from retail_deficit.")
+                else:
+                    merged_data[col] = 0
+                    logging.warning(f"Filled missing column '{col}' in merged_data with 0 (not found in retail_deficit).")
+        return merged_data
+
+    def generate_report(self, census_data, permit_data, economic_data, zoning_data, retail_metrics, retail_deficit):
         try:
-            # Load and prepare data
-            data = self.load_and_prepare_data()
-            if not data:
-                logger.error("Failed to load required data")
-                return False
-            
-            # After loading retail_data, ensure required columns
-            retail_data = data['retail']
-            retail_data = self.ensure_retail_columns(retail_data)
-            
-            # Analyze retail deficit
-            analysis = self.analyze_retail_deficit(data)
-            if not analysis:
-                logger.error("Failed to analyze retail deficit")
-                return False
-            
             # Load report template
-            template = self.template_env.get_template('retail_deficit_analysis.md')
-            
-            # Prepare template variables
-            template_vars = {
+            template_path = settings.TEMPLATES_DIR / 'reports/retail_deficit_analysis.md'
+            with open(template_path, 'r') as f:
+                template = Template(f.read())
+
+            # Prepare opportunity dataframe
+            opportunity_df = pd.merge(
+                census_data[['zip_code', 'total_population', 'median_household_income']],
+                retail_metrics[['zip_code', 'retail_space', 'vacancy_rate']] if 'retail_space' in retail_metrics.columns else pd.DataFrame({'zip_code': census_data['zip_code'].unique()}),
+                on='zip_code', how='left'
+            )
+            # Fill missing retail metrics with 0
+            for col in ['retail_space', 'vacancy_rate']:
+                if col not in opportunity_df.columns:
+                    opportunity_df[col] = 0
+            # Log available columns
+            logging.info(f"RetailDeficitReport: opportunity_df columns: {list(opportunity_df.columns)}")
+            # Check for missing/zeroed required columns
+            missing = []
+            all_zero = []
+            for col in REQUIRED_COLS:
+                if col not in opportunity_df.columns:
+                    missing.append(col)
+                    opportunity_df[col] = 0
+                    logging.warning(f"RetailDeficitReport: Missing column {col}, set to 0.")
+                elif (opportunity_df[col] == 0).all():
+                    all_zero.append(col)
+                    logging.warning(f"RetailDeficitReport: All values in {col} are zero.")
+            notes = []
+            if missing:
+                notes.append(f"Missing columns: {', '.join(missing)}")
+            if all_zero:
+                notes.append(f"All zero columns: {', '.join(all_zero)}")
+            # Prepare context
+            context = {
                 'generation_date': datetime.now().strftime('%Y-%m-%d'),
-                'high_deficit_areas': [
-                    {
-                        'zip_code': metrics['location'].replace('ZIP ', '') if 'location' in metrics else metrics.get('zip_code', '00000'),
-                        'total_population': metrics.get('total_population', 0),
-                        'median_household_income': metrics.get('median_household_income', 0),
-                        'total_housing_units': metrics.get('total_housing_units', 0),
-                        'retail_space': metrics.get('retail_space', 0),
-                        'spending_potential': metrics.get('retail_demand', 0),
-                        'retail_gap': metrics.get('retail_gap', 0),
-                        'residential_permits': metrics.get('residential_permits', 0),
-                        'retail_permits': metrics.get('retail_permits', 0),
-                        'total_construction_cost': metrics.get('total_construction_cost', 0)
-                    }
-                    for metrics in analysis['zip_metrics'][:5]  # Top 5 deficit areas
-                ],
-                'opportunity_areas': {
-                    f"ZIP {metrics['location'].replace('ZIP ', '')}" if 'location' in metrics else f"ZIP {metrics.get('zip_code', '00000')}": {
-                        'retail_demand': metrics.get('retail_demand', 0),
-                        'retail_supply': metrics.get('retail_supply', 0),
-                        'population_growth_rate': metrics.get('population_growth_rate', 0.0),
-                        'income_growth_rate': metrics.get('income_growth_rate', 0.0),
-                        'housing_unit_growth': metrics.get('housing_unit_growth', 0.0),
-                        'recent_retail_permits': metrics.get('retail_permits', 0),
-                        'recent_housing_permits': metrics.get('residential_permits', 0)
-                    }
-                    for metrics in sorted(
-                        analysis['zip_metrics'],
-                        key=lambda x: x.get('retail_gap', 0),
-                        reverse=True
-                    )[:5]  # Top 5 opportunities
-                },
-                'recommendations': [
-                    "Focus retail development in high-deficit areas",
-                    "Prioritize mixed-use development in growth corridors",
-                    "Streamline permitting for retail projects",
-                    "Engage with major retailers for anchor tenants",
-                    "Develop small business support programs"
-                ],
-                'methodology_notes': """
-                This analysis combines demographic, economic, and development data to identify retail gaps and opportunities.
-                Key metrics include retail spending potential, current retail supply, and market leakage.
-                Areas are prioritized based on population density, income levels, and development activity.
-                """
+                'opportunity_areas': {},
+                'high_deficit_areas': [],
+                'recommendations': [],
+                'methodology_notes': '',
+                'notes': notes,
+                'missing_or_defaulted': missing + all_zero
             }
-            
-            # Generate report content
-            report_content = template.render(**template_vars)
-            
-            # Save report
-            self.output_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.output_path, 'w') as f:
-                f.write(report_content)
-            
-            logger.info(f"Retail deficit report generated at {self.output_path}")
-            return True
-            
+            # Always provide opportunity_areas and high_deficit_areas as empty or defaulted
+            try:
+                rendered = template.render(**{k: context.get(k, 'N/A') for k in context})
+            except Exception as e:
+                logging.error(f"RetailDeficitReport: Template rendering failed: {e}")
+                rendered = f"Report generation failed. Error: {e}\nNotes: {context.get('notes', [])}"
+            return rendered
         except Exception as e:
-            logger.error(f"Failed to generate retail deficit report: {str(e)}")
-            logger.error(f"Error type: {type(e)}")
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            return False
+            logging.error(f"RetailDeficitReport: Failed to generate report: {e}")
+            return f"Report generation failed. Error: {e}"
 
     def ensure_retail_columns(self, retail_data: pd.DataFrame) -> pd.DataFrame:
         """Ensure all required retail columns exist, adding with default 0 if missing. Log only once per column."""

@@ -27,6 +27,13 @@ from src.config.column_alias_map import column_aliases
 
 logger = logging.getLogger(__name__)
 
+import logging
+
+REQUIRED_COLS = [
+    'total_population', 'median_household_income', 'median_home_value', 'labor_force',
+    'total_housing_units', 'retail_space', 'retail_demand', 'retail_gap', 'retail_supply', 'vacancy_rate'
+]
+
 class TenYearGrowthReport:
     """Generates the ten-year growth analysis report for Chicago."""
     
@@ -318,7 +325,7 @@ class TenYearGrowthReport:
             'end_value': gdp_end,
             'gdp_growth': cagr,
             'employment_change': employment_change,
-            'income_growth': float(income_growth),
+            'income_growth': income_growth,
         }
         logger.info(f"Economic trends: {trends['economic']}")
         # Development trends (permits)
@@ -443,25 +450,31 @@ class TenYearGrowthReport:
     def _analyze_development_trends(self, data: pd.DataFrame) -> Dict:
         """Analyze development trends from permit data."""
         try:
-            # Get permit counts by type if available
-            permit_types = {}
-            for col in ['residential_permits', 'commercial_permits', 'retail_permits']:
-                if col in data.columns:
-                    permit_types[col.replace('_permits', '')] = int(data[col].sum())
-                
-            # Get construction costs by type if available
-            construction_costs = {}
-            for col in ['residential_construction_cost', 'commercial_construction_cost', 'retail_construction_cost']:
-                if col in data.columns:
-                    construction_costs[col.replace('_construction_cost', '')] = float(data[col].sum())
-                
+            permit_types = {
+                col.replace('_permits', ''): int(data[col].sum())
+                for col in [
+                    'residential_permits',
+                    'commercial_permits',
+                    'retail_permits',
+                ]
+                if col in data.columns
+            }
+            construction_costs = {
+                col.replace('_construction_cost', ''): float(data[col].sum())
+                for col in [
+                    'residential_construction_cost',
+                    'commercial_construction_cost',
+                    'retail_construction_cost',
+                ]
+                if col in data.columns
+            }
             return {
                 'permit_types': permit_types,
                 'construction_costs': construction_costs,
                 'total_permits': int(data['total_permits'].sum()) if 'total_permits' in data.columns else 0,
                 'total_cost': float(data['total_construction_cost'].sum()) if 'total_construction_cost' in data.columns else 0
             }
-            
+
         except Exception as e:
             logger.error(f"Error analyzing development trends: {str(e)}")
             return {}
@@ -1694,137 +1707,38 @@ class TenYearGrowthReport:
             else:
                 context.setdefault(key, default)
 
-    def generate_report(self, output_path: Path = None) -> bool:
-        """Generate the ten-year growth analysis report."""
+    def generate_report(self, context: dict) -> str:
         try:
-            # Load and prepare data
-            data = self.load_and_prepare_data()
-            if data is None:
-                logger.error("Failed to load data")
-                return False
-            
-            # Analyze historical trends
-            historical_trends = self._analyze_historical_trends(data)
-            if not historical_trends:
-                logger.error("Failed to analyze historical trends")
-                historical_trends = {
-                    'population': {},
-                    'development': {},
-                    'economic': {}
-                }
-            
-            # Generate current analysis
-            current_analysis = self.generate_current_analysis(data)
-            if not current_analysis:
-                logger.error("Failed to generate current analysis")
-                current_analysis = {}
-            
-            # Generate projections
-            projections = self.generate_projections(data)
-            if not projections:
-                logger.error("Failed to generate projections")
-                projections = {
-                    'period_start': datetime.now().year,
-                    'period_end': datetime.now().year + 10,
-                    'population': {},
-                    'development': {}
-                }
-            
-            # Analyze impacts
-            impacts = self.analyze_impacts(current_analysis, projections)
-            if not impacts:
-                logger.error("Failed to analyze impacts")
-                impacts = {'housing': [], 'economic': []}
-            
-            # Identify growth areas
-            growth_areas = self.identify_growth_areas({'merged': data})
-            if not growth_areas:
-                logger.error("Failed to identify growth areas")
-                growth_areas = {'primary': [], 'emerging': [], 'stabilization': []}
-            
-            # Generate recommendations
-            recommendations = self.generate_recommendations(impacts, growth_areas)
-            if not recommendations:
-                logger.error("Failed to generate recommendations")
-                recommendations = {'strategic': [], 'implementation': []}
-            
-            # Load template
-            template = self.template_env.get_template('ten_year_growth_analysis.md')
-            
-            # Generate report content with all required variables
-            template_vars = {
-                'generation_date': datetime.now().strftime('%Y-%m-%d'),
-                'generation_time': datetime.now().strftime('%H:%M:%S'),
-                'historical_trends': historical_trends,
-                'current_analysis': current_analysis,
-                'projections': projections,
-                'impacts': impacts,
-                'growth_areas': growth_areas,
-                'recommendations': recommendations
-            }
-            
-            # Before rendering the template, ensure all required keys exist
-            required_structure = {
-                "current_analysis": {
-                    "population": {"total": 0, "growth": 0.0},
-                    "housing": {"total": 0, "growth": 0.0},
-                    "development": {"total": 0, "growth": 0.0},
-                    "economic": {"gdp": 0.0, "employment": 0.0, "income": 0.0},
-                },
-                "historical_trends": {
-                    "population": {"total_growth": 0.0, "cagr": 0.0},
-                    "housing": {"total_growth": 0.0, "cagr": 0.0},
-                    "economic": {
-                        "gdp_growth": 0.0,
-                        "employment_change": 0.0,
-                        "income_growth": 0.0,
-                    },
-                    "development": {"total_growth": 0.0, "cagr": 0.0},
-                },
-                "projections": {},
-                "growth_areas": {},
-                "recommendations": {},
-            }
-            self._ensure_template_keys(template_vars, required_structure)
-            
-            # Before rendering the template, inject avg_household_size
-            census_df = getattr(self, 'census_data', None)
-            if census_df is not None and 'total_population' in census_df.columns and 'occupied_housing_units' in census_df.columns:
-                total_pop = census_df['total_population'].sum()
-                total_households = census_df['occupied_housing_units'].sum()
-                avg_household_size = (total_pop / total_households) if total_households > 0 else None
-            else:
-                avg_household_size = None
-            # Inject into the template context
-            if 'current_analysis' in template_vars and 'population' in template_vars['current_analysis']:
-                template_vars['current_analysis']['population']['avg_household_size'] = avg_household_size
-            
-            # PATCH: Ensure development metrics are always real numbers for template safety
-            if 'current_analysis' in template_vars and 'development' in template_vars['current_analysis']:
-                dev = template_vars['current_analysis']['development']
-                dev['active_permits'] = int(dev.get('active_permits', 0) or 0)
-                dev['units_under_construction'] = int(dev.get('units_under_construction', 0) or 0)
-                dev['pipeline_value'] = float(dev.get('pipeline_value', 0.0) or 0.0)
-            
-            # PATCH: Ensure projections.development metrics are always real numbers for template safety
-            if 'projections' in template_vars and 'development' in template_vars['projections']:
-                dev_proj = template_vars['projections']['development']
-                dev_proj['total_new_units'] = int(dev_proj.get('total_new_units', 0) or 0)
-                dev_proj['total_investment'] = float(dev_proj.get('total_investment', 0.0) or 0.0)
-            
-            report_content = template.render(template_vars)
-            
-            # Save report
-            output_path = output_path or self.output_paths['main']
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(output_path, 'w') as f:
-                f.write(report_content)
-            
-            logger.info(f"Ten year growth report generated at {output_path}")
-            return True
-            
+            # Log available keys
+            logging.info(f"TenYearGrowthReport: context keys: {list(context.keys())}")
+            # Check for missing/zeroed required keys
+            missing = []
+            all_zero = []
+            for col in REQUIRED_COLS:
+                val = context.get(col)
+                if val is None:
+                    missing.append(col)
+                    context[col] = 0
+                    logging.warning(f"TenYearGrowthReport: Missing key {col}, set to 0.")
+                elif isinstance(val, (int, float)) and val == 0:
+                    all_zero.append(col)
+                    logging.warning(f"TenYearGrowthReport: All values in {col} are zero.")
+            notes = []
+            if missing:
+                notes.append(f"Missing keys: {', '.join(missing)}")
+            if all_zero:
+                notes.append(f"All zero keys: {', '.join(all_zero)}")
+            context['notes'] = notes
+            context['missing_or_defaulted'] = missing + all_zero
+            # Render template with .get() and missing/defaulted block
+            try:
+                rendered = self.template_env.get_template(
+                    'ten_year_growth_analysis.md'
+                ).render(**{k: context.get(k, 'N/A') for k in context})
+            except Exception as e:
+                logging.error(f"TenYearGrowthReport: Template rendering failed: {e}")
+                rendered = f"Report generation failed. Error: {e}\nNotes: {context.get('notes', [])}"
+            return rendered
         except Exception as e:
-            logger.error(f"Failed to generate ten year growth report: {str(e)}")
-            logger.error(f"Error type: {type(e)}")
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            return False
+            logging.error(f"TenYearGrowthReport: Failed to generate report: {e}")
+            return f"Report generation failed. Error: {e}"

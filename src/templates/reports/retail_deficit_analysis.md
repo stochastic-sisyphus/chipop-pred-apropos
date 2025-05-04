@@ -1,5 +1,10 @@
 # Retail Deficit Analysis Report
 
+{% if notes %}
+> **WARNING:** The following metrics were missing or defaulted: {{ notes|join('; ') }}
+---
+{% endif %}
+
 ## Overview
 This report analyzes retail development opportunities and deficits across Chicago ZIP codes.
 
@@ -9,23 +14,23 @@ This report analyzes retail development opportunities and deficits across Chicag
 ### {{ area.zip_code }}
 
 **Key Metrics:**
-- Population: {{ "{:,.0f}".format(area.total_population|default(0)) }}
-- Median Income: ${{ "{:,.0f}".format(area.median_household_income|default(0)) }}
-- Total Housing Units: {{ "{:,.0f}".format(area.total_housing_units|default(0)) }}
-{% if area.retail_space is defined %}
-- Retail Space: {{ "{:,.0f}".format(area.retail_space|default(0)) }} sq ft
+- Population: {{ "{:,.0f}".format(area.get('total_population', 0)) }}
+- Median Income: ${{ "{:,.0f}".format(area.get('median_household_income', 0)) }}
+- Total Housing Units: {{ "{:,.0f}".format(area.get('total_housing_units', 0)) }}
+{% if area.get('retail_space') is not none %}
+- Retail Space: {{ "{:,.0f}".format(area.get('retail_space', 0)) }} sq ft
 {% endif %}
-{% if area.spending_potential is defined %}
-- Spending Potential: ${{ "{:,.0f}".format(area.spending_potential|default(0)) }}
+{% if area.get('spending_potential') is not none %}
+- Spending Potential: ${{ "{:,.0f}".format(area.get('spending_potential', 0)) }}
 {% endif %}
-{% if area.retail_gap is defined %}
-- Retail Gap: ${{ "{:,.0f}".format(area.retail_gap|default(0)) }}
+{% if area.get('retail_gap') is not none %}
+- Retail Gap: ${{ "{:,.0f}".format(area.get('retail_gap', 0)) }}
 {% endif %}
 
 **Development Activity:**
-- Residential Permits: {{ "{:,.0f}".format(area.residential_permits|default(0)) }}
-- Retail Permits: {{ "{:,.0f}".format(area.retail_permits|default(0)) }}
-- Total Construction Cost: ${{ "{:,.2f}".format(area.total_construction_cost|default(0)) }}
+- Residential Permits: {{ "{:,.0f}".format(area.get('residential_permits', 0)) }}
+- Retail Permits: {{ "{:,.0f}".format(area.get('retail_permits', 0)) }}
+- Total Construction Cost: ${{ "{:,.2f}".format(area.get('total_construction_cost', 0)) }}
 
 {% endfor %}
 
@@ -35,19 +40,19 @@ This report analyzes retail development opportunities and deficits across Chicag
 ### {{ zip_code }}
 
 **Market Potential:**
-{% if metrics.retail_demand is defined %}
-- Estimated Retail Demand: ${{ "{:,.0f}".format(metrics.retail_demand|default(0)) }}
+{% if metrics.get('retail_demand') is not none %}
+- Estimated Retail Demand: ${{ "{:,.0f}".format(metrics.get('retail_demand', 0)) }}
 {% endif %}
-{% if metrics.retail_supply is defined %}
-- Current Retail Supply: ${{ "{:,.0f}".format(metrics.retail_supply|default(0)) }}
+{% if metrics.get('retail_supply') is not none %}
+- Current Retail Supply: ${{ "{:,.0f}".format(metrics.get('retail_supply', 0)) }}
 {% endif %}
-- Population Growth Rate: {{ "{:.1f}".format(metrics.population_growth_rate|default(0)) }}%
-- Income Growth Rate: {{ "{:.1f}".format(metrics.income_growth_rate|default(0)) }}%
+- Population Growth Rate: {{ "{:.1f}".format(metrics.get('population_growth_rate', 0)) }}%
+- Income Growth Rate: {{ "{:.1f}".format(metrics.get('income_growth_rate', 0)) }}%
 
 **Development Metrics:**
-- Housing Unit Growth: {{ "{:.1f}".format(metrics.housing_unit_growth|default(0)) }}%
-- Recent Retail Permits: {{ metrics.recent_retail_permits|default(0) }}
-- Recent Housing Permits: {{ metrics.recent_housing_permits|default(0) }}
+- Housing Unit Growth: {{ "{:.1f}".format(metrics.get('housing_unit_growth', 0)) }}%
+- Recent Retail Permits: {{ metrics.get('recent_retail_permits', 0) }}
+- Recent Housing Permits: {{ metrics.get('recent_housing_permits', 0) }}
 
 {% endfor %}
 

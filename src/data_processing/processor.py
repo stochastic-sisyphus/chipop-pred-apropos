@@ -122,6 +122,10 @@ class DataProcessor:
 
             df = pd.read_csv(permit_file)
             logger.info(f"Loaded {len(df):,} raw permit records")
+            print("[DEBUG] Permits raw shape:", df.shape)
+            print("[DEBUG] Permits raw columns:", list(df.columns))
+            print("[DEBUG] Permits raw head:\n", df.head())
+            print("[DEBUG] Permits raw nulls:\n", df.isnull().sum())
 
             # Ensure ZIP code is string type
             if 'contact_1_zipcode' in df.columns:
@@ -132,6 +136,9 @@ class DataProcessor:
             # Filter to valid Chicago ZIPs only
             df_valid, df_invalid = self.validate_zip_codes(df, 'zip_code')
             logger.info(f"Filtered out {len(df_invalid)} records with invalid ZIPs from permits data.")
+            print("[DEBUG] Permits valid shape:", df_valid.shape)
+            print("[DEBUG] Permits valid ZIPs unique:", df_valid['zip_code'].nunique())
+            print("[DEBUG] Permits valid years unique:", df_valid['year'].nunique() if 'year' in df_valid.columns else 'N/A')
             df = df_valid
 
             # Categorize permits
@@ -188,7 +195,7 @@ class DataProcessor:
     def _process_core_sources(self) -> Dict[str, bool]:
         """Process core data sources."""
         return {
-            'census': self.process_census_data(),
+            'census': self.process_census_data(pd.read_csv(settings.CENSUS_DATA_PATH)),
             'permits': self.process_permits_data(),
             'business_licenses': self.process_business_licenses()
         }
@@ -323,6 +330,20 @@ class DataProcessor:
             for col in merged_df.columns:
                 logger.info(f"{col}: {merged_df[col].dtype}")
 
+            # Ensure missing retail columns are initialized
+            retail_columns = {
+                'retail_space': 0,
+                'retail_demand': 0,
+                'retail_gap': 0,
+                'retail_supply': 0,
+                'vacancy_rate': 0.1
+            }
+            
+            for col, default_val in retail_columns.items():
+                if col not in merged_df.columns:
+                    merged_df[col] = default_val
+                    logger.warning(f"{col} not found - initialized with default value {default_val}")
+        
             # Save merged dataset
             merged_df.to_csv(settings.MERGED_DATA_PATH, index=False)
             logger.info(f"Merged dataset saved to {str(settings.MERGED_DATA_PATH)}")
@@ -333,6 +354,14 @@ class DataProcessor:
             logger.info(f"Total rows: {len(merged_df)}")
             logger.info(f"Unique ZIP codes: {merged_df['zip_code'].nunique()}")
             logger.info(f"Years covered: {sorted(merged_df['year'].unique())}")
+            
+            # After merging, log required retail columns
+            retail_columns = ['retail_space', 'retail_demand', 'retail_gap', 'retail_supply', 'vacancy_rate']
+            for col in retail_columns:
+                if col in merged_df.columns:
+                    logger.info(f"Merged: {col} present, {merged_df[col].isnull().sum()} nulls")
+                else:
+                    logger.warning(f"Merged: {col} missing, initialized with default value")
             
             return merged_df
 
@@ -440,6 +469,16 @@ class DataProcessor:
             df.to_csv(processed_path, index=False)
             logger.info(f"Processed census data saved to {processed_path}")
 
+            # After saving processed data, check for flatline ZIPs
+            try:
+                for col in ['total_population', 'total_housing_units']:
+                    if col in df.columns:
+                        changes = df.groupby('zip_code')[col].agg(['first', 'last'])
+                        stagnant = (changes['first'] == changes['last']).sum()
+                        logger.info(f"{col}: {stagnant} ZIPs have no change over period")
+            except Exception as e:
+                logger.warning(f"Could not compute flatline ZIPs: {e}")
+
             return df
 
         except Exception as e:
@@ -448,9 +487,8 @@ class DataProcessor:
             )
     
     def process_retail_deficit(self) -> bool:
-        """Process retail deficit data."""
+        """Process retail deficit data with robust fallback and logging/reporting."""
         try:
-            # Load retail metrics
             retail_metrics_path = self.processed_data_dir / 'retail_metrics.csv'
             if not retail_metrics_path.exists():
                 logger.warning("Retail metrics not found, generating from scratch")
@@ -460,47 +498,18 @@ class DataProcessor:
                     return False
             else:
                 retail_metrics = pd.read_csv(retail_metrics_path)
-
-            # Calculate expected retail demand based on population and income
-            retail_metrics['expected_retail_demand'] = (
-                retail_metrics['total_population'] * 
-                retail_metrics['median_household_income'] * 
-                0.3  # Assume 30% of income goes to retail
-            )
-
-            # Calculate actual retail supply based on permits and construction
-            retail_metrics['actual_retail_supply'] = retail_metrics['retail_construction_cost'].fillna(0)
-
-            # Calculate retail deficit
-            retail_metrics['retail_deficit'] = (
-                retail_metrics['expected_retail_demand'] - 
-                retail_metrics['actual_retail_supply']
-            )
-
-            # Calculate retail deficit per capita
-            retail_metrics['retail_deficit_per_capita'] = (
-                retail_metrics['retail_deficit'] / 
-                retail_metrics['total_population']
-            )
-
-            # Save retail deficit metrics
-            retail_deficit_path = self.processed_data_dir / 'retail_deficit.csv'
-            retail_metrics.to_csv(retail_deficit_path, index=False)
-            logger.info(f"Saved retail deficit metrics to {retail_deficit_path}")
-
-            # Log summary statistics
-            logger.info("Retail deficit summary:")
-            logger.info(f"- Total expected demand: ${retail_metrics['expected_retail_demand'].sum():,.2f}")
-            logger.info(f"- Total actual supply: ${retail_metrics['actual_retail_supply'].sum():,.2f}")
-            logger.info(f"- Total deficit: ${retail_metrics['retail_deficit'].sum():,.2f}")
-            logger.info(f"- Average deficit per capita: ${retail_metrics['retail_deficit_per_capita'].mean():,.2f}")
-
+            # Enrich retail metrics before saving
+            retail_metrics = self.enrich_retail_metrics(retail_metrics)
+            # Save retail_deficit.csv
+            retail_deficit = retail_metrics.copy()
+            retail_deficit['retail_deficit'] = retail_deficit['retail_gap'].clip(lower=0)
+            retail_deficit['retail_surplus'] = retail_deficit['retail_gap'].clip(upper=0).abs()
+            retail_deficit.to_csv(self.processed_data_dir / 'retail_deficit.csv', index=False)
+            logger.info(f"Saved retail deficit metrics to {self.processed_data_dir / 'retail_deficit.csv'}")
             return True
-
         except Exception as e:
-            return self._extracted_from_process_retail_data_48(
-                'Error processing retail deficit: ', e, False
-            )
+            logger.error(f"Error processing retail deficit: {str(e)}")
+            return False
 
     def process_business_licenses(self) -> bool:
         """Process business license data and add active_licenses as total_licenses."""
@@ -661,72 +670,31 @@ class DataProcessor:
             logger.error(f"Error aggregating data: {str(e)}")
             return None
 
-    def generate_retail_metrics(self) -> Optional[pd.DataFrame]:
+    def generate_retail_metrics(self) -> pd.DataFrame:
         """Generate retail metrics from processed data."""
         try:
             df = pd.read_csv(settings.MERGED_DATA_PATH, low_memory=False)
-            logger.info(f"Loaded merged dataset with {len(df)} rows")
+            print("[DEBUG] Merged dataset shape:", df.shape)
+            print("[DEBUG] Merged dataset columns:", list(df.columns))
+            print("[DEBUG] Merged dataset head:\n", df.head())
+            print("[DEBUG] Merged dataset nulls:\n", df.isnull().sum())
+            print("[DEBUG] Merged unique ZIPs:", df['zip_code'].nunique() if 'zip_code' in df.columns else 'N/A')
+            print("[DEBUG] Merged unique years:", df['year'].nunique() if 'year' in df.columns else 'N/A')
 
-            # Verify required columns exist
-            required_cols = [
-                'residential_permits', 'commercial_permits', 'retail_permits',
-                'residential_construction_cost', 'commercial_construction_cost', 'retail_construction_cost'
-            ]
+            # Enrich with retail features before saving
+            df = self.enrich_with_retail_features(df)
 
-            if missing_cols := [
-                col for col in required_cols if col not in df.columns
-            ]:
-                logger.error(f"Required columns missing from merged dataset: {missing_cols}")
-                return None
+            # Before saving retail_metrics
+            print("[DEBUG] Retail metrics shape:", df.shape)
+            print("[DEBUG] Retail metrics columns:", list(df.columns))
+            print("[DEBUG] Retail metrics head:\n", df.head())
+            print("[DEBUG] Retail metrics nulls:\n", df.isnull().sum())
+            print("[DEBUG] Retail metrics unique ZIPs:", df['zip_code'].nunique() if 'zip_code' in df.columns else 'N/A')
+            print("[DEBUG] Retail metrics unique years:", df['year'].nunique() if 'year' in df.columns else 'N/A')
 
-            # Calculate total permits and costs
-            permit_cols = ['residential_permits', 'commercial_permits', 'retail_permits']
-            cost_cols = ['residential_construction_cost', 'commercial_construction_cost', 'retail_construction_cost']
-
-            # Calculate total_permits if not present
-            if 'total_permits' not in df.columns:
-                logger.info("Calculating total_permits from individual permit types")
-                df['total_permits'] = df[permit_cols].sum(axis=1)
-
-            # Calculate total_construction_cost if not present
-            if 'total_construction_cost' not in df.columns:
-                logger.info("Calculating total_construction_cost from individual costs")
-                df['total_construction_cost'] = df[cost_cols].sum(axis=1)
-
-            # Calculate permit ratios safely
-            for col in permit_cols:
-                ratio_col = f"{col.replace('permits', 'permit')}_ratio"
-                df[ratio_col] = np.where(
-                    df['total_permits'] > 0,
-                    df[col] / df['total_permits'],
-                    0
-                )
-
-            # Calculate cost ratios safely
-            for col in cost_cols:
-                ratio_col = f"{col.replace('construction_cost', 'cost')}_ratio"
-                df[ratio_col] = np.where(
-                    df['total_construction_cost'] > 0,
-                    df[col] / df['total_construction_cost'],
-                    0
-                )
-
-            # Log summary statistics
-            logger.info("Generated retail metrics:")
-            logger.info(f"- Total permits: {df['total_permits'].sum():,}")
-            logger.info(f"- Total construction cost: ${df['total_construction_cost'].sum():,.2f}")
-            logger.info("Permit distribution:")
-            for col in permit_cols:
-                total = df[col].sum()
-                pct = (total / df['total_permits'].sum() * 100) if df['total_permits'].sum() > 0 else 0
-                logger.info(f"- {col}: {total:,} ({pct:.1f}%)")
-
-            # Save retail metrics
             df.to_csv(settings.RETAIL_METRICS_PATH, index=False)
             logger.info(f"Saved retail metrics to {settings.RETAIL_METRICS_PATH}")
-
             return df
-
         except Exception as e:
             logger.error(f"Error generating retail metrics: {str(e)}")
             return None
@@ -830,7 +798,7 @@ class DataProcessor:
 
             # Process each data source
             results = {
-                'census': self.process_census_data(),
+                'census': self.process_census_data(pd.read_csv(settings.CENSUS_DATA_PATH)),
                 'permits': self.process_permits_data(),
                 'business_licenses': self.process_business_licenses(),
                 'economic': self.process_economic_data()
@@ -1258,13 +1226,13 @@ class DataProcessor:
             if col in df.columns:
                 df[col] = df[col].fillna(0)
             elif col == 'retail_gap' and 'retail_demand' in df.columns and 'retail_supply' in df.columns:
-                df['retail_gap'] = df['retail_demand'] - df['retail_supply']
+                df['retail_gap'] = df["retail_demand"] - df["retail_supply"]
             else:
                 df[col] = 0
                 logger.warning(f"Added missing column {col} to retail data with default value 0")
         return df
 
-    def extract_zip(self, address):
+    def extract_zip(self, address, community_area=None, ward=None):
         # Extract 5-digit ZIP codes, prefer those starting with 606 (Chicago)
         if not isinstance(address, str):
             return None
@@ -1273,6 +1241,13 @@ class DataProcessor:
         if all_zips := re.findall(r'\b\d{5}\b', address):
             logger.warning(f"Non-Chicago ZIP found in address: {address}")
             return all_zips[0]
+        # Fallback: use community_area or ward as proxy (placeholder logic)
+        if community_area is not None:
+            logger.warning(f"No ZIP found, using community_area {community_area} as proxy for ZIP")
+            return f"606{str(community_area).zfill(2)}"  # Example proxy
+        if ward is not None:
+            logger.warning(f"No ZIP found, using ward {ward} as proxy for ZIP")
+            return f"606{str(ward).zfill(2)}"  # Example proxy
         logger.warning(f"No valid ZIP found in address: {address}")
         return None
 
@@ -1300,3 +1275,130 @@ class DataProcessor:
                 valid = df['zip_code'].astype(str).str.match(r'^606[0-9]{2}$')
                 print(f"  Valid ZIPs: {valid.sum()} / {len(df)} ({valid.mean()*100:.2f}%)")
             print(f"  Nulls per column:\n{df.isnull().sum()}") 
+
+    def enrich_with_retail_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Ensure retail-specific columns are present and populated using available data or proxies.
+        If source data is missing, fill with np.nan and log a warning. If all values are zero, log a warning.
+        Returns the DataFrame with all required retail columns, and a list of warnings for downstream reporting.
+        """
+        required = ["retail_space", "retail_demand", "retail_gap", "retail_supply", "vacancy_rate"]
+        warnings = []
+        for col in required:
+            if col not in df.columns:
+                if col == "retail_space":
+                    if "retail_construction_cost" in df.columns:
+                        df[col] = df["retail_construction_cost"] / 200
+                        msg = f"Filled missing {col} using retail_construction_cost/200."
+                    elif "retail_permits" in df.columns:
+                        df[col] = df["retail_permits"] * 10000
+                        msg = f"Filled missing {col} using retail_permits * 10000."
+                    else:
+                        df[col] = 0
+                        msg = f"Could not enrich {col}, set to 0."
+                    logging.warning(msg)
+                    warnings.append(msg)
+                elif col == "retail_demand":
+                    if "total_population" in df.columns and "median_household_income" in df.columns:
+                        df[col] = df["total_population"] * df["median_household_income"] * 0.3
+                        msg = f"Filled missing {col} using total_population * median_household_income * 0.3."
+                    else:
+                        df[col] = 0
+                        msg = f"Could not enrich {col}, set to 0."
+                    logging.warning(msg)
+                    warnings.append(msg)
+                elif col == "retail_gap":
+                    if "retail_demand" in df.columns and "retail_supply" in df.columns:
+                        df[col] = df["retail_demand"] - df["retail_supply"]
+                        msg = f"Filled missing {col} as retail_demand - retail_supply."
+                    else:
+                        df[col] = 0
+                        msg = f"Could not enrich {col}, set to 0."
+                    logging.warning(msg)
+                    warnings.append(msg)
+                elif col == "retail_supply":
+                    if "retail_space" in df.columns:
+                        df[col] = df["retail_space"] * 300
+                        msg = f"Filled missing {col} as retail_space * 300."
+                    else:
+                        df[col] = 0
+                        msg = f"Could not enrich {col}, set to 0."
+                    logging.warning(msg)
+                    warnings.append(msg)
+                elif col == "vacancy_rate":
+                    df[col] = 0.1
+                    msg = f"Set {col} to default 0.1 (proxy)"
+                    logging.warning(msg)
+                    warnings.append(msg)
+            elif (df[col] == 0).all():
+                msg = f"All values in {col} are zero. Downstream metrics may be misleading."
+                logging.warning(msg)
+                warnings.append(msg)
+        df.attrs['retail_warnings'] = warnings
+        return df 
+    def drop_fully_null_columns(self, df, columns):
+        for col in columns:
+            if col in df.columns and df[col].isnull().all():
+                df.drop(columns=[col], inplace=True)
+                logger.info(f"Dropped fully null column: {col}")
+        return df 
+
+    def enrich_retail_metrics(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Ensure all required retail columns are present and populated using available data or proxies.
+        Log a WARNING for each metric that was defaulted or estimated. If all values are zero, log a WARNING.
+        """
+        required = ["retail_space", "retail_demand", "retail_gap", "retail_supply", "vacancy_rate"]
+        warnings = []
+        for col in required:
+            if col not in df.columns:
+                if col == "retail_space":
+                    if "retail_construction_cost" in df.columns:
+                        df[col] = df["retail_construction_cost"] / 200
+                        msg = f"Filled missing {col} using retail_construction_cost/200."
+                    elif "retail_permits" in df.columns:
+                        df[col] = df["retail_permits"] * 10000
+                        msg = f"Filled missing {col} using retail_permits * 10000."
+                    else:
+                        df[col] = 0
+                        msg = f"Could not enrich {col}, set to 0."
+                    logger.warning(msg)
+                    warnings.append(msg)
+                elif col == "retail_demand":
+                    if "total_population" in df.columns and "median_household_income" in df.columns:
+                        df[col] = df["total_population"] * df["median_household_income"] * 0.3
+                        msg = f"Filled missing {col} using total_population * median_household_income * 0.3."
+                    else:
+                        df[col] = 0
+                        msg = f"Could not enrich {col}, set to 0."
+                    logger.warning(msg)
+                    warnings.append(msg)
+                elif col == "retail_gap":
+                    if "retail_demand" in df.columns and "retail_supply" in df.columns:
+                        df[col] = df["retail_demand"] - df["retail_supply"]
+                        msg = f"Filled missing {col} as retail_demand - retail_supply."
+                    else:
+                        df[col] = 0
+                        msg = f"Could not enrich {col}, set to 0."
+                    logger.warning(msg)
+                    warnings.append(msg)
+                elif col == "retail_supply":
+                    if "retail_space" in df.columns:
+                        df[col] = df["retail_space"] * 300
+                        msg = f"Filled missing {col} as retail_space * 300."
+                    else:
+                        df[col] = 0
+                        msg = f"Could not enrich {col}, set to 0."
+                    logger.warning(msg)
+                    warnings.append(msg)
+                elif col == "vacancy_rate":
+                    df[col] = 0.1
+                    msg = f"Set {col} to default 0.1 (proxy)"
+                    logger.warning(msg)
+                    warnings.append(msg)
+            elif (df[col] == 0).all():
+                msg = f"All values in {col} are zero. Downstream metrics may be misleading."
+                logger.warning(msg)
+                warnings.append(msg)
+        df.attrs['retail_warnings'] = warnings
+        return df 

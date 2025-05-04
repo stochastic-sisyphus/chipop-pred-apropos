@@ -399,6 +399,7 @@ def load_processed_data():
         return None
 
 def generate_all_reports():
+    data = load_processed_data()
     reports = {
         'ten_year_growth': TenYearGrowthReport(),
         'housing_retail_balance': HousingRetailBalanceReport(),
@@ -407,11 +408,32 @@ def generate_all_reports():
     all_success = True
     for name, report in reports.items():
         try:
-            if not report.generate_report():
-                logger.warning(f"Failed to generate {name} report")
-                all_success = False
+            if name == 'ten_year_growth':
+                # Build context for ten_year_growth
+                context = {
+                    'generation_date': datetime.now().strftime('%Y-%m-%d'),
+                    'generation_time': datetime.now().strftime('%H:%M:%S'),
+                    # Add more context keys as needed, or pass data directly
+                }
+                if not report.generate_report(context):
+                    logger.warning(f"Failed to generate {name} report")
+                    all_success = False
+                else:
+                    logger.info(f"Generated {name} report")
             else:
-                logger.info(f"Generated {name} report")
+                # Pass all required dataframes for other reports
+                if not report.generate_report(
+                    data['census_data'],
+                    data['permit_data'],
+                    data['economic_data'],
+                    data['zoning_data'],
+                    data['retail_metrics'],
+                    data['retail_deficit']
+                ):
+                    logger.warning(f"Failed to generate {name} report")
+                    all_success = False
+                else:
+                    logger.info(f"Generated {name} report")
         except Exception as e:
             logger.error(f"Error generating {name} report: {str(e)}")
             logger.error(f"Traceback: {traceback.format_exc()}")

@@ -5,14 +5,14 @@ This report analyzes retail development opportunities and deficits across Chicag
 
 ## High Retail Deficit Areas
 
-### 60601
+### 60614
 
 **Key Metrics:**
-- Population: 10,631,412
+- Population: 639,382
 - Median Income: $0
 - Total Housing Units: 0
 - Retail Space: 0 sq ft
-- Spending Potential: $0
+- Spending Potential: $21,931,651,086
 - Retail Gap: $0
 
 **Development Activity:**
@@ -20,14 +20,14 @@ This report analyzes retail development opportunities and deficits across Chicag
 - Retail Permits: 0
 - Total Construction Cost: $0.00
 
-### 60602
+### 60618
 
 **Key Metrics:**
-- Population: 892,215
+- Population: 851,331
 - Median Income: $0
 - Total Housing Units: 0
 - Retail Space: 0 sq ft
-- Spending Potential: $0
+- Spending Potential: $20,318,030,333
 - Retail Gap: $0
 
 **Development Activity:**
@@ -35,14 +35,14 @@ This report analyzes retail development opportunities and deficits across Chicag
 - Retail Permits: 0
 - Total Construction Cost: $0.00
 
-### 60603
+### 60647
 
 **Key Metrics:**
-- Population: 828,225
+- Population: 782,480
 - Median Income: $0
 - Total Housing Units: 0
 - Retail Space: 0 sq ft
-- Spending Potential: $0
+- Spending Potential: $18,477,676,559
 - Retail Gap: $0
 
 **Development Activity:**
@@ -50,14 +50,14 @@ This report analyzes retail development opportunities and deficits across Chicag
 - Retail Permits: 0
 - Total Construction Cost: $0.00
 
-### 60604
+### 60657
 
 **Key Metrics:**
-- Population: 505,683
+- Population: 635,427
 - Median Income: $0
 - Total Housing Units: 0
 - Retail Space: 0 sq ft
-- Spending Potential: $0
+- Spending Potential: $17,972,357,056
 - Retail Gap: $0
 
 **Development Activity:**
@@ -65,14 +65,14 @@ This report analyzes retail development opportunities and deficits across Chicag
 - Retail Permits: 0
 - Total Construction Cost: $0.00
 
-### 60605
+### 60625
 
 **Key Metrics:**
-- Population: 21,726,225
+- Population: 714,862
 - Median Income: $0
 - Total Housing Units: 0
 - Retail Space: 0 sq ft
-- Spending Potential: $0
+- Spending Potential: $15,016,221,753
 - Retail Gap: $0
 
 **Development Activity:**
@@ -83,10 +83,10 @@ This report analyzes retail development opportunities and deficits across Chicag
 
 ## Retail Development Opportunities
 
-### ZIP 60601
+### ZIP 60614
 
 **Market Potential:**
-- Estimated Retail Demand: $0
+- Estimated Retail Demand: $21,931,651,086
 - Current Retail Supply: $0
 - Population Growth Rate: 0.0%
 - Income Growth Rate: 0.0%
@@ -96,10 +96,10 @@ This report analyzes retail development opportunities and deficits across Chicag
 - Recent Retail Permits: 0
 - Recent Housing Permits: 0
 
-### ZIP 60602
+### ZIP 60618
 
 **Market Potential:**
-- Estimated Retail Demand: $0
+- Estimated Retail Demand: $20,318,030,333
 - Current Retail Supply: $0
 - Population Growth Rate: 0.0%
 - Income Growth Rate: 0.0%
@@ -109,10 +109,10 @@ This report analyzes retail development opportunities and deficits across Chicag
 - Recent Retail Permits: 0
 - Recent Housing Permits: 0
 
-### ZIP 60603
+### ZIP 60647
 
 **Market Potential:**
-- Estimated Retail Demand: $0
+- Estimated Retail Demand: $18,477,676,559
 - Current Retail Supply: $0
 - Population Growth Rate: 0.0%
 - Income Growth Rate: 0.0%
@@ -122,10 +122,10 @@ This report analyzes retail development opportunities and deficits across Chicag
 - Recent Retail Permits: 0
 - Recent Housing Permits: 0
 
-### ZIP 60604
+### ZIP 60657
 
 **Market Potential:**
-- Estimated Retail Demand: $0
+- Estimated Retail Demand: $17,972,357,056
 - Current Retail Supply: $0
 - Population Growth Rate: 0.0%
 - Income Growth Rate: 0.0%
@@ -135,10 +135,10 @@ This report analyzes retail development opportunities and deficits across Chicag
 - Recent Retail Permits: 0
 - Recent Housing Permits: 0
 
-### ZIP 60605
+### ZIP 60625
 
 **Market Potential:**
-- Estimated Retail Demand: $0
+- Estimated Retail Demand: $15,016,221,753
 - Current Retail Supply: $0
 - Population Growth Rate: 0.0%
 - Income Growth Rate: 0.0%
