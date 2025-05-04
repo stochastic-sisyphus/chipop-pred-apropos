@@ -42,14 +42,14 @@ Over the past decade ({{ historical_trends.population.period_start }} to {{ hist
 {% if current_analysis.population %}
 - Total Population: {{ "{:,}".format(current_analysis.population.total) }}
 - Population Density: {{ "{:,.1f}".format(current_analysis.population.density) }} per sq mile
-- Household Size: {{ "%.2f"|format(current_analysis.population.avg_household_size) }}
+- Household Size: {% if current_analysis.population.avg_household_size is not none %}{{ "%.2f"|format(current_analysis.population.avg_household_size) }}{% else %}N/A{% endif %}
 {% endif %}
 
 ### Development Activity
 {% if current_analysis.development %}
-- Active Permits: {{ "{:,}".format(current_analysis.development.active_permits) }}
-- Under Construction: {{ "{:,}".format(current_analysis.development.units_under_construction) }} units
-- Pipeline Value: ${{ "%.2f"|format(current_analysis.development.pipeline_value / 1e9) }} billion
+- Active Permits: {% if current_analysis.development.active_permits is not none %}{{ "{:,}".format(current_analysis.development.active_permits) }}{% else %}N/A{% endif %}
+- Under Construction: {% if current_analysis.development.units_under_construction is not none %}{{ "{:,}".format(current_analysis.development.units_under_construction) }}{% else %}N/A{% endif %} units
+- Pipeline Value: {% if current_analysis.development.pipeline_value is not none %}${{ "%.2f".format(current_analysis.development.pipeline_value / 1e9) }} billion{% else %}N/A{% endif %}
 {% endif %}
 
 ## Growth Projections ({{ projections.period_start }} - {{ projections.period_end }})

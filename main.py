@@ -481,6 +481,17 @@ def generate_reports() -> bool:
                 }
             }
 
+            # Inject avg_household_size for template safety and accuracy
+            if 'total_population' in census_data.columns and 'occupied_housing_units' in census_data.columns:
+                total_pop = census_data['total_population'].sum()
+                total_households = census_data['occupied_housing_units'].sum()
+                avg_household_size = (total_pop / total_households) if total_households > 0 else None
+            else:
+                avg_household_size = None
+            # Ensure nested dict exists
+            if 'current_analysis' in metrics and 'population' in metrics['current_analysis']:
+                metrics['current_analysis']['population']['avg_household_size'] = avg_household_size
+
             # Generate summary
             summary = template.render(**metrics)
 

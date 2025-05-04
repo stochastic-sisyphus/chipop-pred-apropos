@@ -1787,6 +1787,31 @@ class TenYearGrowthReport:
             }
             self._ensure_template_keys(template_vars, required_structure)
             
+            # Before rendering the template, inject avg_household_size
+            census_df = getattr(self, 'census_data', None)
+            if census_df is not None and 'total_population' in census_df.columns and 'occupied_housing_units' in census_df.columns:
+                total_pop = census_df['total_population'].sum()
+                total_households = census_df['occupied_housing_units'].sum()
+                avg_household_size = (total_pop / total_households) if total_households > 0 else None
+            else:
+                avg_household_size = None
+            # Inject into the template context
+            if 'current_analysis' in template_vars and 'population' in template_vars['current_analysis']:
+                template_vars['current_analysis']['population']['avg_household_size'] = avg_household_size
+            
+            # PATCH: Ensure development metrics are always real numbers for template safety
+            if 'current_analysis' in template_vars and 'development' in template_vars['current_analysis']:
+                dev = template_vars['current_analysis']['development']
+                dev['active_permits'] = int(dev.get('active_permits', 0) or 0)
+                dev['units_under_construction'] = int(dev.get('units_under_construction', 0) or 0)
+                dev['pipeline_value'] = float(dev.get('pipeline_value', 0.0) or 0.0)
+            
+            # PATCH: Ensure projections.development metrics are always real numbers for template safety
+            if 'projections' in template_vars and 'development' in template_vars['projections']:
+                dev_proj = template_vars['projections']['development']
+                dev_proj['total_new_units'] = int(dev_proj.get('total_new_units', 0) or 0)
+                dev_proj['total_investment'] = float(dev_proj.get('total_investment', 0.0) or 0.0)
+            
             report_content = template.render(template_vars)
             
             # Save report
