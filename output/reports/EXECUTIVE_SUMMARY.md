@@ -20,10 +20,8 @@ This executive summary presents key findings from our comprehensive analysis of 
 ### Development Activity
 
 
-- Current Pipeline: 100,000 active permits
+- Current Pipeline: 1,604 active permits
 
-
-- Investment Value: $21.26 billion
 
 
 
