@@ -2,11 +2,9 @@
 Data collection module for Chicago population analysis.
 """
 
-
-
+import pandas as pd
 import contextlib
 import logging
-import pandas as pd
 from census import Census
 from fredapi import Fred
 from sodapy import Socrata
@@ -629,24 +627,90 @@ class DataCollector:
                 where="issue_date IS NOT NULL",
                 select="""
                     permit_, permit_type, reported_cost, issue_date, street_number, street_direction, street_name, contact_1_city, contact_1_state, work_description, community_area, ward, contact_1_zipcode
-                """.replace("\n", "").replace(" ", ""),
+                """,
             )
             df = pd.DataFrame.from_records(results)
-            # Only resolve ZIPs for Chicago addresses
-            def resolve_zip_chicago(row):
-                city = row.get("contact_1_city", "Chicago")
-                if not isinstance(city, str):
-                    city = "Chicago"
-                if city.strip().lower() != "chicago":
-                    return None
-                address = f"{row.get('street_number', '')} {row.get('street_direction', '')} {row.get('street_name', '')}".strip()
-                return self.zip_resolver.resolve_zip(address, city, row.get("contact_1_state", "IL"), is_permit=True)
-            df["zip_code"] = df.apply(resolve_zip_chicago, axis=1)
-            # Batch resolve any remaining with valid street addresses
-            df = self.zip_resolver.batch_resolve_permit_zips(df, address_col="address", city_col="contact_1_city", state_col="contact_1_state", zip_col="zip_code")
-            # Export unresolved addresses for review
-            self.zip_resolver.export_unresolved_addresses(str(settings.PROCESSED_DATA_DIR / "unresolved_addresses.csv"))
-            df = df[df["zip_code"].isin(settings.CHICAGO_ZIP_CODES)]
+            if df.empty:
+                logger.warning("Permit data is empty; skipping permit-dependent processing.")
+                return None
+            # Dynamically create 'address' column
+            df['address'] = (
+                df['street_number'].astype(str).str.strip() + ' '
+                + df['street_direction'].fillna('').str.strip() + ' '
+                + df['street_name'].str.strip() + ', CHICAGO, IL'
+            )
+            # Clean malformed ZIPs in address (e.g., 'IL60612' -> 'IL 60612')
+            df['address'] = df['address'].str.replace(r'([A-Z]{2})(\d{5})$', r'\1 \2', regex=True)
+            # Only geocode rows where zip_code is missing
+            if 'zip_code' not in df.columns:
+                df['zip_code'] = None
+            # --- OPTIMIZED ZIP RESOLUTION ---
+            # 1. Fill ZIPs from contact_1_zipcode if available
+            if 'contact_1_zipcode' in df.columns:
+                mask_missing = df['zip_code'].isna() | (df['zip_code'] == '')
+                df.loc[mask_missing, 'zip_code'] = df.loc[mask_missing, 'contact_1_zipcode']
+            # 2. Fill ZIPs from community_area using a crosswalk if available
+            if 'community_area' in df.columns:
+                # Load crosswalk if available
+                try:
+                    crosswalk_path = os.path.join(os.path.dirname(__file__), 'chicago_zip_crosswalk.csv')
+                    if os.path.exists(crosswalk_path):
+                        crosswalk = pd.read_csv(crosswalk_path, dtype=str)
+                        comm_to_zip = dict(zip(crosswalk['community_area'], crosswalk['zip_code']))
+                        mask_missing = df['zip_code'].isna() | (df['zip_code'] == '')
+                        df.loc[mask_missing, 'zip_code'] = df.loc[mask_missing, 'community_area'].map(comm_to_zip)
+                except Exception as e:
+                    logger.warning(f"Failed to use community_area crosswalk for ZIPs: {e}")
+            # 3. Only geocode if <=500 addresses remain missing ZIPs
+            mask_missing = df['zip_code'].isna() | (df['zip_code'] == '')
+            num_to_geocode = mask_missing.sum()
+            if num_to_geocode > 500:
+                logger.error(f"Too many ({num_to_geocode}) missing ZIPs to geocode. Aborting geocoding step. Records saved to permits_missing_zip.csv.")
+                df[mask_missing].to_csv('permits_missing_zip.csv', index=False)
+                # Optionally, continue with only records that have ZIPs
+                df = df[~mask_missing]
+            else:
+                # Proceed to geocode only if num_to_geocode <= 500
+                if num_to_geocode > 0:
+                    logger.info(f"Geocoding {num_to_geocode} permits with missing ZIPs (deduplicated by address)...")
+                    import time
+                    import re
+                    start_time = time.time()
+                    missing_zip_df = df[mask_missing].copy()
+                    def clean_address(addr):
+                        if not isinstance(addr, str):
+                            return addr
+                        addr_clean = re.sub(r'(,\s*chicago,\s*il)+', ', CHICAGO, IL', addr, flags=re.IGNORECASE)
+                        addr_clean = re.sub(r'(,\s*CHICAGO,\s*IL){2,}$', ', CHICAGO, IL', addr_clean, flags=re.IGNORECASE)
+                        addr_clean = re.sub(r',\s*,', ',', addr_clean)
+                        addr_clean = re.sub(r'\s+', ' ', addr_clean).strip()
+                        return addr_clean
+                    missing_zip_df['clean_address'] = missing_zip_df['address'].apply(clean_address)
+                    unique_addresses = missing_zip_df['clean_address'].unique()
+                    logger.info(f"Found {len(unique_addresses)} unique cleaned addresses to geocode.")
+                    address_to_zip = {}
+                    resolver = self.zip_resolver
+                    failed_addresses = []
+                    for i, address in enumerate(unique_addresses):
+                        if i % 100 == 0 and i > 0:
+                            logger.info(f"Geocoded {i} of {len(unique_addresses)} addresses...")
+                        zip_code = resolver.resolve_zip(address, "Chicago", "IL", is_permit=True)
+                        address_to_zip[address] = zip_code
+                        if not zip_code:
+                            failed_addresses.append(address)
+                    resolver.save_cache()
+                    elapsed = time.time() - start_time
+                    logger.info(f"Completed geocoding {len(unique_addresses)} addresses in {elapsed:.2f} seconds.")
+                    logger.info(f"{len(failed_addresses)} addresses could not be geocoded.")
+                    if failed_addresses:
+                        failed_df = pd.DataFrame({'address': failed_addresses})
+                        failed_df.to_csv('failed_geocodes.csv', index=False)
+                        logger.info("Wrote failed geocode addresses to failed_geocodes.csv")
+                    missing_zip_df['zip_code'] = missing_zip_df['clean_address'].map(address_to_zip)
+                    df.loc[mask_missing, 'zip_code'] = missing_zip_df['zip_code']
+            # --- END OPTIMIZED ZIP RESOLUTION ---
+            # Only keep valid Chicago ZIPs
+            df = df[df['zip_code'].isin(settings.CHICAGO_ZIP_CODES)]
             # Extract retail permits
             retail_keywords = ["retail", "store", "shop", "restaurant", "commercial", "business", "mall", "market", "sales"]
             df["is_retail"] = df["work_description"].str.lower().str.contains("|".join(retail_keywords), na=False)
@@ -658,9 +722,11 @@ class DataCollector:
                 "retail_permits": "sum",
                 "retail_construction_cost": "sum"
             }).reset_index()
-            # Save to processed
-            retail_summary.to_csv(settings.PROCESSED_DATA_DIR / "permits_processed.csv", index=False)
-            logger.info(f"Saved retail permits summary to {settings.PROCESSED_DATA_DIR / 'permits_processed.csv'}")
+            # Save cleaned permits_df to processed CSV
+            df.to_csv(settings.PROCESSED_DATA_DIR / "permits_processed.csv", index=False)
+            logger.info(f"Saved cleaned permits to {settings.PROCESSED_DATA_DIR / 'permits_processed.csv'}")
+            retail_summary.to_csv(settings.PROCESSED_DATA_DIR / "retail_permits_summary.csv", index=False)
+            logger.info(f"Saved retail permits summary to {settings.PROCESSED_DATA_DIR / 'retail_permits_summary.csv'}")
             return retail_summary
         except Exception as e:
             logger.error(f"Error collecting permit data: {e}")
@@ -779,27 +845,9 @@ class DataCollector:
                 if len(df) > 0:
                     logger.info(f"Successfully collected zoning data: {len(df)} records")
 
-                    # Attempt spatial join to ZIPs using centroids and ZIP shapefile if available
-                    try:
-                        import geopandas as gpd
-                        # Assume zoning polygons have geometry column 'the_geom' or similar
-                        if 'the_geom' in df.columns:
-                            zoning_gdf = gpd.GeoDataFrame(df, geometry=gpd.GeoSeries.from_wkt(df['the_geom']))
-                            # Load ZIP shapefile (must be available in data directory)
-                            zip_shapefile = self.raw_dir / "chicago_zip_codes.shp"
-                            if zip_shapefile.exists():
-                                zip_gdf = gpd.read_file(str(zip_shapefile))
-                                zoning_gdf = gpd.sjoin(zoning_gdf, zip_gdf[['geometry', 'ZIP']], how='left', predicate='intersects')
-                                df['zip_code'] = zoning_gdf['ZIP'].astype(str).str.zfill(5)
-                                logger.info("Spatially joined zoning polygons to ZIP codes.")
-                            else:
-                                logger.warning("ZIP shapefile not found; cannot spatially join. Setting zip_code to 'unknown'.")
-                                df['zip_code'] = 'unknown'
-                        else:
-                            logger.warning("No geometry column in zoning data; cannot spatially join. Setting zip_code to 'unknown'.")
-                            df['zip_code'] = 'unknown'
-                    except Exception as e:
-                        logger.error(f"Spatial join to ZIP codes failed: {e}")
+                    # NOTE: No geometry column in zoning data; cannot spatially join. Fallback: set zip_code to 'unknown'.
+                    # If alternative columns for ZIP/tract exist, use them here.
+                    if 'zip_code' not in df.columns:
                         df['zip_code'] = 'unknown'
 
                     # Convert area to square feet
@@ -870,16 +918,14 @@ class DataCollector:
     def get_business_licenses(self, limit: int = 1000000) -> Optional[pd.DataFrame]:
         """
         Collect business license data from Chicago Data Portal.
-
         Args:
             limit: Maximum number of records to retrieve
-
         Returns:
             DataFrame with business license data, or None if collection fails
         """
         for attempt in range(2):  # Try twice before failing
             try:
-                logger.info("Collecting business license data...")
+                logging.info("Loading business license CSV...")
                 results = self.socrata.get(
                     settings.BUSINESS_LICENSES_DATASET,
                     limit=limit,
@@ -889,33 +935,52 @@ class DataCollector:
                         license_description, business_activity,
                         application_created_date, license_start_date,
                         expiration_date, zip_code
-                    """.replace("\n", "").replace(" ", ""),
+                    """,
                     where="expiration_date > '2025-04-25T00:00:00.000' AND UPPER(license_status) = 'AAI'",
-                    order="license_start_date DESC",
+                    order="license_start_date DESC"
                 )
                 df = pd.DataFrame.from_records(results)
+                logging.info(f"Business license shape: {df.shape}")
+                logging.info("Starting transformation step 1...")
                 df["license_start_date"] = pd.to_datetime(df["license_start_date"], errors="coerce")
                 df["expiration_date"] = pd.to_datetime(df["expiration_date"], errors="coerce")
                 df["application_created_date"] = pd.to_datetime(
                     df["application_created_date"], errors="coerce"
                 )
-                # Robust ZIP extraction using ZipResolver, but do NOT geocode business names
+                logging.info("Completed transformation step 1...")
+                # Robust ZIP extraction using ZipResolver, but do NOT geocode business names if ZIP present
                 def resolve_zip_business(row):
+                    if pd.notna(row.get("zip_code")) and str(row.get("zip_code")).strip() != '':
+                        return row.get("zip_code")
                     # Only use crosswalk/uszipcode, never Nominatim for business names
                     return self.zip_resolver.lookup_crosswalk(row.get("doing_business_as_name", ""), row.get("legal_name", ""), "IL") or \
                            self.zip_resolver._lookup_uszipcode(row.get("doing_business_as_name", ""), row.get("legal_name", ""), "IL")
                 df["zip_code"] = df.apply(resolve_zip_business, axis=1)
+                logging.info("Completed ZIP resolution for business licenses.")
                 # Validate ZIPs
                 df = df[df["zip_code"].isin(settings.CHICAGO_ZIP_CODES)]
-                return self._save_data_to_csv("business_licenses.csv", df, "Business license data")
+                # --- FIX: Filter for retail using license_description or business_activity ---
+                is_retail = (
+                    df["license_description"].str.contains("retail", case=False, na=False) |
+                    df["business_activity"].str.contains("retail", case=False, na=False)
+                )
+                retail_df = df[is_retail].copy()
+                retail_df["zip_code"] = retail_df["zip_code"].astype(str).str.zfill(5)
+                retail_count = retail_df.groupby("zip_code").size().reset_index(name="retail_business_count")
+                retail_count.to_csv(settings.PROCESSED_DATA_DIR / "retail_business_count.csv", index=False)
+                logging.info(f"Saved retail business count to {settings.PROCESSED_DATA_DIR / 'retail_business_count.csv'}")
+                # Save processed business licenses directly
+                df.to_csv(settings.PROCESSED_DATA_DIR / "business_licenses_processed.csv", index=False)
+                logging.info(f"Saved business licenses to {settings.PROCESSED_DATA_DIR / 'business_licenses_processed.csv'}")
+                return df
             except Exception as e:
                 if attempt == 0:  # First attempt failed
-                    logger.warning(
+                    logging.warning(
                         f"First attempt to collect business license data failed: {str(e)}. Retrying..."
                     )
                     continue
                 else:  # Second attempt failed
-                    logger.error(f"Error collecting business license data after retry: {str(e)}")
+                    logging.error(f"Error collecting business license data after retry: {str(e)}")
                     return None
 
     def collect_multifamily_permits(self) -> pd.DataFrame:
@@ -998,6 +1063,9 @@ class DataCollector:
             else:
                 is_retail = pd.Series([False] * len(parcels))
             parcels = parcels[is_retail].copy()
+            if parcels.empty:
+                # Return an empty DataFrame with correct columns and empty index
+                return pd.DataFrame(columns=["zip_code", "retail_space"], index=pd.Index([], name="zip_code"))
             if "building_area" in parcels.columns:
                 parcels["building_area"] = pd.to_numeric(parcels["building_area"], errors="coerce")
             else:
@@ -1018,35 +1086,31 @@ class DataCollector:
             )
         except Exception as e:
             logger.error(f"Failed to collect parcel retail sqft: {e}")
-            return pd.DataFrame()
+            # Return empty DataFrame with correct columns
+            return pd.DataFrame(columns=["zip_code", "retail_space"])
 
     def collect_bea_retail_gdp(self) -> pd.DataFrame:
         """
         Collect BEA retail GDP for Chicago metro, compute per capita spending, propagate to ZIPs.
         """
         logger.info("Collecting BEA retail GDP...")
-        url = f"https://apps.bea.gov/api/data/?&UserID={settings.BEA_KEY}&method=GetData&datasetname=Regional&TableName=CAEMP25N&LineCode=44&GeoFIPS=16980&Year=2022&ResultFormat=JSON"
-        try:
-            resp = requests.get(url)
-            data = resp.json()
-            # Parse value (replace with actual parsing logic)
-            retail_gdp = float(data["BEAAPI"]["Results"]["Data"][0]["DataValue"])
-            # Get metro population (from census or FRED)
-            census = pd.read_csv(settings.PROCESSED_DATA_DIR / "census_processed.csv")
-            census["zip_code"] = census["zip_code"].astype(str).str.zfill(5)
-            pop_zip = census.groupby("zip_code")["total_population"].last().reset_index(name="total_population")
-            metro_pop = pop_zip["total_population"].sum()
-            per_capita = retail_gdp / metro_pop if metro_pop else 0
-            pop_zip["retail_demand"] = pop_zip["total_population"] * per_capita
-            return self._extracted_from_collect_bea_retail_gdp_22(
-                pop_zip,
-                "retail_demand_per_zip.csv",
-                'Saved retail demand per ZIP to ',
-                'retail_demand_per_zip.csv',
-            )
-        except Exception as e:
-            logger.error(f"Failed to collect BEA retail GDP: {e}")
+        url = f"https://apps.bea.gov/api/data/?&UserID={settings.BEA_KEY}&method=GetData&datasetname=Regional&TableName=CAINC1&LineCode=3&GeoFIPS=16980&Year=2022&ResultFormat=JSON"
+        resp = requests.get(url)
+        data = resp.json()
+        results = data.get("BEAAPI", {}).get("Results", {}).get("Data", None)
+        if not results or not isinstance(results, list) or not results[0].get("DataValue"):
+            logger.error("BEA API response missing 'Results' or 'DataValue'")
             return pd.DataFrame()
+        retail_gdp = float(results[0]["DataValue"])
+        census = pd.read_csv(settings.PROCESSED_DATA_DIR / "census_processed.csv")
+        census["zip_code"] = census["zip_code"].astype(str).str.zfill(5)
+        pop_zip = census.groupby("zip_code")["total_population"].last().reset_index(name="total_population")
+        metro_pop = pop_zip["total_population"].sum()
+        per_capita = retail_gdp / metro_pop if metro_pop else 0
+        pop_zip["retail_demand"] = pop_zip["total_population"] * per_capita
+        pop_zip.to_csv(settings.PROCESSED_DATA_DIR / "retail_demand_per_zip.csv", index=False)
+        logger.info("Saved retail demand per ZIP to retail_demand_per_zip.csv")
+        return pop_zip
 
     # TODO Rename this here and in `collect_business_licenses_retail`, `collect_parcel_retail_sqft` and `collect_bea_retail_gdp`
     def _extracted_from_collect_bea_retail_gdp_22(self, arg0, arg1, arg2, arg3):
@@ -1194,53 +1258,45 @@ def map_permit_type(permit_type: str) -> str:
         logged_missing_permit_types.add(permit_type_upper)
     return "OTHER"
 
-def collect_business_licenses_retail():
-    from src.config import settings
-    import logging
-    logger = logging.getLogger(__name__)
-    try:
-        collector = DataCollector()
-        df = collector.collect_business_licenses_retail()
-        if df is not None and not df.empty:
-            df.to_csv(settings.PROCESSED_DATA_DIR / "retail_business_count.csv", index=False)
-            logger.info(f"Saved retail business count to {settings.PROCESSED_DATA_DIR / 'retail_business_count.csv'}")
-        else:
-            logger.warning("No retail business license data collected.")
+def fetch_retail_business_licenses():
+    socrata = Socrata("data.cityofchicago.org", settings.CHICAGO_DATA_TOKEN)
+    results = socrata.get(
+        settings.BUSINESS_LICENSES_DATASET,
+        limit=1000000,
+        select="license_id, account_number, legal_name, doing_business_as_name, license_code, license_description, business_activity, application_created_date, license_start_date, expiration_date, zip_code"
+    )
+    df = pd.DataFrame.from_records(results)
+    if df.empty:
+        logger.warning("No business license data returned.")
         return df
-    except Exception as e:
-        logger.error(f"Failed to collect business licenses (retail): {e}")
-        return None
+    # Filter for NAICS 44-45 (retail trade)
+    df["naics_code"] = df["naics_code"].astype(str)
+    is_retail = df["naics_code"].str.startswith(("44", "45"))
+    retail_df = df[is_retail].copy()
+    retail_df["zip_code"] = retail_df["zip_code"].astype(str).str.zfill(5)
+    retail_count = retail_df.groupby("zip_code").size().reset_index(name="retail_business_count")
+    retail_count.to_csv(settings.PROCESSED_DATA_DIR / "retail_business_count.csv", index=False)
+    logger.info("Saved retail business count to retail_business_count.csv")
+    return retail_count
 
-def collect_parcel_retail_sqft():
-    from src.config import settings
-    import logging
-    logger = logging.getLogger(__name__)
-    try:
-        collector = DataCollector()
-        df = collector.collect_parcel_retail_sqft()
-        if df is not None and not df.empty:
-            df.to_csv(settings.PROCESSED_DATA_DIR / "retail_sqft_per_zip.csv", index=False)
-            logger.info(f"Saved retail sqft per ZIP to {settings.PROCESSED_DATA_DIR / 'retail_sqft_per_zip.csv'}")
-        else:
-            logger.warning("No retail parcel sqft data collected.")
-        return df
-    except Exception as e:
-        logger.error(f"Failed to collect parcel retail sqft: {e}")
-        return None
-
-def collect_bea_retail_gdp():
-    from src.config import settings
-    import logging
-    logger = logging.getLogger(__name__)
-    try:
-        collector = DataCollector()
-        df = collector.collect_bea_retail_gdp()
-        if df is not None and not df.empty:
-            df.to_csv(settings.PROCESSED_DATA_DIR / "retail_demand_per_zip.csv", index=False)
-            logger.info(f"Saved retail demand per ZIP to {settings.PROCESSED_DATA_DIR / 'retail_demand_per_zip.csv'}")
-        else:
-            logger.warning("No BEA retail GDP data collected.")
-        return df
-    except Exception as e:
-        logger.error(f"Failed to collect BEA retail GDP: {e}")
-        return None
+def fetch_parcel_retail_sqft():
+    url = "https://datacatalog.cookcountyil.gov/resource/ijzp-q8t2.json?$limit=1000000"
+    resp = requests.get(url)
+    if resp.status_code != 200:
+        logger.error(f"Parcel API request failed with status {resp.status_code}")
+        return pd.DataFrame(columns=["zip_code", "retail_space"])
+    parcels = pd.DataFrame(resp.json())
+    if "property_class" in parcels.columns:
+        is_retail = parcels["property_class"].str.contains("retail", case=False, na=False)
+    else:
+        is_retail = pd.Series([False] * len(parcels))
+    parcels = parcels[is_retail].copy()
+    if parcels.empty:
+        logger.warning("No retail parcels found.")
+        return pd.DataFrame(columns=["zip_code", "retail_space"])
+    parcels["building_area"] = pd.to_numeric(parcels.get("building_area", 0), errors="coerce")
+    parcels["zip_code"] = parcels["zip_code"].astype(str).str.zfill(5)
+    sqft = parcels.groupby("zip_code")["building_area"].sum().reset_index(name="retail_space")
+    sqft.to_csv(settings.PROCESSED_DATA_DIR / "retail_sqft_per_zip.csv", index=False)
+    logger.info("Saved retail sqft per ZIP to retail_sqft_per_zip.csv")
+    return sqft

@@ -1,5 +1,5 @@
 # Executive Summary: Chicago Population Analysis
-Generated on 2025-05-04
+Generated on 2025-05-06
 
 ## Overview
 This executive summary presents key findings from our comprehensive analysis of Chicago's population, housing, retail, and economic trends, with projections for 2025 to 2035.
@@ -20,7 +20,7 @@ This executive summary presents key findings from our comprehensive analysis of 
 ### Development Activity
 
 
-- Current Pipeline: 1,604 active permits
+- Current Pipeline: 2,070 active permits
 
 
 

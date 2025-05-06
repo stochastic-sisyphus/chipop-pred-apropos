@@ -292,6 +292,17 @@ def generate_report(
                 .to_dict("records")
             )
 
+        # Identify ZIPs with missing retail metrics
+        missing_cols = [
+            "retail_space", "retail_supply", "retail_demand"
+        ]
+        missing_report = {}
+        for col in missing_cols:
+            missing_zips = retail_metrics[retail_metrics[col].isnull()]["zip_code"].tolist()
+            if missing_zips:
+                logger.warning(f"Missing {col} for ZIPs: {missing_zips}")
+                missing_report[col] = missing_zips
+
         return template.render(
             generation_date=datetime.now().strftime("%Y-%m-%d"),
             current_analysis={
@@ -316,6 +327,7 @@ def generate_report(
                 "mixed_use_opportunities": [],
             },
             recommendations={"development": [], "policy": []},
+            missing_data=missing_report,
         )
     except Exception as e:
         logger.error(f"Failed to generate housing retail balance report: {str(e)}")

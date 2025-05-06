@@ -104,22 +104,23 @@ class FeatureEngineering:
             ]
             for col in required_cols:
                 if col not in df.columns:
-                    df[col] = np.nan
+                    retail_df[col] = np.nan
+                    logger.warning(f"Retail feature column {col} is missing in input DataFrame.")
             # Log missing data
             for col in required_cols:
-                if df[col].isnull().all():
-                    logger.warning(f"Retail feature column {col} is missing for all ZIPs.")
+                if retail_df[col].isnull().all():
+                    logger.warning(f"Retail feature column {col} is NaN for all ZIPs.")
             # Only keep valid Chicago ZIPs
-            df = df[df["zip_code"].isin(settings.CHICAGO_ZIP_CODES)]
+            retail_df = retail_df[retail_df["zip_code"].isin(settings.CHICAGO_ZIP_CODES)]
 
             # Calculate retail space per capita
-            if all(col in df.columns for col in ["retail_space", "total_population"]):
-                retail_df["retail_space_per_capita"] = df["retail_space"] / df["total_population"]
+            if all(col in retail_df.columns for col in ["retail_space", "total_population"]):
+                retail_df["retail_space_per_capita"] = retail_df["retail_space"] / retail_df["total_population"]
 
             # Calculate retail spending potential
-            if "median_household_income" in df.columns:
+            if "median_household_income" in retail_df.columns:
                 retail_df["retail_spending_potential"] = (
-                    df["median_household_income"] * 0.3
+                    retail_df["median_household_income"] * 0.3
                 )  # Assumed 30% of income
 
             # Calculate retail gap

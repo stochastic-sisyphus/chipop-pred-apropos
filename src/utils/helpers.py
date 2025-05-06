@@ -537,7 +537,7 @@ def geocode_address_zip(address: str, city: str = '', state: str = 'IL', sleep: 
         if not address or not isinstance(address, str):
             return None
         query = f"{address}, {city}, {state}"
-        url = f"https://nominatim.openstreetmap.org/search"
+        url = "https://nominatim.openstreetmap.org/search"
         params = {"q": query, "format": "json", "addressdetails": 1, "limit": 1}
         headers = {"User-Agent": "chipop-pipeline/1.0 (contact: youremail@example.com)"}
         resp = requests.get(url, params=params, headers=headers, timeout=10)

@@ -208,299 +208,48 @@ class TenYearGrowthReport:
         """Analyze historical trends for population, housing, economic, and development indicators."""
         logger = logging.getLogger(__name__)
         trends = {}
-        # Get period range
-        if "year" in data.columns:
-            period_start = int(data["year"].min())
-            period_end = int(data["year"].max())
-        else:
-            period_start = None
-            period_end = None
-        # Population trends
-        pop_keys = ["total_population"]
-        if all(col in data.columns for col in pop_keys + ["year"]):
-            pop_by_year = data.groupby("year")["total_population"].sum()
+        if "year" not in data.columns or "total_population" not in data.columns:
+            logger.warning("Missing required columns for population trend analysis.")
+            return trends
+
+        years = data["year"]
+        period_start, period_end = int(years.min()), int(years.max())
+        pop_by_year = data.groupby("year")["total_population"].sum()
+        if (pop_by_year == 0).all():
+            logger.warning("All total_population values are zero; marking as insufficient data.")
+            trends["population"] = {
+                "period_start": period_start,
+                "period_end": period_end,
+                "total_growth": float("nan"),
+                "cagr": float("nan"),
+                "start_value": float("nan"),
+                "end_value": float("nan"),
+                "warning": "insufficient data"
+            }
             try:
                 population_start = pop_by_year.loc[period_start]
                 population_end = pop_by_year.loc[period_end]
-                # If all values are zero, treat as insufficient data
-                if (pop_by_year == 0).all():
-                    logger.warning("All total_population values are zero; marking as insufficient data.")
-                    population_start = population_end = total_growth = cagr = np.nan
-                else:
-                    total_growth = (
-                        (population_end - population_start) / population_start
-                        if population_start
-                        else np.nan
-                    )
-                    cagr = (
-                        (population_end / population_start) ** (1 / (period_end - period_start)) - 1
-                        if (population_start and period_end > period_start)
-                        else np.nan
-                    )
+                total_growth = (population_end - population_start) / population_start if population_start else float("nan")
             except Exception as e:
                 logger.warning(f"Could not compute population growth: {e}")
-                population_start = population_end = total_growth = cagr = np.nan
+                population_start = population_end = total_growth = float("nan")
+                cagr = ((population_end / population_start) ** (1 / (period_end - period_start)) - 1
+                        if population_start and period_end > period_start else float("nan"))
+            except Exception as e:
+                logger.warning(f"Could not compute population growth: {e}")
+                population_start = population_end = total_growth = cagr = float("nan")
+
             trends["population"] = {
                 "period_start": period_start,
                 "period_end": period_end,
                 "total_growth": total_growth,
                 "cagr": cagr,
-                "start_value": population_start,
-                "end_value": population_end,
-                "warning": "insufficient data" if np.isnan(total_growth) else ""
+            "start_value": population_start,
+            "end_value": population_end,
+            "warning": "insufficient data" if pd.isna(total_growth) else ""
             }
             logger.info(f"Population trends: {trends['population']}")
-        else:
-            trends["population"] = {
-                "period_start": period_start,
-                "period_end": period_end,
-                "total_growth": np.nan,
-                "cagr": np.nan,
-                "start_value": np.nan,
-                "end_value": np.nan,
-                "warning": "insufficient data"
-            }
-            logger.warning("Missing columns for population trends; using insufficient data.")
-        # Housing trends
-        housing_keys = ["total_housing_units"]
-        if all(col in data.columns for col in housing_keys + ["year"]):
-            housing_by_year = data.groupby("year")["total_housing_units"].sum()
-            try:
-                housing_start = housing_by_year.loc[period_start]
-                housing_end = housing_by_year.loc[period_end]
-                total_growth = (
-                    (housing_end - housing_start) / housing_start if housing_start else 0.0
-                )
-                cagr = (
-                    (housing_end / housing_start) ** (1 / (period_end - period_start)) - 1
-                    if (housing_start and period_end > period_start)
-                    else 0.0
-                )
-            except Exception as e:
-                logger.warning(f"Could not compute housing growth: {e}")
-                housing_start = housing_end = total_growth = cagr = 0.0
-            trends["housing"] = {
-                "period_start": period_start,
-                "period_end": period_end,
-                "total_growth": total_growth,
-                "cagr": cagr,
-                "start_value": int(housing_start),
-                "end_value": int(housing_end),
-            }
-            logger.info(f"Housing trends: {trends['housing']}")
-        else:
-            trends["housing"] = {
-                "period_start": period_start,
-                "period_end": period_end,
-                "total_growth": 0.0,
-                "cagr": 0.0,
-                "start_value": 0,
-                "end_value": 0,
-            }
-            logger.warning("Missing columns for housing trends; using defaults.")
-        # Economic trends (GDP, employment, income)
-        gdp_by_year = (
-            data.groupby("year")["real_gdp"].mean() if "real_gdp" in data.columns else None
-        )
-        # Compute GDP growth as before
-        try:
-            gdp_start = gdp_by_year.loc[period_start] if gdp_by_year is not None else 0.0
-            gdp_end = gdp_by_year.loc[period_end] if gdp_by_year is not None else 0.0
-            total_growth = (gdp_end - gdp_start) / gdp_start if gdp_start else 0.0
-            cagr = (
-                (gdp_end / gdp_start) ** (1 / (period_end - period_start)) - 1
-                if (gdp_start and period_end > period_start)
-                else 0.0
-            )
-        except Exception as e:
-            logger.warning(f"Could not compute GDP growth: {e}")
-            gdp_start = gdp_end = total_growth = cagr = 0.0
-        # Compute employment change if possible
-        if "unemployment_rate" in data.columns:
-            unemp_by_year = data.groupby("year")["unemployment_rate"].mean()
-            try:
-                unemp_start = unemp_by_year.loc[period_start]
-                unemp_end = unemp_by_year.loc[period_end]
-                employment_change = -(unemp_end - unemp_start) / unemp_start if unemp_start else 0.0
-            except Exception as e:
-                logger.warning(f"Could not compute employment change: {e}")
-                employment_change = 0.0
-        else:
-            employment_change = 0.0
-        # Compute income growth if possible
-        income_growth = 0.0
-        if "personal_income" in data.columns:
-            income_by_year = data.groupby("year")["personal_income"].mean()
-            try:
-                income_start = income_by_year.loc[period_start]
-                income_end = income_by_year.loc[period_end]
-                income_growth = (income_end - income_start) / income_start if income_start else 0.0
-            except Exception as e:
-                logger.warning(f"Could not compute personal income growth: {e}")
-                income_growth = 0.0
-        elif "per_capita_income" in data.columns:
-            income_by_year = data.groupby("year")["per_capita_income"].mean()
-            try:
-                income_start = income_by_year.loc[period_start]
-                income_end = income_by_year.loc[period_end]
-                income_growth = (income_end - income_start) / income_start if income_start else 0.0
-            except Exception as e:
-                logger.warning(f"Could not compute per capita income growth: {e}")
-                income_growth = 0.0
-        trends["economic"] = {
-            "period_start": period_start,
-            "period_end": period_end,
-            "total_growth": total_growth,
-            "cagr": cagr,
-            "start_value": gdp_start,
-            "end_value": gdp_end,
-            "gdp_growth": cagr,
-            "employment_change": employment_change,
-            "income_growth": income_growth,
-        }
-        logger.info(f"Economic trends: {trends['economic']}")
-        # Development trends (permits)
-        dev_keys = ["total_permits", "total_construction_cost"]
-        if all(col in data.columns for col in dev_keys + ["year"]):
-            permits_by_year = data.groupby("year")["total_permits"].sum()
-            cost_by_year = data.groupby("year")["total_construction_cost"].sum()
-            try:
-                permits_start = permits_by_year.loc[period_start]
-                permits_end = permits_by_year.loc[period_end]
-                permits_total_growth = (
-                    (permits_end - permits_start) / permits_start if permits_start else 0.0
-                )
-                permits_cagr = (
-                    (permits_end / permits_start) ** (1 / (period_end - period_start)) - 1
-                    if (permits_start and period_end > period_start)
-                    else 0.0
-                )
-                cost_start = cost_by_year.loc[period_start]
-                cost_end = cost_by_year.loc[period_end]
-                cost_total_growth = (cost_end - cost_start) / cost_start if cost_start else 0.0
-                cost_cagr = (
-                    (cost_end / cost_start) ** (1 / (period_end - period_start)) - 1
-                    if (cost_start and period_end > period_start)
-                    else 0.0
-                )
-            except Exception as e:
-                logger.warning(f"Could not compute development growth: {e}")
-                permits_start = permits_end = permits_total_growth = permits_cagr = 0.0
-                cost_start = cost_end = cost_total_growth = cost_cagr = 0.0
-            trends["development"] = {
-                "period_start": period_start,
-                "period_end": period_end,
-                "total_growth": permits_total_growth,
-                "cagr": permits_cagr,
-                "start_value": int(permits_start),
-                "end_value": int(permits_end),
-                "total_value": cost_end,
-                "total_value_growth": cost_total_growth,
-                "total_value_cagr": cost_cagr,
-            }
-            logger.info(f"Development trends: {trends['development']}")
-        else:
-            trends["development"] = {
-                "period_start": period_start,
-                "period_end": period_end,
-                "total_growth": 0.0,
-                "cagr": 0.0,
-                "start_value": 0,
-                "end_value": 0,
-                "total_value": 0.0,
-                "total_value_growth": 0.0,
-                "total_value_cagr": 0.0,
-            }
-            logger.warning("Missing columns for development trends; using defaults.")
-        # Use and display all new retail metrics
-        required_cols = [
-            "retail_permits", "retail_construction_cost", "retail_business_count",
-            "retail_space", "retail_demand", "retail_supply", "retail_gap", "retail_lag"
-        ]
-        for col in required_cols:
-            if col not in data.columns:
-                data[col] = np.nan
-        # Log missing data
-        for col in required_cols:
-            if data[col].isnull().all():
-                logging.warning(f"Retail metric column {col} is missing for all ZIPs.")
-        # Only keep valid Chicago ZIPs
-        data = data[data["zip_code"].isin(settings.CHICAGO_ZIP_CODES)]
         return trends
-
-    def generate_current_analysis(self, data: pd.DataFrame) -> Dict[str, Dict]:
-        """Analyze current conditions (2023)."""
-        logger.info("Analyzing current conditions")
-
-        return {
-            "population": self._analyze_current_population(data),
-            "market": self._analyze_current_market(data),
-            "economic": self._analyze_current_economic(data),
-            "development": self._analyze_current_development(data),
-        }
-
-    def generate_projections(self, data: pd.DataFrame) -> Dict[str, Dict]:
-        """Generate and analyze projections for 2024-2033."""
-        logger.info("Generating future projections")
-
-        return {
-            "population": self._generate_population_projections(data),
-            "development": self._generate_development_projections(data),
-            "economic": self._generate_economic_projections(data),
-            "market": self._generate_market_projections(data),
-        }
-
-    def analyze_impacts(self, current: Dict, projections: Dict) -> Dict[str, Dict]:
-        """Analyze impacts of projected growth."""
-        logger.info("Analyzing growth impacts")
-
-        return {
-            "housing": self._analyze_housing_impacts(current, projections),
-            "retail": self._analyze_retail_impacts(current, projections),
-            "economic": self._analyze_economic_impacts(current, projections),
-            "community": self._analyze_community_impacts(current, projections),
-        }
-
-    def identify_growth_areas(self, data: Dict[str, pd.DataFrame]) -> Dict[str, List[str]]:
-        """Identify and categorize growth areas."""
-        logger.info("Identifying growth areas")
-
-        return {
-            "primary": self._identify_primary_growth_centers(data),
-            "emerging": self._identify_emerging_markets(data),
-            "stabilization": self._identify_stabilization_zones(data),
-        }
-
-    def generate_recommendations(self, impacts: Dict, growth_areas: Dict) -> Dict[str, List[str]]:
-        """Generate strategic recommendations."""
-        logger.info("Generating recommendations")
-
-        return {
-            "strategic": self._generate_strategic_priorities(impacts, growth_areas),
-            "implementation": self._generate_implementation_steps(impacts, growth_areas),
-            "support": self._generate_support_requirements(impacts, growth_areas),
-        }
-
-    def _analyze_population_trends(self, data: pd.DataFrame) -> Dict:
-        """Analyze historical population trends and calculate growth rates."""
-        # Calculate year-over-year growth rates
-        data = data.sort_values("year")
-        data["growth_rate"] = data.groupby("zip_code")["total_population"].pct_change()
-
-        # Calculate average growth rate by ZIP code
-        avg_growth_by_zip = data.groupby("zip_code")["growth_rate"].mean()
-
-        # Identify high-growth and declining areas
-        high_growth_zips = avg_growth_by_zip[
-            avg_growth_by_zip > avg_growth_by_zip.mean() + avg_growth_by_zip.std()
-        ].index
-        declining_zips = avg_growth_by_zip[avg_growth_by_zip < 0].index
-
-        return {
-            "avg_growth_rates": avg_growth_by_zip,
-            "high_growth_areas": high_growth_zips.tolist(),
-            "declining_areas": declining_zips.tolist(),
-        }
 
     def _analyze_development_trends(self, data: pd.DataFrame) -> Dict:
         """Analyze development trends from permit data."""
@@ -2171,3 +1920,37 @@ class TenYearGrowthReport:
         }
         logger.info("Populated report_data with real computed values.")
         return self.report_data
+
+    def generate_ten_year_growth_report(self, df, output_path):
+        """
+        Generate a ten-year growth report, explicitly flagging ZIPs with missing retail or housing metrics.
+        """
+        logger = logging.getLogger("src.reporting.ten_year_growth_report")
+
+        # Identify ZIPs with missing metrics
+        missing_cols = [
+            "retail_space", "retail_supply", "retail_demand", "housing_units"
+        ]
+        missing_report = {}
+        for col in missing_cols:
+            missing_zips = df[df[col].isnull()]["zip_code"].tolist()
+            if missing_zips:
+                logger.warning(f"Missing {col} for ZIPs: {missing_zips}")
+                missing_report[col] = missing_zips
+
+        # Write missing data section to report
+        with open(output_path, "w") as f:
+            f.write("# Ten-Year Growth Report\n\n")
+            f.write("## ZIPs with Missing Key Metrics\n")
+            for col, zips in missing_report.items():
+                f.write(f"- {col}: {', '.join(str(z) for z in zips)}\n")
+            f.write("\n")
+            # ... existing report content ...
+            f.write("## Main Analysis\n")
+            # (Insert main analysis code here)
+            # For demonstration, show summary table
+            summary_cols = ["zip_code", "housing_units", "retail_space", "retail_supply", "retail_demand", "retail_gap"]
+            summary = df[summary_cols].head(20).to_string(index=False)
+            f.write("\n### Sample Data (first 20 rows):\n")
+            f.write(summary)
+            f.write("\n")

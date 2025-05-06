@@ -1,0 +1,253 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Cursor Rules: Finalizing the `chipop` Project 
+
+## Project Deliverables
+This must be a **factually accurate and insight-driven analysis focused exclusively on the City of Chicago**.
+
+### The pipeline must deliver structured forecasts and visualizations to inform:
+- Urban planning  
+- Housing development strategy  
+- Real estate investment prioritization  
+
+### The analysis must support:
+- **ZIP-level population forecasting** to identify future high-growth areas  
+- **Scenario-based modeling** to explore the impact of economic conditions  
+- **Early detection of emerging neighborhoods** based on housing pipeline activity  
+- **Housing-retail imbalance analysis** to highlight over- and underdeveloped zones  
+- **Evidence-based decision-making** for land use, zoning, and investment  
+
+**All outputs must be suitable for use in dashboards, reports, and strategic planning tools.**
+
+---
+
+## Project Scope
+- Consolidate the best elements from:
+  - /Users/vanessa/Library/CloudStorage/Dropbox/allCode/chi/chipop-clone  
+  - /Users/vanessa/Library/CloudStorage/Dropbox/allCode/chi/chipop-local  
+  - /Users/vanessa/Library/CloudStorage/Dropbox/allCode/chi/chipop-pred-apropos  
+  - /Users/vanessa/Library/CloudStorage/Dropbox/allCode/chi/chipop-merged  
+- Finalize one clean, production-ready directory with:
+  - Modular organization  
+  - End-to-end runnable pipeline  
+  - Fully structured outputs and reports  
+- Final output must live in a **single** clean directory with structured, correctly named outputs and reports  
+
+---
+
+## Pipeline Requirements
+- A single **primary script** must execute the full pipeline:
+  - Load environment variables  
+  - Ingest, clean, and join data  
+  - Train models and conduct forecasting  
+  - Output results, visualizations, and exports  
+
+---
+
+## Implementation Standards
+- All code must be:
+  - Complete, functional, and production-grade  
+  - Modular and reusable  
+  - Free of placeholders or incomplete stubs  
+- Follow best practices:
+  - Error handling and logging  
+  - Efficient memory and compute use  
+  - Traceable control flow across modules  
+
+---
+
+## File & Directory Structure
+- Maintain **consistent naming conventions** across all files and functions  
+- Follow a standardized layout across key folders:
+  - `scripts/`  
+  - `data/`  
+  - `models/`  
+  - `outputs/`  
+  - `reports/`  
+- Each file must serve a clear purpose and be directly connected to pipeline execution  
+
+---
+
+## Documentation
+- `README.md` must include:
+  - Environment setup and installation steps  
+  - Usage instructions (CLI or script-based)  
+  - Development and contribution guidelines  
+
+---
+
+## Dependencies
+- All required packages must be listed in `requirements.txt`  
+- Installation must work via:
+  ```bash
+  pip install -r requirements.txt
+  ```
+
+  Data Sources
+- City of Chicago Data Portal (building permits, zoning)
+- U.S. Census Bureau (population, demographics)
+- Federal Reserve Economic Data (FRED) (economic indicators)
+
+Yes — this is very good, clear, and production-grade. You’ve successfully defined:
+- ✅ Deliverables
+- ✅ Scope
+- ✅ Execution requirements
+- ✅ Output expectations
+- ✅ Standards for code, structure, and review
+
+Only a few light polish edits will bring this to full professional-grade clarity and markdown consistency — mainly formatting spacing, list nesting, and a minor phrasing fix.
+
+⸻
+
+✅ Final Polished Version
+
+# Cursor Rules: Finalizing the `chipop` Project 
+
+## Project Deliverables
+This must be a **factually accurate and insight-driven analysis focused exclusively on the City of Chicago**.
+
+### The pipeline must deliver structured forecasts and visualizations to inform:
+- Urban planning  
+- Housing development strategy  
+- Real estate investment prioritization  
+
+### The analysis must support:
+- **ZIP-level population forecasting** to identify future high-growth areas  
+- **Scenario-based modeling** to explore the impact of economic conditions  
+- **Early detection of emerging neighborhoods** based on housing pipeline activity  
+- **Housing-retail imbalance analysis** to highlight over- and underdeveloped zones  
+- **Evidence-based decision-making** for land use, zoning, and investment  
+
+**All outputs must be suitable for use in dashboards, reports, and strategic planning tools.**
+
+---
+
+## Project Scope
+- Consolidate the best elements from:
+  - /Users/vanessa/Library/CloudStorage/Dropbox/allCode/chi/chipop-clone  
+  - /Users/vanessa/Library/CloudStorage/Dropbox/allCode/chi/chipop-local  
+  - /Users/vanessa/Library/CloudStorage/Dropbox/allCode/chi/chipop-pred-apropos  
+  - /Users/vanessa/Library/CloudStorage/Dropbox/allCode/chi/chipop-merged  
+- Finalize one clean, production-ready directory with:
+  - Modular organization  
+  - End-to-end runnable pipeline  
+  - Fully structured outputs and reports  
+- Final output must live in a **single** clean directory with structured, correctly named outputs and reports  
+
+---
+
+## Pipeline Requirements
+- A single **primary script** must execute the full pipeline:
+  - Load environment variables  
+  - Ingest, clean, and join data  
+  - Train models and conduct forecasting  
+  - Output results, visualizations, and exports  
+
+---
+
+## Implementation Standards
+- All code must be:
+  - Complete, functional, and production-grade  
+  - Modular and reusable  
+  - Free of placeholders or incomplete stubs  
+- Follow best practices:
+  - Error handling and logging  
+  - Efficient memory and compute use  
+  - Traceable control flow across modules  
+
+---
+
+## File & Directory Structure
+- Maintain **consistent naming conventions** across all files and functions  
+- Follow a standardized layout across key folders:
+  - `scripts/`  
+  - `data/`  
+  - `models/`  
+  - `outputs/`  
+  - `reports/`  
+- Each file must serve a clear purpose and be directly connected to pipeline execution  
+
+---
+
+## Documentation
+- `README.md` must include:
+  - Environment setup and installation steps  
+  - Usage instructions (CLI or script-based)  
+  - Development and contribution guidelines  
+
+---
+
+## Dependencies
+- All required packages must be listed in `requirements.txt`  
+- Installation must work via:
+  ```bash pip install -r requirements.txt```
+
+
+⸻
+
+## Data Sources
+- City of Chicago Data Portal (building permits, zoning)
+- U.S. Census Bureau (population, demographics)
+- Federal Reserve Economic Data (FRED) (economic indicators)
+
+⸻
+
+## Output & Report Generation
+
+The pipeline must produce the following deliverables:
+
+### Structured CSV Outputs (output/)
+- feature_importance.csv – Ranked feature contributions to predictions
+- population_shift_patterns.csv – ZIP-level projected changes
+- retail_deficit_predictions.csv – Predicted retail gaps per ZIP
+- scenario_predictions.csv – Forecasts under alternate economic scenarios
+- scenario_summary.csv – Aggregated scenario impact overview
+- retail_spending_leakage.csv – Estimated local economic leakage
+- ten_year_growth_areas.csv – Forecasted long-term high-growth ZIPs
+- emerging_housing_areas.csv – ZIPs with increased multi-family development
+- retail_housing_opportunity.csv – ZIPs with high housing, low retail
+- downtown_comparison.csv – Comparative ZIP-level metrics for central areas
+- zip_summary.csv – Master ZIP-level summary
+- high_leakage_areas.csv, lowest_retail_provision.csv, top_impacted_areas.csv – Targeted ZIP subsets
+- model_metrics.csv – Model performance summary
+- retail_deficit_feature_importance.csv – Feature importance for retail model
+
+### Visualizations (output/visualizations/)
+- permits_by_year.png, permits_by_community.png, permit_costs_distribution.png
+- population_changes_distribution.png, median_income_trend.png, total_population_trend.png
+- retail_deficit_feature_importance.png, top_retail_deficit_areas.png, housing_vs_retail_scatter.png
+- Other scenario, trend, and impact plots
+
+### Reports (output/reports/)
+- EXECUTIVE_SUMMARY.md – Summary of findings
+- chicago_population_analysis_report.md – Full technical report
+- economic_impact_analysis.md – Economic condition impact study
+- housing_retail_balance_report.md – Housing vs. retail development analysis
+- chicago_zip_summary.md – ZIP-by-ZIP breakdown
+- ten_year_growth_analysis.md – Long-term growth forecast
+
+#### Optional Dashboard
+- DASHBOARD.html – Interactive summary dashboard (if enabled)
+
+⸻
+
+## Output Standards
+
+### All outputs must be:
+- Properly named and clearly labeled
+- Consistently structured for reuse or integration
+- Automatically overwritten or versioned using a consistent scheme (e.g., by run date or scenario tag)
+
+⸻
+
+## Development Notes
+- Use tree to verify the final directory structure
+- Manually inspect every file and module:
+- Confirm its purpose
+- Trace its function calls
+- Ensure it belongs in the final pipeline
+- My correct API keys must be stored in the .env file
+

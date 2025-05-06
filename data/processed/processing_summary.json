@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-05-04T23:51:28.230630",
+  "timestamp": "2025-05-06T16:17:51.251201",
   "processed_files": {
     "census": "/Users/vanessa/Library/CloudStorage/Dropbox/allCode/achipos/data/processed/census_processed.csv",
     "permits": "/Users/vanessa/Library/CloudStorage/Dropbox/allCode/achipos/data/processed/permits_processed.csv",
@@ -11,7 +11,7 @@
     "permit_records": 0,
     "economic_indicators": 0,
     "retail_metrics": 0,
-    "permits_records": 20,
+    "permits_records": 608,
     "economic_records": 11,
     "retail_metrics_records": 567
   }
