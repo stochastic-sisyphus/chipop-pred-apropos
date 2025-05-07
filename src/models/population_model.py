@@ -440,6 +440,11 @@ class PopulationModel:
             results_df.to_csv(settings.PREDICTIONS_DIR / "population_predictions.csv", index=False)
             logger.info("Generated population predictions successfully")
 
+            # Explicit check for DataFrame non-emptiness (prevents ambiguous truth value errors)
+            if results_df is None or results_df.empty:
+                logger.error("Failed to generate population predictions")
+                return False
+
             return results_df
 
         except Exception as e:
@@ -620,12 +625,12 @@ class PopulationModel:
         try:
             logger.info("Generating baseline population projection...")
 
+            # Explicit check for DataFrame non-emptiness (prevents ambiguous truth value errors)
             if df is None and self.predictions is not None:
                 df = self.predictions
             elif df is None:
                 df = pd.read_csv(settings.PREDICTIONS_DIR / "population_predictions.csv")
-
-            if df.empty:
+            if df is not None and df.empty:
                 logger.warning("Empty dataframe provided for baseline projection")
                 return pd.DataFrame()
 

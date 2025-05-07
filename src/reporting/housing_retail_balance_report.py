@@ -165,76 +165,131 @@ class HousingRetailBalanceReport:
         self, census_data, permit_data, economic_data, zoning_data, retail_metrics, retail_deficit
     ):
         try:
-            # Ensure all outputs only include valid Chicago ZIPs and missing data is flagged, not zero
-            retail_metrics = retail_metrics[retail_metrics["zip_code"].isin(settings.CHICAGO_ZIP_CODES)]
-            for col in ["retail_gap", "retail_demand", "retail_supply", "retail_space", "vacancy_rate"]:
-                if col in retail_metrics.columns and (retail_metrics[col] == 0).all():
-                    retail_metrics[col] = np.nan
-                    retail_metrics[f"{col}_status"] = "insufficient data"
-                elif col in retail_metrics.columns:
-                    retail_metrics[f"{col}_status"] = retail_metrics[col].apply(lambda x: "insufficient data" if pd.isna(x) or x == 0 else "ok")
-            # Load report template
-            template_path = settings.TEMPLATES_DIR / "reports/housing_retail_balance_report.md"
-            with open(template_path, "r") as f:
-                template = Template(f.read())
-            # Merge and prepare data
-            merged = census_data.merge(
-                retail_metrics, on="zip_code", how="left", suffixes=("", "_retail")
-            )
-            # Log available columns
-            logging.info(f"HousingRetailBalanceReport: merged columns: {list(merged.columns)}")
-            # Check for missing/zeroed required columns
-            missing = []
-            all_zero = []
-            for col in REQUIRED_COLS:
-                if col not in merged.columns:
-                    missing.append(col)
-                    merged[col] = 0
-                    logging.warning(f"HousingRetailBalanceReport: Missing column {col}, set to 0.")
-                elif (merged[col] == 0).all():
-                    all_zero.append(col)
-                    logging.warning(f"HousingRetailBalanceReport: All values in {col} are zero.")
-            notes = []
-            if missing:
-                notes.append(f"Missing columns: {', '.join(missing)}")
-            if all_zero:
-                notes.append(f"All zero columns: {', '.join(all_zero)}")
-            # Calculate metrics
-            metrics = {
-                "total_population": int(merged["total_population"].sum()),
-                "total_housing_units": int(merged["total_housing_units"].sum()),
-                "total_retail_space": float(merged["retail_space"].sum()),
-                "avg_retail_density": (
-                    float(merged["retail_space"].sum() / merged["total_population"].sum())
-                    if merged["total_population"].sum()
-                    else 0
-                ),
-                "avg_housing_density": (
-                    float(merged["total_housing_units"].sum() / merged["total_population"].sum())
-                    if merged["total_population"].sum()
-                    else 0
-                ),
-                "retail_vacancy_rate": float(merged["vacancy_rate"].mean()),
-            }
-            # Prepare context
-            context = {
-                "generation_date": datetime.now().strftime("%Y-%m-%d"),
-                "summary": metrics,
-                "notes": notes,
-                "missing_or_defaulted": missing + all_zero,
-            }
-            # Render template with .get() and missing/defaulted block
-            try:
-                rendered = template.render(**{k: context.get(k, "N/A") for k in context})
-            except Exception as e:
-                logging.error(f"HousingRetailBalanceReport: Template rendering failed: {e}")
-                rendered = (
-                    f"Report generation failed. Error: {e}\nNotes: {context.get('notes', [])}"
-                )
+            # Check for required columns
+            required_cols = ["total_housing_units", "retail_space", "retail_supply", "retail_demand"]
+            for col in required_cols:
+                if col not in retail_metrics.columns:
+                    logger.warning(f"Column '{col}' missing from retail_metrics. Skipping related analysis.")
+                else:
+                    if (retail_metrics[col] == 0).all():
+                        logger.warning(f"All values in {col} are zero. Downstream metrics may be misleading.")
+            retail_metrics = self._filter_valid_zips(retail_metrics)
+            self._flag_insufficient_retail_data(retail_metrics)
+            template = self._load_template()
+            merged = self._merge_data(census_data, retail_metrics)
+            self._log_columns(merged)
+            missing, all_zero = self._check_missing_or_zero(merged)
+            notes = self._prepare_notes(missing, all_zero)
+            metrics = self._calculate_metrics(merged)
+            context = self._prepare_context(metrics, notes, missing, all_zero)
+            rendered = self._render_template(template, context)
+            insufficient_zips = self._get_insufficient_zips(retail_metrics)
+            self._log_insufficient_zips(insufficient_zips)
+            merged = self._flag_zip_status(merged, insufficient_zips)
+            sufficient_df = merged[merged["retail_data_status"] == "ok"]
+            sufficient_df.to_csv(self.output_path, index=False)
+            logger.info(f"Saved housing-retail balance report to {self.output_path}")
             return rendered
         except Exception as e:
             logging.error(f"HousingRetailBalanceReport: Failed to generate report: {e}")
             return f"Report generation failed. Error: {e}"
+
+    def _filter_valid_zips(self, df):
+        return df[df["zip_code"].isin(settings.CHICAGO_ZIP_CODES)]
+
+    def _flag_insufficient_retail_data(self, df):
+        for col in ["retail_gap", "retail_demand", "retail_supply", "retail_space", "vacancy_rate"]:
+            if col in df.columns and (df[col] == 0).all():
+                df[col] = np.nan
+                df[f"{col}_status"] = "insufficient data"
+            elif col in df.columns:
+                df[f"{col}_status"] = df[col].apply(lambda x: "insufficient data" if pd.isna(x) or x == 0 else "ok")
+
+    def _load_template(self):
+        template_path = settings.TEMPLATES_DIR / "reports/housing_retail_balance_report.md"
+        with open(template_path, "r") as f:
+            return Template(f.read())
+
+    def _merge_data(self, housing_df: pd.DataFrame, retail_df: pd.DataFrame) -> pd.DataFrame:
+        logger.debug(f"_merge_data: housing_df type={type(housing_df)}, shape={housing_df.shape if hasattr(housing_df, 'shape') else 'N/A'}")
+        logger.debug(f"_merge_data: retail_df type={type(retail_df)}, shape={retail_df.shape if hasattr(retail_df, 'shape') else 'N/A'}")
+        if housing_df is not None and not housing_df.empty and retail_df is not None and not retail_df.empty:
+            merged = housing_df.merge(retail_df, on=["zip_code", "year"], suffixes=("", "_retail"), how="left")
+            return merged
+        return housing_df
+
+    def _log_columns(self, merged):
+        logging.info(f"HousingRetailBalanceReport: merged columns: {list(merged.columns)}")
+
+    def _check_missing_or_zero(self, merged):
+        missing = []
+        all_zero = []
+        for col in REQUIRED_COLS:
+            if col not in merged.columns:
+                missing.append(col)
+                merged[col] = 0
+                logging.warning(f"HousingRetailBalanceReport: Missing column {col}, set to 0.")
+            elif (merged[col] == 0).all():
+                all_zero.append(col)
+                logging.warning(f"HousingRetailBalanceReport: All values in {col} are zero.")
+        return missing, all_zero
+
+    def _prepare_notes(self, missing, all_zero):
+        notes = []
+        if missing:
+            notes.append(f"Missing columns: {', '.join(missing)}")
+        if all_zero:
+            notes.append(f"All zero columns: {', '.join(all_zero)}")
+        return notes
+
+    def _calculate_metrics(self, merged):
+        return {
+            "total_population": int(merged["total_population"].sum()),
+            "total_housing_units": int(merged["total_housing_units"].sum()),
+            "total_retail_space": float(merged["retail_space"].sum()),
+            "avg_retail_density": (
+                float(merged["retail_space"].sum() / merged["total_population"].sum())
+                if merged["total_population"].sum()
+                else 0
+            ),
+            "avg_housing_density": (
+                float(merged["total_housing_units"].sum() / merged["total_population"].sum())
+                if merged["total_population"].sum()
+                else 0
+            ),
+            "retail_vacancy_rate": float(merged["vacancy_rate"].mean()),
+        }
+
+    def _prepare_context(self, metrics, notes, missing, all_zero):
+        return {
+            "generation_date": datetime.now().strftime("%Y-%m-%d"),
+            "summary": metrics,
+            "notes": notes,
+            "missing_or_defaulted": missing + all_zero,
+        }
+
+    def _render_template(self, template, context):
+        try:
+            return template.render(**{k: context.get(k, "N/A") for k in context})
+        except Exception as e:
+            logging.error(f"HousingRetailBalanceReport: Template rendering failed: {e}")
+            return f"Report generation failed. Error: {e}\nNotes: {context.get('notes', [])}"
+
+    def _get_insufficient_zips(self, df):
+        return df[
+            (df["retail_space"].isna()) | (df["retail_space"] == 0) |
+            (df["retail_demand"].isna()) | (df["retail_demand"] == 0) |
+            (df["retail_gap"].isna()) | (df["retail_gap"] == 0) |
+            (df["retail_supply"].isna()) | (df["retail_supply"] == 0)
+        ]["zip_code"].tolist()
+
+    def _log_insufficient_zips(self, insufficient_zips):
+        if insufficient_zips:
+            logger.warning(f"Insufficient retail data for ZIPs: {insufficient_zips}")
+
+    def _flag_zip_status(self, merged, insufficient_zips):
+        merged["retail_data_status"] = merged["zip_code"].apply(lambda z: "insufficient" if z in insufficient_zips else "ok")
+        return merged
 
 
 def generate_report(
@@ -298,10 +353,25 @@ def generate_report(
         ]
         missing_report = {}
         for col in missing_cols:
-            missing_zips = retail_metrics[retail_metrics[col].isnull()]["zip_code"].tolist()
-            if missing_zips:
+            if missing_zips := retail_metrics[retail_metrics[col].isnull()][
+                "zip_code"
+            ].tolist():
                 logger.warning(f"Missing {col} for ZIPs: {missing_zips}")
                 missing_report[col] = missing_zips
+
+        # Identify ZIPs with insufficient retail data
+        insufficient_zips = retail_metrics[
+            (retail_metrics["retail_space"].isna()) | (retail_metrics["retail_space"] == 0) |
+            (retail_metrics["retail_demand"].isna()) | (retail_metrics["retail_demand"] == 0) |
+            (retail_metrics["retail_gap"].isna()) | (retail_metrics["retail_gap"] == 0) |
+            (retail_metrics["retail_supply"].isna()) | (retail_metrics["retail_supply"] == 0)
+        ]["zip_code"].tolist()
+        if insufficient_zips:
+            logger.warning(f"Insufficient retail data for ZIPs: {insufficient_zips}")
+        # Add a column to flag insufficient data
+        retail_metrics["retail_data_status"] = retail_metrics["zip_code"].apply(lambda z: "insufficient" if z in insufficient_zips else "ok")
+        # Only include ZIPs with sufficient data in main analysis
+        sufficient_df = retail_metrics[retail_metrics["retail_data_status"] == "ok"]
 
         return template.render(
             generation_date=datetime.now().strftime("%Y-%m-%d"),

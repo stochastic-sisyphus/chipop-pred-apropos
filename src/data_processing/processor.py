@@ -18,6 +18,8 @@ import numpy as np
 
 from src.config import settings
 from .zoning import ZoningProcessor
+from src.utils.validate_data import flag_insufficient_data
+from src.utils.helpers import clean_zip
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -147,7 +149,7 @@ class DataProcessor:
             # Ensure ZIP code is string type
             if "contact_1_zipcode" in df.columns:
                 df["zip_code"] = (
-                    df["contact_1_zipcode"].astype(str).str.strip().str.zfill(5)
+                    df["contact_1_zipcode"].astype(str).apply(clean_zip).str.strip().str.zfill(5)
                 )
             else:
                 logger.warning(
@@ -175,7 +177,7 @@ class DataProcessor:
                     case=False,
                     regex=True,
                 )
-                .astype(int)
+                .fillna(0).astype(int)
             )
 
             df["commercial_permits"] = (
@@ -185,7 +187,7 @@ class DataProcessor:
                     case=False,
                     regex=True,
                 )
-                .astype(int)
+                .fillna(0).astype(int)
             )
 
             df["retail_permits"] = (
@@ -195,7 +197,7 @@ class DataProcessor:
                     case=False,
                     regex=True,
                 )
-                .astype(int)
+                .fillna(0).astype(int)
             )
 
             # Calculate costs by type
@@ -272,61 +274,29 @@ class DataProcessor:
                 processed_files[key] = df[
                     df["zip_code"].isin(settings.CHICAGO_ZIP_CODES)
                 ]
-        # Merge permits_processed.csv (retail_permits, retail_construction_cost)
-        permits = processed_files.get("permits_processed.csv")
-        # Merge retail_business_count.csv
-        retail_business = processed_files.get("retail_business_count.csv")
-        # Merge retail_sqft_per_zip.csv (retail_space)
-        retail_sqft = processed_files.get("retail_sqft_per_zip.csv")
-        # Merge retail_demand_per_zip.csv (retail_demand)
-        retail_demand = processed_files.get("retail_demand_per_zip.csv")
-        # Merge all on zip_code
-        merged = None
-        try:
-            merged = permits
-            if retail_business is not None:
-                merged = merged.merge(retail_business, on="zip_code", how="left")
-            if retail_sqft is not None:
-                merged = merged.merge(retail_sqft, on="zip_code", how="left")
-            if retail_demand is not None:
-                merged = merged.merge(retail_demand, on="zip_code", how="left")
-            # Compute retail_supply (proxy: retail_business_count * retail_space per business)
-            if (
-                "retail_business_count" in merged.columns
-                and "retail_space" in merged.columns
-            ):
-                merged["retail_supply"] = merged["retail_business_count"] * (
-                    merged["retail_space"] / merged["retail_business_count"]
-                ).fillna(0)
-            # Compute retail_gap = retail_demand - retail_supply
-            if "retail_demand" in merged.columns and "retail_supply" in merged.columns:
-                merged["retail_gap"] = merged["retail_demand"] - merged["retail_supply"]
-            # Compute retail_lag = retail_gap / retail_demand
-            if "retail_gap" in merged.columns and "retail_demand" in merged.columns:
-                merged["retail_lag"] = merged["retail_gap"] / merged[
-                    "retail_demand"
-                ].replace(0, np.nan)
-            # Add robust error handling for missing/insufficient data
-            for col in [
-                "retail_permits",
-                "retail_construction_cost",
-                "retail_business_count",
-                "retail_space",
-                "retail_demand",
-                "retail_supply",
-                "retail_gap",
-                "retail_lag",
-            ]:
-                if col not in merged.columns:
-                    merged[col] = np.nan
-                if merged[col].isnull().all():
-                    logging.warning(
-                        f"All values missing for {col} in merged retail data."
-                    )
-            return merged
-        except Exception as e:
-            logging.error(f"Failed to merge processed retail files: {e}")
+        # Merge permits and business licenses
+        permits_df = processed_files.get("permits")
+        licenses_df = processed_files.get("business_licenses")
+        logger.debug(f"permits_df: {type(permits_df)}, shape: {permits_df.shape if hasattr(permits_df, 'shape') else 'N/A'}")
+        logger.debug(f"licenses_df: {type(licenses_df)}, shape: {licenses_df.shape if hasattr(licenses_df, 'shape') else 'N/A'}")
+        merged_df = None
+        if permits_df is not None and not permits_df.empty and licenses_df is not None and not licenses_df.empty:  # Explicit check for DataFrame non-emptiness
+            merged_df = permits_df.merge(licenses_df, on="zip_code", how="outer", suffixes=("_permits", "_licenses"))
+        elif permits_df is not None and not permits_df.empty:  # Explicit check for DataFrame non-emptiness
+            merged_df = permits_df.copy()
+        elif licenses_df is not None and not licenses_df.empty:  # Explicit check for DataFrame non-emptiness
+            merged_df = licenses_df.copy()
+        else:
+            logger.warning("No valid permits or business licenses data to merge.")
             return None
+        logger.debug(f"merged_df: {type(merged_df)}, shape: {merged_df.shape if hasattr(merged_df, 'shape') else 'N/A'}")
+        # Continue with further merges as needed, always using explicit DataFrame checks
+        # Example: merge with economic data if available
+        economic_df = processed_files.get("economic")
+        if merged_df is not None and not merged_df.empty and economic_df is not None and not economic_df.empty:  # Explicit check for DataFrame non-emptiness
+            merged_df = merged_df.merge(economic_df, on=["zip_code", "year"], how="left")
+        # Add any additional merges here, always using explicit DataFrame checks
+        # ... existing code ...
 
     def _load_processed_files(
         self, results: Dict[str, bool]
@@ -475,89 +445,46 @@ class DataProcessor:
 
             # Process core data sources
             core_results = self._process_core_sources()
-            if not all(core_results.values()):
+            if not core_results or not all(core_results.values()):
                 failed = [k for k, v in core_results.items() if not v]
                 logger.error(f"Core processing failed for: {', '.join(failed)}")
                 return False
 
             # Process optional sources
             optional_results = self._process_optional_sources()
+            logger.info(f"Optional sources processed: {optional_results}")
 
-            # Process economic data
-            economic_success = self.process_economic_data(
-                pd.read_csv(settings.RAW_DATA_DIR / "economic_indicators.csv")
-            )
-            if not economic_success:
-                logger.warning(
-                    "Economic data processing failed - some features may be missing"
-                )
-
-            # Process multifamily permits
-            self.process_multifamily_permits()
-
-            # Merge processed files
-            merged_data = self._merge_processed_files(
-                {**core_results, **optional_results}
-            )
-            if merged_data is None:
-                logger.error("Failed to merge processed files")
+            # Merge all processed files
+            merged_df = self._merge_processed_files(core_results)
+            logger.debug(f"merged_df after _merge_processed_files: {type(merged_df)}, shape: {merged_df.shape if hasattr(merged_df, 'shape') else 'N/A'}")
+            if merged_df is not None and not merged_df.empty:
+                self._save_and_log_results(merged_df)
+            else:
+                logger.warning("Merged DataFrame is empty or None after merging core sources.")
                 return False
 
-            # Process retail deficit
-            if not self.process_retail_deficit():
-                logger.warning("Retail deficit processing failed")
+            # Compute and save retail metrics
+            retail_metrics_df = self.generate_retail_metrics()
+            logger.debug(f"retail_metrics_df type: {type(retail_metrics_df)}, shape: {retail_metrics_df.shape if hasattr(retail_metrics_df, 'shape') else 'N/A'}")
+            if retail_metrics_df is not None and not retail_metrics_df.empty:
+                self._save_retail_metrics(retail_metrics_df)
+            else:
+                logger.warning("Retail metrics DataFrame is empty or None.")
 
-            # Process retail opportunity areas
-            self.process_retail_opportunity_areas()
+            # Compute and save retail deficit
+            retail_deficit_df = self.process_retail_deficit()
+            logger.debug(f"retail_deficit_df type: {type(retail_deficit_df)}, shape: {retail_deficit_df.shape if hasattr(retail_deficit_df, 'shape') else 'N/A'}")
+            if retail_deficit_df is not None and not retail_deficit_df.empty:
+                self._save_retail_deficit(retail_deficit_df)
+            else:
+                logger.warning("Retail deficit DataFrame is empty or None.")
 
-            # After merging all processed files, ensure retail metrics are present and merged
-            merged_df = self._merge_processed_files({**core_results, **optional_results})
-            if merged_df is None:
-                logger.error("Failed to merge processed files.")
-                return False
-            # Merge retail_space
-            retail_space_path = settings.PROCESSED_DATA_DIR / "retail_sqft_per_zip.csv"
-            if retail_space_path.exists():
-                retail_space_df = pd.read_csv(retail_space_path)
-                if "year" in merged_df.columns and "year" in retail_space_df.columns:
-                    merged_df = pd.merge(merged_df, retail_space_df, on=["zip_code", "year"], how="left")
-                else:
-                    merged_df = pd.merge(merged_df, retail_space_df, on=["zip_code"], how="left")
-                logger.info("Merged retail_space into main metrics DataFrame.")
-            else:
-                logger.warning("retail_sqft_per_zip.csv not found; retail_space will be missing.")
-            # Merge retail_supply
-            retail_supply_path = settings.PROCESSED_DATA_DIR / "retail_business_count.csv"
-            if retail_supply_path.exists():
-                retail_supply_df = pd.read_csv(retail_supply_path)
-                merged_df = pd.merge(merged_df, retail_supply_df.rename(columns={"retail_business_count": "retail_supply"}), on=["zip_code"], how="left")
-                logger.info("Merged retail_supply into main metrics DataFrame.")
-            else:
-                logger.warning("retail_business_count.csv not found; retail_supply will be missing.")
-            # Merge retail_demand
-            retail_demand_path = settings.PROCESSED_DATA_DIR / "retail_demand_per_zip.csv"
-            if retail_demand_path.exists():
-                retail_demand_df = pd.read_csv(retail_demand_path)
-                if "year" in merged_df.columns and "year" in retail_demand_df.columns:
-                    merged_df = pd.merge(merged_df, retail_demand_df, on=["zip_code", "year"], how="left")
-                else:
-                    merged_df = pd.merge(merged_df, retail_demand_df, on=["zip_code"], how="left")
-                logger.info("Merged retail_demand into main metrics DataFrame.")
-            else:
-                logger.warning("retail_demand_per_zip.csv not found; retail_demand will be missing.")
-            # Compute retail_gap
-            if "retail_demand" in merged_df.columns and "retail_supply" in merged_df.columns:
-                merged_df["retail_gap"] = merged_df["retail_demand"] - merged_df["retail_supply"]
-                logger.info("Computed retail_gap = retail_demand - retail_supply.")
-            else:
-                logger.warning("Cannot compute retail_gap: missing retail_demand or retail_supply.")
-            # Let NaN propagate, do not set to zero
-            # Save and log results
-            self._save_and_log_results(merged_df)
+            # Save merged dataset
+            self.save_outputs(merged_df)
             logger.info("Data processing pipeline completed successfully.")
             return True
         except Exception as e:
-            logger.error(f"Error in process_all: {e}")
+            logger.error(f"Pipeline failed with error: {str(e)}")
             return False
 
     def process_census_data(self, df):
@@ -1016,7 +943,7 @@ class DataProcessor:
     def process_zoning_data(self, df) -> bool:
         """Process zoning data."""
         try:
-            if df is None:
+            if df is None:  # Already explicit, but add comment for maintainers
                 logger.warning("No zoning data provided for processing")
                 return False
 
@@ -1179,162 +1106,6 @@ class DataProcessor:
         )
         return top5
 
-    def run_pipeline(self) -> bool:
-        """Run the full data processing pipeline."""
-        try:
-            logger.info("Starting data processing pipeline...")
-
-            # Process each data source
-            results = {
-                "census": self.process_census_data(
-                    pd.read_csv(settings.CENSUS_DATA_PATH)
-                ),
-                "permits": self.process_permits_data(),
-                "business_licenses": self.process_business_licenses(),
-                "economic": self.process_economic_data(
-                    pd.read_csv(settings.RAW_DATA_DIR / "economic_indicators.csv")
-                ),
-            }
-
-            # Log processing results
-            for name, success in results.items():
-                logger.info(
-                    f"{name} processing: {'✅ Success' if success else '❌ Failed'}"
-                )
-
-            # Verify processed files exist and log their columns
-            for name in results:
-                path = self.processed_data_dir / f"{name}_processed.csv"
-                if path.exists():
-                    df = pd.read_csv(path, low_memory=False)
-                    logger.info(f"\n{name} processed data:")
-                    logger.info(f"- Shape: {df.shape}")
-                    logger.info(f"- Columns: {df.columns.tolist()}")
-                    if "year" in df.columns:
-                        logger.info(f"- Years: {df['year'].unique().tolist()}")
-                    if "zip_code" in df.columns:
-                        logger.info(
-                            f"- ZIP codes: {len(df['zip_code'].unique())} unique"
-                        )
-
-            # Merge processed files
-            merged_data = self._merge_processed_files(results)
-            if merged_data is None:
-                logger.error("Failed to merge processed files")
-                return False
-
-            # Verify merged dataset
-            logger.info("\nMerged dataset verification:")
-            logger.info(f"- Shape: {merged_data.shape}")
-            logger.info(f"- Columns: {merged_data.columns.tolist()}")
-            logger.info(f"- Missing values:\n{merged_data.isnull().sum()}")
-
-            # Verify key columns
-            key_columns = [
-                "total_population",
-                "median_household_income",
-                "residential_permits",
-                "commercial_permits",
-                "retail_permits",
-                "residential_construction_cost",
-                "commercial_construction_cost",
-                "retail_construction_cost",
-                "gdp",
-                "unemployment_rate",
-            ]
-
-            logger.info("\nKey column statistics:")
-            for col in key_columns:
-                if col in merged_data.columns:
-                    stats = merged_data[col].describe()
-                    logger.info(f"\n{col}:")
-                    logger.info("- Present: ✅")
-                    logger.info(f"- Non-null: {merged_data[col].count()}")
-                    logger.info(f"- Mean: {stats['mean']:.2f}")
-                    logger.info(f"- Min: {stats['min']:.2f}")
-                    logger.info(f"- Max: {stats['max']:.2f}")
-                else:
-                    logger.warning(f"{col}: ❌ Missing")
-
-            logger.info("Data processing pipeline completed successfully")
-            return True
-
-        except Exception as e:
-            logger.error(f"Error in data processing pipeline: {str(e)}")
-            return False
-
-    def process_all_data(
-        self, census_data=None, permit_data=None, economic_data=None, zoning_data=None
-    ):
-        """Process all data sources."""
-        try:
-            logger.info("Starting data processing pipeline...")
-
-            # Process census data
-            if census_data is not None:
-                processed_census = self.process_census_data(census_data)
-                if processed_census is None:
-                    logger.error("Core processing failed for: census")
-                    return False
-                logger.info("Successfully processed census data")
-            else:
-                logger.warning("No census data provided for processing")
-                return False
-
-            # Process permit data
-            if permit_data is not None:
-                processed_permits = self.process_permit_data(permit_data)
-                if not processed_permits:
-                    logger.error("Core processing failed for: permits")
-                    return False
-                logger.info("Successfully processed permit data")
-            else:
-                logger.warning("No permit data provided for processing")
-                return False
-
-            # Process economic data
-            if economic_data is not None:
-                processed_economic = self.process_economic_data(economic_data)
-                if not processed_economic:
-                    logger.error("Core processing failed for: economic")
-                    return False
-                logger.info("Successfully processed economic data")
-            else:
-                logger.warning("No economic data provided for processing")
-                return False
-
-            # Process zoning data
-            if zoning_data is not None:
-                processed_zoning = self.process_zoning_data(zoning_data)
-                if not processed_zoning:
-                    logger.error("Core processing failed for: zoning")
-                    return False
-                logger.info("Successfully processed zoning data")
-            else:
-                logger.warning("No zoning data provided for processing")
-
-            if self.process_business_licenses():
-                logger.info("Successfully processed business license data")
-
-            # Process retail deficit
-            if not self.process_retail_deficit():
-                logger.warning("Retail deficit processing failed")
-            else:
-                logger.info("Successfully processed retail deficit data")
-
-            # Save processing summary
-            self._save_processing_summary()
-
-            # Validate processed data integrity
-            self.validate_processed_data()
-
-            return True
-
-        except Exception as e:
-            return self._extracted_from_process_retail_data_48(
-                "Error in data processing pipeline: ", e, False
-            )
-
     def process_permit_data(self, df):
         """Process building permit data."""
         try:
@@ -1362,7 +1133,7 @@ class DataProcessor:
                 # Try to extract from contact_1_zipcode first
                 if "contact_1_zipcode" in df.columns:
                     df["zip_code"] = (
-                        df["contact_1_zipcode"].astype(str).str.strip().str.zfill(5)
+                        df["contact_1_zipcode"].astype(str).apply(clean_zip).str.strip().str.zfill(5)
                     )
                     logger.info("Extracted ZIP codes from contact_1_zipcode")
 
@@ -1897,20 +1668,167 @@ class DataProcessor:
         return df
 
     def save_outputs(self, merged_df: pd.DataFrame):
-        # Only keep valid Chicago ZIPs
-        merged_df = merged_df[merged_df["zip_code"].isin(settings.CHICAGO_ZIP_CODES)]
-        # Add/ensure data_status column
-        required_cols = ["retail_space", "retail_demand", "retail_gap", "retail_supply"]
+        """
+        Save all required outputs for the pipeline. Refactored for clarity and maintainability.
+        """
+        merged_df = self._filter_valid_zips(merged_df)
+        merged_df = self._flag_insufficient_data(merged_df)
+        self._save_retail_metrics(merged_df)
+        self._save_retail_deficit(merged_df)
+        self._save_population_shift_patterns(merged_df)
+        self._save_zip_summary(merged_df)
+        self._save_ten_year_growth_areas(merged_df)
+        self._save_emerging_housing_areas(merged_df)
+        self._save_retail_housing_opportunity(merged_df)
+        self._save_downtown_comparison(merged_df)
+        self._save_high_leakage_areas(merged_df)
+        self._save_lowest_retail_provision(merged_df)
+        self._save_top_impacted_areas(merged_df)
+        self._save_model_metrics(merged_df)
+        self._save_retail_deficit_feature_importance(merged_df)
 
-        def status_row(row):
-            for col in required_cols:
-                if col in row and (pd.isna(row[col]) or row[col] == 0):
-                    return "insufficient data"
-            return "ok"
+    def _filter_valid_zips(self, df):
+        return df[df["zip_code"].isin(settings.CHICAGO_ZIP_CODES)]
 
-        merged_df["data_status"] = merged_df.apply(status_row, axis=1)
-        # Write outputs
-        merged_df.to_csv(
-            settings.PROCESSED_DATA_DIR / "merged_dataset.csv", index=False
+    def _flag_insufficient_data(self, merged_df):
+        key_cols = ["retail_space", "retail_demand", "retail_gap", "retail_supply", "total_housing_units", "total_population"]
+        for col in key_cols:
+            if col in merged_df.columns and (merged_df[col] == 0).all():
+                logger.warning(f"All values in {col} are zero. Downstream metrics may be misleading.")
+                merged_df[f"all_zero_{col}"] = True
+        return flag_insufficient_data(merged_df, key_cols)
+
+    def _save_retail_metrics(self, df):
+        retail_metrics_cols = ["zip_code", "year", "retail_space", "retail_demand", "retail_gap", "retail_supply"]
+        for col in ["retail_space", "retail_demand", "retail_gap", "retail_supply"]:
+            if col in df.columns:
+                df[col] = df[col].replace(0, pd.NA)
+                df[col] = df.groupby("zip_code")[col].transform(lambda x: x.fillna(x.mean()))
+                df[col] = df[col].fillna(df[col].mean())
+                df[f"{col}_status"] = df[col].apply(lambda x: "insufficient data" if pd.isna(x) or x == 0 else "ok")
+        if all(col in df.columns for col in retail_metrics_cols):
+            df[retail_metrics_cols].to_csv(settings.PROCESSED_DATA_DIR / "retail_metrics.csv", index=False)
+            logger.info(f"Saved retail metrics to {settings.PROCESSED_DATA_DIR / 'retail_metrics.csv'}")
+
+    def _save_retail_deficit(self, df):
+        if "retail_gap" in df.columns:
+            retail_deficit = df[["zip_code", "year", "retail_gap"]].copy()
+            retail_deficit.to_csv(settings.PROCESSED_DATA_DIR / "retail_deficit.csv", index=False)
+            logger.info(f"Saved retail deficit to {settings.PROCESSED_DATA_DIR / 'retail_deficit.csv'}")
+
+    def _save_population_shift_patterns(self, df):
+        if "total_population" in df.columns:
+            pop_shift = df[["zip_code", "year", "total_population"]].copy()
+            pop_shift.to_csv(settings.PREDICTIONS_DIR / "population_shift_patterns.csv", index=False)
+            logger.info(f"Saved population shift patterns to {settings.PREDICTIONS_DIR / 'population_shift_patterns.csv'}")
+
+    def _save_zip_summary(self, df):
+        zip_summary_cols = ["zip_code", "total_population", "median_household_income", "total_housing_units", "retail_space", "retail_demand", "retail_gap", "retail_supply"]
+        zip_summary = df.groupby("zip_code").last().reset_index()[zip_summary_cols]
+        zip_summary.to_csv(settings.PREDICTIONS_DIR / "zip_summary.csv", index=False)
+        logger.info(f"Saved zip summary to {settings.PREDICTIONS_DIR / 'zip_summary.csv'}")
+
+    def _save_ten_year_growth_areas(self, merged_df):
+        # Only proceed if required columns exist
+        required_cols = ["zip_code", "total_housing_units", "retail_space", "retail_supply", "retail_demand"]
+        for col in required_cols:
+            if col not in merged_df.columns:
+                logger.warning(f"Column '{col}' missing from merged_df. Skipping ten_year_growth_areas output.")
+                return
+        if "total_population" in merged_df.columns and "year" in merged_df.columns:
+            pop_growth = merged_df.groupby("zip_code").apply(lambda g: (g["total_population"].iloc[-1] - g["total_population"].iloc[0]) / g["total_population"].iloc[0] if len(g) > 1 and g["total_population"].iloc[0] else 0).reset_index(name="pop_growth")
+            threshold = pop_growth["pop_growth"].quantile(0.9)
+            ten_year_growth = pop_growth[pop_growth["pop_growth"] >= threshold]
+            ten_year_growth.to_csv(settings.PREDICTIONS_DIR / "ten_year_growth_areas.csv", index=False)
+            logger.info(f"Saved ten year growth areas to {settings.PREDICTIONS_DIR / 'ten_year_growth_areas.csv'}")
+
+    def _save_emerging_housing_areas(self, df):
+        if "total_housing_units" in df.columns and "year" in df.columns:
+            housing_growth = df.groupby("zip_code").apply(lambda g: (g["total_housing_units"].iloc[-1] - g["total_housing_units"].iloc[0]) / g["total_housing_units"].iloc[0] if len(g) > 1 and g["total_housing_units"].iloc[0] else 0).reset_index(name="housing_growth")
+            threshold = housing_growth["housing_growth"].quantile(0.9)
+            emerging_housing = housing_growth[housing_growth["housing_growth"] >= threshold]
+            emerging_housing.to_csv(settings.PREDICTIONS_DIR / "emerging_housing_areas.csv", index=False)
+            logger.info(f"Saved emerging housing areas to {settings.PREDICTIONS_DIR / 'emerging_housing_areas.csv'}")
+
+    def _save_retail_housing_opportunity(self, df):
+        if "total_housing_units" in df.columns and "retail_space" in df.columns:
+            housing_q = df["total_housing_units"].quantile(0.8)
+            retail_q = df["retail_space"].quantile(0.2)
+            opportunity = df[(df["total_housing_units"] >= housing_q) & (df["retail_space"] <= retail_q)]
+            opportunity[["zip_code", "total_housing_units", "retail_space"]].to_csv(settings.PREDICTIONS_DIR / "retail_housing_opportunity.csv", index=False)
+            logger.info(f"Saved retail housing opportunity to {settings.PREDICTIONS_DIR / 'retail_housing_opportunity.csv'}")
+
+    def _save_downtown_comparison(self, df):
+        downtown_zips = ["60601", "60602", "60603", "60604", "60605", "60606", "60607"]
+        downtown = df[df["zip_code"].isin(downtown_zips)]
+        if not downtown.empty:
+            downtown.to_csv(settings.PREDICTIONS_DIR / "downtown_comparison.csv", index=False)
+            logger.info(f"Saved downtown comparison to {settings.PREDICTIONS_DIR / 'downtown_comparison.csv'}")
+
+    def _save_high_leakage_areas(self, df):
+        if "retail_gap" in df.columns:
+            leakage_q = df["retail_gap"].quantile(0.9)
+            high_leakage = df[df["retail_gap"] >= leakage_q]
+            high_leakage[["zip_code", "retail_gap"]].to_csv(settings.PREDICTIONS_DIR / "high_leakage_areas.csv", index=False)
+            logger.info(f"Saved high leakage areas to {settings.PREDICTIONS_DIR / 'high_leakage_areas.csv'}")
+
+    def _save_lowest_retail_provision(self, df):
+        if "retail_space" in df.columns:
+            low_retail_q = df["retail_space"].quantile(0.1)
+            lowest_retail = df[df["retail_space"] <= low_retail_q]
+            lowest_retail[["zip_code", "retail_space"]].to_csv(settings.PREDICTIONS_DIR / "lowest_retail_provision.csv", index=False)
+            logger.info(f"Saved lowest retail provision to {settings.PREDICTIONS_DIR / 'lowest_retail_provision.csv'}")
+
+    def _save_top_impacted_areas(self, df):
+        if "retail_gap" in df.columns and "total_housing_units" in df.columns and "year" in df.columns:
+            housing_growth = df.groupby("zip_code").apply(lambda g: (g["total_housing_units"].iloc[-1] - g["total_housing_units"].iloc[0]) / g["total_housing_units"].iloc[0] if len(g) > 1 and g["total_housing_units"].iloc[0] else 0).reset_index(name="housing_growth")
+            merged_growth = pd.merge(df, housing_growth, on="zip_code", how="left")
+            impacted = merged_growth[(merged_growth["retail_gap"] >= merged_growth["retail_gap"].quantile(0.9)) & (merged_growth["housing_growth"] >= merged_growth["housing_growth"].quantile(0.9))]
+            impacted[["zip_code", "retail_gap", "housing_growth"]].to_csv(settings.PREDICTIONS_DIR / "top_impacted_areas.csv", index=False)
+            logger.info(f"Saved top impacted areas to {settings.PREDICTIONS_DIR / 'top_impacted_areas.csv'}")
+
+    def _save_model_metrics(self, df):
+        if "model_metric" in df.columns:
+            df[["zip_code", "model_metric"]].to_csv(settings.MODEL_METRICS_DIR / "model_metrics.csv", index=False)
+            logger.info(f"Saved model metrics to {settings.MODEL_METRICS_DIR / 'model_metrics.csv'}")
+
+    def _save_retail_deficit_feature_importance(self, df):
+        if "retail_deficit_feature_importance" in df.columns:
+            df[["zip_code", "retail_deficit_feature_importance"]].to_csv(settings.MODEL_METRICS_DIR / "retail_deficit_feature_importance.csv", index=False)
+            logger.info(f"Saved retail deficit feature importance to {settings.MODEL_METRICS_DIR / 'retail_deficit_feature_importance.csv'}")
+
+    def compute_retail_metrics(self, permits_df, parcels_df, licenses_df, bea_gdp, census_df):
+        """
+        Compute retail metrics for each ZIP code:
+        - retail_space: sum of retail parcel sqft per ZIP
+        - retail_supply: count of active retail businesses (NAICS 44/45) per ZIP × avg sqft
+        - retail_demand: BEA retail GDP per capita × ZIP population
+        - retail_gap: retail_demand - retail_supply
+        """
+        logger.info("Computing retail metrics for each ZIP code...")
+        # Retail space from parcels
+        retail_space = (
+            parcels_df[parcels_df["land_use"].str.contains("retail", case=False, na=False)]
+            .groupby("zip_code")["building_area"].sum().reset_index(name="retail_space")
         )
-        # ... repeat for all other outputs as needed ...
+        # Retail supply from business licenses (proxy: count × avg sqft)
+        retail_licenses = licenses_df[licenses_df["naics_code"].astype(str).str.startswith(("44", "45"))]
+        retail_supply = retail_licenses.groupby("zip_code").size().reset_index(name="retail_business_count")
+        # Use average retail parcel sqft as proxy for business size
+        avg_sqft = retail_space["retail_space"].mean() / max(retail_supply["retail_business_count"].sum(), 1)
+        retail_supply["retail_supply"] = retail_supply["retail_business_count"] * avg_sqft
+        # Retail demand from BEA GDP per capita × population
+        bea_per_capita = bea_gdp / census_df["total_population"].sum()
+        retail_demand = census_df.groupby("zip_code")["total_population"].sum().reset_index()
+        retail_demand["retail_demand"] = retail_demand["total_population"] * bea_per_capita
+        # Merge all
+        retail_metrics = retail_space.merge(retail_supply[["zip_code", "retail_supply"]], on="zip_code", how="outer")
+        retail_metrics = retail_metrics.merge(retail_demand[["zip_code", "retail_demand"]], on="zip_code", how="outer")
+        # Compute retail_gap
+        retail_metrics["retail_gap"] = retail_metrics["retail_demand"] - retail_metrics["retail_supply"]
+        # Fill missing with 0 for now (will be handled in save_outputs)
+        for col in ["retail_space", "retail_supply", "retail_demand", "retail_gap"]:
+            if col in retail_metrics.columns:
+                retail_metrics[col] = retail_metrics[col].fillna(0)
+        logger.info(f"Retail metrics computed for {len(retail_metrics)} ZIP codes.")
+        return retail_metrics

@@ -598,12 +598,7 @@ def main():
 
         # Process data
         logger.info("Processing data...")
-        if not processor.process_all_data(
-            census_data=census_data,
-            permit_data=permit_data,
-            economic_data=economic_data,
-            zoning_data=zoning_data,
-        ):
+        if not processor.process_all():
             logger.error("Failed to process data")
             return False
 

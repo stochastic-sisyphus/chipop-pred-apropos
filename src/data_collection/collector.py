@@ -16,7 +16,7 @@ import time
 import traceback
 import requests
 import re
-from src.utils.helpers import geocode_address_zip
+from src.utils.helpers import geocode_address_zip, clean_zip
 import json
 import os
 try:
@@ -630,7 +630,7 @@ class DataCollector:
                 """,
             )
             df = pd.DataFrame.from_records(results)
-            if df.empty:
+            if df is None or df.empty:  # Explicit check for None or empty DataFrame (prevents ambiguous truth value errors)
                 logger.warning("Permit data is empty; skipping permit-dependent processing.")
                 return None
             # Dynamically create 'address' column
@@ -647,7 +647,7 @@ class DataCollector:
             # --- OPTIMIZED ZIP RESOLUTION ---
             # 1. Fill ZIPs from contact_1_zipcode if available
             if 'contact_1_zipcode' in df.columns:
-                mask_missing = df['zip_code'].isna() | (df['zip_code'] == '')
+                mask_missing = df['zip_code'].isnull() | (df['zip_code'] == '')
                 df.loc[mask_missing, 'zip_code'] = df.loc[mask_missing, 'contact_1_zipcode']
             # 2. Fill ZIPs from community_area using a crosswalk if available
             if 'community_area' in df.columns:
@@ -657,12 +657,12 @@ class DataCollector:
                     if os.path.exists(crosswalk_path):
                         crosswalk = pd.read_csv(crosswalk_path, dtype=str)
                         comm_to_zip = dict(zip(crosswalk['community_area'], crosswalk['zip_code']))
-                        mask_missing = df['zip_code'].isna() | (df['zip_code'] == '')
+                        mask_missing = df['zip_code'].isnull() | (df['zip_code'] == '')
                         df.loc[mask_missing, 'zip_code'] = df.loc[mask_missing, 'community_area'].map(comm_to_zip)
                 except Exception as e:
                     logger.warning(f"Failed to use community_area crosswalk for ZIPs: {e}")
             # 3. Only geocode if <=500 addresses remain missing ZIPs
-            mask_missing = df['zip_code'].isna() | (df['zip_code'] == '')
+            mask_missing = df['zip_code'].isnull() | (df['zip_code'] == '')
             num_to_geocode = mask_missing.sum()
             if num_to_geocode > 500:
                 logger.error(f"Too many ({num_to_geocode}) missing ZIPs to geocode. Aborting geocoding step. Records saved to permits_missing_zip.csv.")
@@ -710,7 +710,12 @@ class DataCollector:
                     df.loc[mask_missing, 'zip_code'] = missing_zip_df['zip_code']
             # --- END OPTIMIZED ZIP RESOLUTION ---
             # Only keep valid Chicago ZIPs
-            df = df[df['zip_code'].isin(settings.CHICAGO_ZIP_CODES)]
+            df['zip_code'] = df['zip_code'].apply(clean_zip)
+            valid_zips = df['zip_code'].notnull().sum()
+            invalid_zips = df['zip_code'].isnull().sum()
+            logger.info(f"[DEBUG] After ZIP cleanup: valid ZIPs = {valid_zips}, invalid ZIPs = {invalid_zips}")
+            valid_zips_set = set(settings.CHICAGO_ZIP_CODES)
+            df = df[df['zip_code'].isin(valid_zips_set)]
             # Extract retail permits
             retail_keywords = ["retail", "store", "shop", "restaurant", "commercial", "business", "mall", "market", "sales"]
             df["is_retail"] = df["work_description"].str.lower().str.contains("|".join(retail_keywords), na=False)
@@ -842,7 +847,7 @@ class DataCollector:
                 zoning_data = self.socrata.get("dj47-wfun", query=query)
                 df = pd.DataFrame.from_records(zoning_data)
 
-                if len(df) > 0:
+                if df is not None and not df.empty:  # Explicit check for DataFrame non-emptiness
                     logger.info(f"Successfully collected zoning data: {len(df)} records")
 
                     # NOTE: No geometry column in zoning data; cannot spatially join. Fallback: set zip_code to 'unknown'.
@@ -990,36 +995,37 @@ class DataCollector:
         """
         logger.info("Collecting multifamily permits...")
         permits = self.collect_permit_data()
-        if permits is None or permits.empty:
+        if permits is not None and not permits.empty:  # Explicit check for DataFrame non-emptiness
+            # Filter for multifamily and mixed-use with multifamily
+            multifam_keywords = ["multi-family", "multifamily", "apartment", "condo", "mixed-use", "residential"]
+            is_multifam = permits["work_description"].str.lower().str.contains("|".join(multifam_keywords), na=False)
+            multifam_permits = permits[is_multifam].copy()
+            # Add unit_count if available
+            if "units" in multifam_permits.columns:
+                multifam_permits["unit_count"] = pd.to_numeric(multifam_permits["units"], errors="coerce")
+            else:
+                multifam_permits["unit_count"] = None
+            # Add expected_completion_date
+            if "completion_date" in multifam_permits.columns:
+                multifam_permits["expected_completion_date"] = pd.to_datetime(multifam_permits["completion_date"], errors="coerce")
+            else:
+                multifam_permits["expected_completion_date"] = pd.to_datetime(multifam_permits["issue_date"]) + pd.DateOffset(years=2)
+            # Add development_status
+            if "status" in multifam_permits.columns:
+                multifam_permits["development_status"] = multifam_permits["status"].fillna("Planned")
+            else:
+                multifam_permits["development_status"] = "Planned"
+            # Add zoning_status (default to 'Compliant', can be updated in processing)
+            multifam_permits["zoning_status"] = "Compliant"
+            return self._extracted_from_collect_hud_usps_vacancy_33(
+                multifam_permits,
+                "multifamily_permits.csv",
+                'Saved multifamily permits to ',
+                'multifamily_permits.csv',
+            )
+        else:
             logger.error("No permit data available for multifamily extraction.")
             return pd.DataFrame()
-        # Filter for multifamily and mixed-use with multifamily
-        multifam_keywords = ["multi-family", "multifamily", "apartment", "condo", "mixed-use", "residential"]
-        is_multifam = permits["work_description"].str.lower().str.contains("|".join(multifam_keywords), na=False)
-        multifam_permits = permits[is_multifam].copy()
-        # Add unit_count if available
-        if "units" in multifam_permits.columns:
-            multifam_permits["unit_count"] = pd.to_numeric(multifam_permits["units"], errors="coerce")
-        else:
-            multifam_permits["unit_count"] = None
-        # Add expected_completion_date
-        if "completion_date" in multifam_permits.columns:
-            multifam_permits["expected_completion_date"] = pd.to_datetime(multifam_permits["completion_date"], errors="coerce")
-        else:
-            multifam_permits["expected_completion_date"] = pd.to_datetime(multifam_permits["issue_date"]) + pd.DateOffset(years=2)
-        # Add development_status
-        if "status" in multifam_permits.columns:
-            multifam_permits["development_status"] = multifam_permits["status"].fillna("Planned")
-        else:
-            multifam_permits["development_status"] = "Planned"
-        # Add zoning_status (default to 'Compliant', can be updated in processing)
-        multifam_permits["zoning_status"] = "Compliant"
-        return self._extracted_from_collect_hud_usps_vacancy_33(
-            multifam_permits,
-            "multifamily_permits.csv",
-            'Saved multifamily permits to ',
-            'multifamily_permits.csv',
-        )
 
     def collect_business_licenses_retail(self) -> pd.DataFrame:
         """
@@ -1027,26 +1033,27 @@ class DataCollector:
         """
         logger.info("Collecting retail business licenses...")
         df = self.get_business_licenses()
-        if df is None or df.empty:
+        if df is not None and not df.empty:  # Explicit check for DataFrame non-emptiness
+            # Filter NAICS 44-45 (retail trade)
+            if "naics_code" in df.columns:
+                is_retail = df["naics_code"].astype(str).str.startswith(("44", "45"))
+            elif "license_description" in df.columns:
+                is_retail = df["license_description"].str.contains("retail", case=False, na=False)
+            else:
+                is_retail = pd.Series([False] * len(df))
+            retail_df = df[is_retail].copy()
+            # Ensure zip_code is string and zero-padded
+            retail_df['zip_code'] = retail_df['zip_code'].astype(str).str.zfill(5)
+            retail_count = retail_df.groupby("zip_code").size().reset_index(name="retail_business_count")
+            return self._extracted_from_collect_bea_retail_gdp_22(
+                retail_count,
+                "retail_business_count.csv",
+                'Saved retail business count to ',
+                'retail_business_count.csv',
+            )
+        else:
             logger.error("No business license data available.")
             return pd.DataFrame()
-        # Filter NAICS 44-45 (retail trade)
-        if "naics_code" in df.columns:
-            is_retail = df["naics_code"].astype(str).str.startswith(("44", "45"))
-        elif "license_description" in df.columns:
-            is_retail = df["license_description"].str.contains("retail", case=False, na=False)
-        else:
-            is_retail = pd.Series([False] * len(df))
-        retail_df = df[is_retail].copy()
-        # Ensure zip_code is string and zero-padded
-        retail_df['zip_code'] = retail_df['zip_code'].astype(str).str.zfill(5)
-        retail_count = retail_df.groupby("zip_code").size().reset_index(name="retail_business_count")
-        return self._extracted_from_collect_bea_retail_gdp_22(
-            retail_count,
-            "retail_business_count.csv",
-            'Saved retail business count to ',
-            'retail_business_count.csv',
-        )
 
     def collect_parcel_retail_sqft(self) -> pd.DataFrame:
         """
@@ -1059,7 +1066,7 @@ class DataCollector:
             parcels = pd.DataFrame(resp.json())
             # Filter for retail property class
             if "property_class" in parcels.columns:
-                is_retail = parcels["property_class"].str.contains("retail", case=False, na=False)
+                is_retail = parcels["property_class"].str.contains("retail|commercial|store|shop", case=False, na=False)
             else:
                 is_retail = pd.Series([False] * len(parcels))
             parcels = parcels[is_retail].copy()
@@ -1077,6 +1084,7 @@ class DataCollector:
                 row.get("state", "IL")
             ), axis=1)
             parcels = parcels[parcels["zip_code"].isin(settings.CHICAGO_ZIP_CODES)]
+            parcels["building_area"] = pd.to_numeric(parcels.get("building_area", 0), errors="coerce")
             sqft = parcels.groupby("zip_code")["building_area"].sum().reset_index(name="retail_space")
             return self._extracted_from_collect_bea_retail_gdp_22(
                 sqft,
@@ -1212,6 +1220,20 @@ class DataCollector:
             df.to_csv(output_path, index=False)
         return df
 
+    def _filter_valid_zip_codes(self, df: pd.DataFrame) -> pd.DataFrame:
+        logger.debug(f"_filter_valid_zip_codes: df type={type(df)}, shape={df.shape if hasattr(df, 'shape') else 'N/A'}")
+        if df is not None and not df.empty:
+            df = df[df["zip_code"].isin(settings.CHICAGO_ZIP_CODES)]
+        return df
+
+    def _merge_permits_and_licenses(self, permits_df: pd.DataFrame, licenses_df: pd.DataFrame) -> pd.DataFrame:
+        logger.debug(f"_merge_permits_and_licenses: permits_df type={type(permits_df)}, shape={permits_df.shape if hasattr(permits_df, 'shape') else 'N/A'}")
+        logger.debug(f"_merge_permits_and_licenses: licenses_df type={type(licenses_df)}, shape={licenses_df.shape if hasattr(licenses_df, 'shape') else 'N/A'}")
+        if permits_df is not None and not permits_df.empty and licenses_df is not None and not licenses_df.empty:
+            merged_df = permits_df.merge(licenses_df, on="zip_code", how="left")
+            return merged_df
+        return permits_df
+
 
 PERMIT_TYPE_MAP = {
     "PERMIT – EXPRESS PERMIT PROGRAM": "EXPRESS_PERMIT",
@@ -1287,7 +1309,7 @@ def fetch_parcel_retail_sqft():
         return pd.DataFrame(columns=["zip_code", "retail_space"])
     parcels = pd.DataFrame(resp.json())
     if "property_class" in parcels.columns:
-        is_retail = parcels["property_class"].str.contains("retail", case=False, na=False)
+        is_retail = parcels["property_class"].str.contains("retail|commercial|store|shop", case=False, na=False)
     else:
         is_retail = pd.Series([False] * len(parcels))
     parcels = parcels[is_retail].copy()

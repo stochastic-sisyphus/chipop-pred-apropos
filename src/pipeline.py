@@ -7,6 +7,7 @@ from src.config import settings
 from src.data_processing.processor import DataProcessor
 from src.reporting.ten_year_growth_report import TenYearGrowthReport
 from src.visualization.visualizer import Visualizer
+from src.features.engineering import add_housing_retail_lag, add_retail_leakage, add_void_analysis_flags
 
 logger = logging.getLogger(__name__)
 
@@ -140,6 +141,11 @@ class Pipeline:
                     business_data=pd.read_csv(settings.BUSINESS_LICENSES_PROCESSED_PATH),
                 )
 
+                logger.debug(f"Visualizer population_data: type={type(self.visualizer.population_data)}, shape={self.visualizer.population_data.shape if hasattr(self.visualizer.population_data, 'shape') else 'N/A'}")
+                logger.debug(f"Visualizer permit_data: type={type(self.visualizer.permit_data)}, shape={self.visualizer.permit_data.shape if hasattr(self.visualizer.permit_data, 'shape') else 'N/A'}")
+                logger.debug(f"Visualizer economic_data: type={type(self.visualizer.economic_data)}, shape={self.visualizer.economic_data.shape if hasattr(self.visualizer.economic_data, 'shape') else 'N/A'}")
+                logger.debug(f"Visualizer business_data: type={type(self.visualizer.business_data)}, shape={self.visualizer.business_data.shape if hasattr(self.visualizer.business_data, 'shape') else 'N/A'}")
+
                 if not self.visualizer.create_all_visualizations():
                     logger.error("Visualization creation failed")
                     return False
@@ -148,29 +154,41 @@ class Pipeline:
                 return False
             logger.info("Visualizations created successfully")
 
+            # After merging all data into merged_df
+            merged_df = pd.read_csv(settings.MERGED_DATA_PATH)
+            logger.debug(f"merged_df: type={type(merged_df)}, shape={merged_df.shape if hasattr(merged_df, 'shape') else 'N/A'}")
+            if merged_df is not None and not merged_df.empty:
+                merged_df = add_housing_retail_lag(merged_df)
+                merged_df = add_retail_leakage(merged_df)
+                merged_df = add_void_analysis_flags(merged_df)
+
             # After all processing, enforce valid ZIPs and insufficient data flagging
             for output_path in [settings.PROCESSED_DATA_DIR / "merged_dataset.csv", settings.PROCESSED_DATA_DIR / "retail_metrics.csv", settings.PROCESSED_DATA_DIR / "retail_deficit.csv"]:
                 if output_path.exists():
                     df = pd.read_csv(output_path)
-                    df = df[df["zip_code"].isin(settings.CHICAGO_ZIP_CODES)]
-                    required_cols = ["retail_space", "retail_demand", "retail_gap", "retail_supply"]
-                    def status_row(row):
-                        for col in required_cols:
-                            if col in row and (pd.isna(row[col]) or row[col] == 0):
-                                return "insufficient data"
-                        return "ok"
-                    df["data_status"] = df.apply(status_row, axis=1)
-                    df.to_csv(output_path, index=False)
+                    logger.debug(f"Checking output_path {output_path}: df type={type(df)}, shape={df.shape if hasattr(df, 'shape') else 'N/A'}")
+                    if df is not None and not df.empty:
+                        df = df[df["zip_code"].isin(settings.CHICAGO_ZIP_CODES)]
+                        required_cols = ["retail_space", "retail_demand", "retail_gap", "retail_supply"]
+                        def status_row(row):
+                            for col in required_cols:
+                                if col in row and (pd.isna(row[col]) or row[col] == 0):
+                                    return "insufficient data"
+                            return "ok"
+                        df["data_status"] = df.apply(status_row, axis=1)
+                        df.to_csv(output_path, index=False)
             # Log and save summary of ZIPs with insufficient data
             summary = {}
             for output_path in [settings.PROCESSED_DATA_DIR / "merged_dataset.csv", settings.PROCESSED_DATA_DIR / "retail_metrics.csv", settings.PROCESSED_DATA_DIR / "retail_deficit.csv"]:
                 if output_path.exists():
                     df = pd.read_csv(output_path)
-                    insufficient = df[df["data_status"] == "insufficient data"]
-                    summary[str(output_path)] = {
-                        "insufficient_zip_count": len(insufficient),
-                        "insufficient_zips": insufficient["zip_code"].tolist(),
-                    }
+                    logger.debug(f"Summary for {output_path}: df type={type(df)}, shape={df.shape if hasattr(df, 'shape') else 'N/A'}")
+                    if df is not None and not df.empty:
+                        insufficient = df[df["data_status"] == "insufficient data"]
+                        summary[str(output_path)] = {
+                            "insufficient_zip_count": len(insufficient),
+                            "insufficient_zips": insufficient["zip_code"].tolist(),
+                        }
             with open(settings.PROCESSED_DATA_DIR / "processing_summary.json", "w") as f:
                 json.dump(summary, f, indent=2)
 

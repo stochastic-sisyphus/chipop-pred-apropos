@@ -23,6 +23,9 @@ logger = logging.getLogger(__name__)
 
 import logging
 
+# PATCH: Import clean_zip for robust ZIP cleaning
+from src.utils.helpers import clean_zip
+
 REQUIRED_COLS = [
     "total_population",
     "median_household_income",
@@ -91,8 +94,8 @@ class TenYearGrowthReport:
             logger.error(f"ZIP code column '{zip_col}' not found in dataframe")
             return df
 
-        # Convert to string and pad with zeros
-        df[zip_col] = df[zip_col].astype(str).str.zfill(5)
+        # Convert to string and pad with zeros, then robustly clean
+        df[zip_col] = df[zip_col].astype(str).apply(clean_zip)
 
         # Filter to valid Chicago ZIP codes
         valid_zips = df[zip_col].isin(settings.CHICAGO_ZIP_CODES)
@@ -1928,15 +1931,27 @@ class TenYearGrowthReport:
         logger = logging.getLogger("src.reporting.ten_year_growth_report")
 
         # Identify ZIPs with missing metrics
-        missing_cols = [
-            "retail_space", "retail_supply", "retail_demand", "housing_units"
+        # Use correct column names and check for existence
+        expected_cols = [
+            "retail_space", "retail_supply", "retail_demand", "total_housing_units"
         ]
         missing_report = {}
-        for col in missing_cols:
-            missing_zips = df[df[col].isnull()]["zip_code"].tolist()
+        for col in expected_cols:
+            if col not in df.columns:
+                logger.warning(f"Column '{col}' missing from DataFrame. Skipping.")
+                continue
+            missing_zip_rows = df[df[col].isnull()]
+            if "zip_code" not in missing_zip_rows.columns:
+                logger.warning(f"'zip_code' column missing when checking for missing {col}.")
+                continue
+            missing_zips = missing_zip_rows["zip_code"].tolist()
             if missing_zips:
                 logger.warning(f"Missing {col} for ZIPs: {missing_zips}")
                 missing_report[col] = missing_zips
+            # Check for all-zero column
+            if (df[col] == 0).all():
+                logger.warning(f"All values in {col} are zero. Downstream metrics may be misleading.")
+                missing_report[f"all_zero_{col}"] = True
 
         # Write missing data section to report
         with open(output_path, "w") as f:
@@ -1949,8 +1964,19 @@ class TenYearGrowthReport:
             f.write("## Main Analysis\n")
             # (Insert main analysis code here)
             # For demonstration, show summary table
-            summary_cols = ["zip_code", "housing_units", "retail_space", "retail_supply", "retail_demand", "retail_gap"]
+            summary_cols = [
+                "zip_code", "total_housing_units", "retail_space", "retail_supply", "retail_demand", "retail_gap"
+            ]
+            summary_cols = [col for col in summary_cols if col in df.columns]
             summary = df[summary_cols].head(20).to_string(index=False)
             f.write("\n### Sample Data (first 20 rows):\n")
             f.write(summary)
             f.write("\n")
+
+    def _merge_growth_data(self, historical_df: pd.DataFrame, projection_df: pd.DataFrame) -> pd.DataFrame:
+        logger.debug(f"_merge_growth_data: historical_df type={type(historical_df)}, shape={historical_df.shape if hasattr(historical_df, 'shape') else 'N/A'}")
+        logger.debug(f"_merge_growth_data: projection_df type={type(projection_df)}, shape={projection_df.shape if hasattr(projection_df, 'shape') else 'N/A'}")
+        if historical_df is not None and not historical_df.empty and projection_df is not None and not projection_df.empty:
+            merged = historical_df.merge(projection_df, on=["zip_code", "year"], how="outer", suffixes=("_hist", "_proj"))
+            return merged
+        return historical_df

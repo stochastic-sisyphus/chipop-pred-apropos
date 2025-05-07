@@ -14,6 +14,7 @@ import numpy as np
 from src.config import settings
 from src.models.retail_model import RetailModel
 from src.visualization.visualizer import Visualizer
+from src.utils.helpers import clean_zip
 
 logger = logging.getLogger(__name__)
 
@@ -75,8 +76,8 @@ class RetailDeficitReport:
                     logger.error(f"zip_code column missing from {df_name} data")
                     return None
 
-                # Standardize zip_code format
-                df["zip_code"] = df["zip_code"].astype(str).str.zfill(5)
+                # Standardize zip_code format and robustly clean
+                df["zip_code"] = df["zip_code"].astype(str).apply(clean_zip)
 
                 # Validate other required columns
                 for col in required_columns[df_name]:
@@ -267,16 +268,7 @@ class RetailDeficitReport:
                 template = Template(f.read())
 
             # Prepare opportunity dataframe
-            opportunity_df = pd.merge(
-                census_data[["zip_code", "total_population", "median_household_income"]],
-                (
-                    retail_metrics[["zip_code", "retail_space", "vacancy_rate"]]
-                    if "retail_space" in retail_metrics.columns
-                    else pd.DataFrame({"zip_code": census_data["zip_code"].unique()})
-                ),
-                on="zip_code",
-                how="left",
-            )
+            opportunity_df = self._generate_opportunity_df(retail_deficit)
 
             # Fill missing retail metrics with 0
             for col in ["retail_space", "vacancy_rate"]:
@@ -350,6 +342,13 @@ class RetailDeficitReport:
                 retail_data[col] = 0
         return retail_data
 
+    def _generate_opportunity_df(self, retail_deficit_df: pd.DataFrame) -> pd.DataFrame:
+        logger.debug(f"_generate_opportunity_df: retail_deficit_df type={type(retail_deficit_df)}, shape={retail_deficit_df.shape if hasattr(retail_deficit_df, 'shape') else 'N/A'}")
+        if retail_deficit_df is not None and not retail_deficit_df.empty:
+            opportunity_df = retail_deficit_df[["zip_code", "total_population", "median_household_income", "retail_space", "vacancy_rate"]].copy()
+            return opportunity_df
+        return pd.DataFrame()
+
 
 def generate_retail_deficit_report(df, output_path):
     """
@@ -387,3 +386,34 @@ def generate_retail_deficit_report(df, output_path):
         f.write("\n### Sample Data (first 20 rows):\n")
         f.write(summary)
         f.write("\n")
+
+def generate_report(merged_df: pd.DataFrame, output_path: str):
+    """
+    Generate the retail deficit report, flagging ZIPs with insufficient retail data and all-zero columns.
+    """
+    logger.info("Generating retail deficit report...")
+    # Identify ZIPs with insufficient retail data
+    required_cols = ["retail_gap", "retail_demand", "retail_supply", "total_housing_units"]
+    for col in required_cols:
+        if col not in merged_df.columns:
+            logger.warning(f"Column '{col}' missing from merged_df. Skipping related analysis.")
+        else:
+            if (merged_df[col] == 0).all():
+                logger.warning(f"All values in {col} are zero. Downstream metrics may be misleading.")
+    insufficient_zips = []
+    if all(col in merged_df.columns for col in required_cols):
+        insufficient_zips = merged_df[
+            (merged_df["retail_gap"].isna()) | (merged_df["retail_gap"] == 0) |
+            (merged_df["retail_demand"].isna()) | (merged_df["retail_demand"] == 0) |
+            (merged_df["retail_supply"].isna()) | (merged_df["retail_supply"] == 0)
+        ]["zip_code"].tolist()
+        if insufficient_zips:
+            logger.warning(f"Insufficient retail data for ZIPs: {insufficient_zips}")
+    # Add a column to flag insufficient data
+    merged_df["retail_deficit_data_status"] = merged_df["zip_code"].apply(lambda z: "insufficient" if z in insufficient_zips else "ok")
+    # Only include ZIPs with sufficient data in main analysis
+    sufficient_df = merged_df[merged_df["retail_deficit_data_status"] == "ok"]
+    # ... existing report generation logic ...
+    # Save report
+    sufficient_df.to_csv(output_path, index=False)
+    logger.info(f"Saved retail deficit report to {output_path}")

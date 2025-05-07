@@ -29,7 +29,8 @@ def validate_data_files() -> Dict[str, bool]:
 
         try:
             df = pd.read_csv(path)
-            if df.empty:
+            # Explicit check for DataFrame emptiness (prevents ambiguous truth value errors)
+            if df is not None and df.empty:
                 logger.error(f"{name} data file is empty: {path}")
                 results[name] = False
                 continue
@@ -37,9 +38,7 @@ def validate_data_files() -> Dict[str, bool]:
             logger.info(f"Validated {name} data: {df.shape[0]} rows, {df.shape[1]} columns")
             logger.info(f"Columns: {df.columns.tolist()}")
 
-            # Check for required columns
-            missing_cols = check_required_columns(name, df)
-            if missing_cols:
+            if missing_cols := check_required_columns(name, df):
                 logger.error(f"Missing required columns in {name}: {missing_cols}")
                 results[name] = False
                 continue
@@ -78,8 +77,6 @@ def check_required_columns(dataset: str, df: pd.DataFrame) -> List[str]:
 
 def validate_merged_dataset(df: pd.DataFrame) -> Dict[str, List[str]]:
     """Validate the merged dataset for completeness."""
-    issues = {"missing_columns": [], "null_columns": [], "dtype_issues": []}
-
     # Check required columns
     required_columns = [
         "zip_code",
@@ -93,11 +90,14 @@ def validate_merged_dataset(df: pd.DataFrame) -> Dict[str, List[str]]:
         "retail_leakage",
     ]
 
-    issues["missing_columns"] = [col for col in required_columns if col not in df.columns]
-
-    # Check for null values
-    null_cols = df[df.columns[df.isnull().any()]].columns.tolist()
-    if null_cols:
+    issues = {
+        "null_columns": [],
+        "dtype_issues": [],
+        "missing_columns": [
+            col for col in required_columns if col not in df.columns
+        ],
+    }
+    if null_cols := df[df.columns[df.isnull().any()]].columns.tolist():
         issues["null_columns"] = null_cols
 
     # Check data types
@@ -107,6 +107,19 @@ def validate_merged_dataset(df: pd.DataFrame) -> Dict[str, List[str]]:
         issues["dtype_issues"].append("year should be integer type")
 
     return issues
+
+
+def flag_insufficient_data(df, columns):
+    """
+    Add a 'data_status' column: 'insufficient data' if any of the specified columns are missing or zero, else 'ok'.
+    """
+    def status_row(row):
+        for col in columns:
+            if col in row and (pd.isna(row[col]) or row[col] == 0):
+                return "insufficient data"
+        return "ok"
+    df["data_status"] = df.apply(status_row, axis=1)
+    return df
 
 
 if __name__ == "__main__":
