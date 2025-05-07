@@ -567,6 +567,5 @@ def clean_zip(zip_val):
     zip_str = re.sub(r'\D', '', zip_str)
     if len(zip_str) == 5 and zip_str.isdigit():
         return zip_str
-    else:
-        logger.debug(f"Invalid or cleaned ZIP: original='{zip_val}', cleaned='{zip_str}'")
-        return None
+    logger.debug(f"Invalid or cleaned ZIP: original='{zip_val}', cleaned='{zip_str}'")
+    return None
