@@ -19,7 +19,8 @@ import numpy as np
 from src.config import settings
 from .zoning import ZoningProcessor
 from src.utils.validate_data import flag_insufficient_data, check_required_columns
-from src.utils.helpers import clean_zip, resolve_column_name, column_aliases
+from src.utils.helpers import clean_zip, resolve_column_name
+from src.config.column_alias_map import column_aliases
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -292,8 +293,8 @@ class DataProcessor:
         logger.info(f"Initial census columns: {list(merged_df.columns)}")
         # Merge in order: permits+licenses, economic, zoning, property, multifamily, retail_metrics
         merged_df = self._safe_merge(merged_df, processed_files['permits'], ['zip_code', 'year'], 'left', 'permits')
-        merged_df = self._safe_merge(merged_df, processed_files['business_licenses'], ['zip_code', 'year'], 'left', 'business_licenses')
-        merged_df = self._safe_merge(merged_df, processed_files['economic'], ['zip_code', 'year'], 'left', 'economic')
+        merged_df = self._safe_merge(merged_df, processed_files['business_licenses'], ['zip_code', 'year'], 'left', 'business_licenses')        
+        merged_df = self._safe_merge(merged_df, processed_files['economic'], ['year'], 'left', 'economic')
         merged_df = self._safe_merge(merged_df, processed_files['zoning'], ['zip_code', 'year'], 'left', 'zoning')
         merged_df = self._safe_merge(merged_df, processed_files['property'], ['zip_code', 'year'], 'left', 'property')
         merged_df = self._safe_merge(merged_df, processed_files['multifamily_permits'], ['zip_code', 'year'], 'left', 'multifamily_permits')
@@ -568,7 +569,7 @@ class DataProcessor:
             if merged_df is not None and not merged_df.empty:
                 logger.info(f"Initial merged_df shape after _merge_processed_files: {merged_df.shape}")
                 # Enrich with calculated retail features (demand, supply, gap, etc.)
-                merged_df = self.enrich_with_retail_features(merged_df.copy()) # This should add columns
+                merged_df = self.enrich_retail_metrics(merged_df.copy()) # This should add columns
                 logger.info(f"merged_df shape after enrich_with_retail_features: {merged_df.shape}")
                 self._save_and_log_results(merged_df) # Save the fully enriched dataset
             else:
