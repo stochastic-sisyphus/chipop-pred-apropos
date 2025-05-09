@@ -385,15 +385,26 @@ def run_pipeline():
 
 def load_processed_data():
     try:
-        return {
-            "census_data": pd.read_csv(settings.PROCESSED_DATA_DIR / "census_processed.csv"),
-            "permit_data": pd.read_csv(settings.PROCESSED_DATA_DIR / "permits_processed.csv"),
-            "economic_data": pd.read_csv(settings.PROCESSED_DATA_DIR / "economic_processed.csv"),
-            "zoning_data": pd.read_csv(settings.PROCESSED_DATA_DIR / "zoning_processed.csv"),
-            "retail_metrics": pd.read_csv(settings.PROCESSED_DATA_DIR / "retail_metrics.csv"),
-            "retail_deficit": pd.read_csv(settings.PROCESSED_DATA_DIR / "retail_deficit.csv"),
-            "merged_data": pd.read_csv(settings.MERGED_DATA_PATH), # Add merged_dataset
+        data_dict = {}
+        files_to_load = {
+            "census_data": "census_processed.csv",
+            "permit_data": "permits_processed.csv",
+            "economic_data": "economic_processed.csv",
+            "zoning_data": "zoning_processed.csv",
+            "retail_metrics": "retail_metrics.csv",
+            "retail_deficit": "retail_deficit.csv",
+            "merged_data": settings.MERGED_DATA_PATH.name, # Get filename from Path object
+            "multifamily_permits": "multifamily_permits_processed.csv", # Added
+            # Add other processed files if they are distinct and needed by reports/models
         }
+        for key, filename in files_to_load.items():
+            file_path = settings.PROCESSED_DATA_DIR / filename if key != "merged_data" else settings.MERGED_DATA_PATH
+            if file_path.exists():
+                data_dict[key] = pd.read_csv(file_path, dtype={'zip_code': str}) # Read zip_code as string
+            else:
+                logger.warning(f"File for '{key}' not found at {file_path}. It will be missing from processed_data_dict.")
+                data_dict[key] = pd.DataFrame() # Provide empty DataFrame if file not found
+        return data_dict
     except Exception as e:
         logger.error(f"Error loading processed data: {str(e)}")
         logger.error(f"Traceback: {traceback.format_exc()}")

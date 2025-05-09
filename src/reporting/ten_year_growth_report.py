@@ -1908,15 +1908,19 @@ class TenYearGrowthReport:
         """
         logger = logging.getLogger(__name__)
         logger.info("Generating data for Ten Year Growth Report...")
+        self.report_data = {} # Initialize report_data
+
         merged_df = self.load_and_prepare_data(processed_data_dict=processed_data_dict)
+        
         if merged_df is None or merged_df.empty:
             logger.error("No merged data available for report generation.")
-            self.report_data = { # Ensure report_data is initialized even on failure
+            # Ensure report_data is initialized with minimal structure even on failure
+            self.report_data.update({ 
                 "current_analysis": {}, "historical_trends": {}, "projections": {},
                 "emerging_multifamily_areas": [], "retail_opportunities": [],
                 "retail_lagging_zones": [], "downtown_retail_lag": [],
                 "notes": ["Failed to load and prepare base data."]
-            }
+            })
             return self.report_data
 
         # Historical trends
@@ -1987,7 +1991,7 @@ class TenYearGrowthReport:
         # This part is commented out as it's preferable for the template to use the nested structure.
 
         self.report_data = {
-            "generation_date": datetime.now().strftime("%Y-%m-%d"),
+            "generation_date": self.report_data.get("generation_date", datetime.now().strftime("%Y-%m-%d")), # Preserve if already set
             "current_analysis": current_analysis_dict,
             "historical_trends": historical_trends,
             "projections": projected_analysis_dict, # Use the structured projections
@@ -1996,7 +2000,7 @@ class TenYearGrowthReport:
             "retail_opportunities": [] if retail_opportunities_df.empty else retail_opportunities_df.to_dict(orient="records"),
             "retail_lagging_zones": [] if retail_lagging_zones_df.empty else retail_lagging_zones_df.to_dict(orient="records"),
             "downtown_retail_lag": [] if downtown_retail_lag_df.empty else downtown_retail_lag_df.to_dict(orient="records"),
-            "notes": [] # Initialize notes
+            "notes": self.report_data.get("notes", []) # Preserve existing notes
         }
         
         # Add warnings for missing data files
@@ -2094,12 +2098,14 @@ class TenYearGrowthReport:
         Generates the main ten-year growth report and saves it.
         """
         try:
-            logger.info("Generating Ten Year Growth Report...")
+            logger.info("TenYearGrowthReport: Starting generate_report...")
             # Generate the data for the report
-            context = self.generate_report_data(processed_data_dict=processed_data_dict) # Pass it here
-            if not context: # If data generation failed
+            # self.generate_report_data populates self.report_data
+            self.generate_report_data(processed_data_dict=processed_data_dict)
+            
+            if not self.report_data or not self.report_data.get("current_analysis"): # Check if critical data is missing
                 logger.error("Failed to generate data for the report. Aborting report generation.")
-                return False
+                return False # Return False for failure
 
             required_template_structure = {
                 "generation_date": datetime.now().strftime("%Y-%m-%d"),
@@ -2114,23 +2120,25 @@ class TenYearGrowthReport:
                 "notes": [],
                 "missing_or_defaulted": [] 
             }
-            self._ensure_template_keys(context, required_template_structure)
+            # Use self.report_data as the context
+            self._ensure_template_keys(self.report_data, required_template_structure)
             
-            if not context.get("current_analysis", {}).get("population", {}).get("total"):
-                 context["notes"].append("Warning: Current total population data is missing or zero.")
-            if not context.get("projections",{}).get("population_10yr_projection",{}).get("projected_population_10yr"):
-                 context["notes"].append("Warning: Population projection data is missing or zero.")
+            if not self.report_data.get("current_analysis", {}).get("population", {}).get("total"):
+                 self.report_data["notes"].append("Warning: Current total population data is missing or zero.")
+            # Adjust check for projections based on actual structure from generate_report_data
+            if not self.report_data.get("projections", {}).get("population", {}).get("total"):
+                 self.report_data["notes"].append("Warning: Population projection data is missing or zero.")
 
             template = self.template_env.get_template(self.templates["main"])
-            rendered_report = template.render(context)
+            rendered_report = template.render(self.report_data)
 
             output_path = self.output_paths["main"]
             output_path.parent.mkdir(parents=True, exist_ok=True)
             with open(output_path, "w") as f:
                 f.write(rendered_report)
             
-            logger.info(f"Ten Year Growth Report generated successfully at {output_path}")
-            return True
+            logger.info(f"TenYearGrowthReport: Report generated successfully at {output_path}")
+            return True # Return True for success
 
         except Exception as e:
             logger.error(f"TenYearGrowthReport: Failed to generate report: {e}")
@@ -2142,4 +2150,4 @@ class TenYearGrowthReport:
                     f.write(f"# Report Generation Failed\n\nError: {e}\n\nTraceback:\n{traceback.format_exc()}")
             except Exception as e_write:
                 logger.error(f"Failed to write failure report: {e_write}")
-            return False
+            return False # Return False for failure

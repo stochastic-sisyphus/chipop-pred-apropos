@@ -2,6 +2,7 @@ from pathlib import Path
 import logging
 import pandas as pd
 from typing import Dict, Any, Optional # Added Optional, Dict, Any
+import traceback # Added import for traceback
 import jinja2 # Added jinja2 import
 from src.config import settings # Assuming settings has MERGED_DATA_PATH
 
@@ -36,7 +37,7 @@ class ChicagoZipSummaryReport:
             if processed_data_dict and 'merged_data' in processed_data_dict:
                 df = processed_data_dict['merged_data']
                 logger.info("Using merged_data from provided dictionary for ChicagoZipSummaryReport.")
-            elif settings.MERGED_DATA_PATH.exists():
+            elif hasattr(settings, 'MERGED_DATA_PATH') and settings.MERGED_DATA_PATH.exists():
                 df = pd.read_csv(settings.MERGED_DATA_PATH)
                 logger.info(f"Loaded merged_dataset.csv for ChicagoZipSummaryReport from {settings.MERGED_DATA_PATH}")
             else:
@@ -63,7 +64,7 @@ class ChicagoZipSummaryReport:
             # ... existing code to load and prepare data ...
             data_df = self.load_and_prepare_data(processed_data_dict)
             if data_df is None:
-                logger.error("Failed to load data for Chicago ZIP Summary report.")
+                logger.error("ChicagoZipSummaryReport: Failed to load data for Chicago ZIP Summary report.")
                 return None
 
             # Log available columns before rendering
@@ -82,19 +83,15 @@ class ChicagoZipSummaryReport:
             missing = []
             all_zero = []
             for col in REQUIRED_COLS:
-                # Check if column exists in the aggregated last year data
-                # This logic might need adjustment based on how context is truly built by analyze_zip_summary
-                if all(
-                    col not in record
-                    for record in context.get("summary", {}).get(
-                        "zip_summary_data", []
-                    )
-                ):
+                # analyze_zip_summary ensures all REQUIRED_COLS are present in each record, defaulting to 0.
+                # So, 'col not in record' for a REQUIRED_COL should not happen if analyze_zip_summary is correct.
+                # We primarily check if all values for a column across all zips are zero.
+                is_missing_in_all_records = not (context.get("summary", {}).get("zip_summary_data") and \
+                                                 any(col in record for record in context["summary"]["zip_summary_data"]))
+                if is_missing_in_all_records and context.get("summary", {}).get("zip_summary_data"): # Only if data exists but col is missing everywhere
                     missing.append(col)
-                    # Add a placeholder to context if needed by template, or handle in template
-                elif all(record.get(col, 0) == 0 for record in context.get("summary", {}).get("zip_summary_data", [])):
+                elif not is_missing_in_all_records and all(record.get(col, 0) == 0 for record in context.get("summary", {}).get("zip_summary_data", [])):
                     all_zero.append(col)
-
             if missing:
                 # Add warnings to the 'summary' part of the context if that's where the template expects them
                 context["summary"]["warnings"] = context["summary"].get("warnings", []) + [
@@ -114,15 +111,17 @@ class ChicagoZipSummaryReport:
             template = self.template_env.get_template("chicago_zip_summary.md") # Ensure this template exists
             rendered_report = template.render(context)
 
-            output_path = self.output_path
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(output_path, "w") as f:
+            self.output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.output_path, "w") as f:
                 f.write(rendered_report)
-            logger.info(f"Chicago ZIP Summary Report generated at {output_path}")
+            logger.info(f"Chicago ZIP Summary Report generated at {self.output_path}")
             return True
 
         except Exception as e:
             logger.error(f"Failed to generate chicago zip summary report: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            # Attempt to write a failure report
+            # self.output_path.write_text(f"# Report Generation Failed\n\nError: {e}\n\nTraceback:\n{traceback.format_exc()}")
             return False
 
     def analyze_zip_summary(self, data_df: pd.DataFrame) -> Dict[str, Any]:

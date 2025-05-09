@@ -3,7 +3,7 @@ Module for generating retail deficit analysis reports.
 """
 
 import pandas as pd
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import logging
 import jinja2
 from datetime import datetime
@@ -47,91 +47,44 @@ class RetailDeficitReport:
         # Define output path
         self.output_path = settings.REPORTS_DIR / "retail_deficit_analysis.md"
 
-    def load_and_prepare_data(self) -> Dict[str, pd.DataFrame]:
+    def load_and_prepare_data(self, processed_data_dict: Optional[Dict[str, pd.DataFrame]] = None) -> Optional[pd.DataFrame]:
         """Load and prepare data for the report."""
         try:
-            # Load processed data
-            census_data = pd.read_csv(settings.PROCESSED_DATA_DIR / "census_processed.csv")
-            permit_data = pd.read_csv(settings.PROCESSED_DATA_DIR / "permits_processed.csv")
-            retail_data = pd.read_csv(settings.PROCESSED_DATA_DIR / "retail_deficit.csv")
-            retail_deficit = pd.read_csv(settings.PROCESSED_DATA_DIR / "retail_deficit.csv")
+            retail_deficit_df = None
+            if processed_data_dict and 'retail_deficit' in processed_data_dict:
+                retail_deficit_df = processed_data_dict['retail_deficit']
+                if isinstance(retail_deficit_df, pd.DataFrame) and not retail_deficit_df.empty:
+                    logger.info("Using 'retail_deficit' from processed_data_dict for RetailDeficitReport.")
+                else:
+                    logger.warning("'retail_deficit' in processed_data_dict is not a valid DataFrame or is empty.")
+                    retail_deficit_df = None # Reset if invalid
 
-            # Ensure required columns exist
-            required_columns = {
-                "census": ["zip_code", "year", "total_population", "median_household_income"],
-                "permits": ["zip_code", "year", "total_permits", "total_construction_cost"],
-                "retail": ["zip_code", "retail_space", "vacancy_rate"],
-                "deficit": ["zip_code", "retail_gap", "retail_demand", "retail_supply"],
-            }
-
-            # Validate and standardize zip_code columns
-            for df_name, df in {
-                "census": census_data,
-                "permits": permit_data,
-                "retail": retail_data,
-                "deficit": retail_deficit,
-            }.items():
-                # Ensure zip_code exists
-                if "zip_code" not in df.columns:
-                    logger.error(f"zip_code column missing from {df_name} data")
+            if retail_deficit_df is None: # Fallback to loading from file
+                deficit_path = settings.PROCESSED_DATA_DIR / "retail_deficit.csv"
+                if deficit_path.exists():
+                    retail_deficit_df = pd.read_csv(deficit_path, dtype={'zip_code': str})
+                    logger.info(f"Loaded retail_deficit.csv from {deficit_path} for RetailDeficitReport.")
+                else:
+                    logger.error(f"retail_deficit.csv not found at {deficit_path} and not in processed_data_dict.")
                     return None
+            
+            if retail_deficit_df.empty:
+                logger.warning("Retail deficit data is empty.")
+                return None
 
-                # Standardize zip_code format and robustly clean
-                df["zip_code"] = df["zip_code"].astype(str).apply(clean_zip)
+            if "zip_code" not in retail_deficit_df.columns:
+                logger.error("Retail deficit data is missing 'zip_code' column.")
+                return None
+            retail_deficit_df["zip_code"] = retail_deficit_df["zip_code"].astype(str).apply(clean_zip)
 
-                # Validate other required columns
-                for col in required_columns[df_name]:
-                    if col not in df.columns and col != "zip_code":
-                        logger.warning(f"{col} missing from {df_name} data")
-                        if col in [
-                            "retail_space",
-                            "vacancy_rate",
-                            "retail_gap",
-                            "retail_demand",
-                            "retail_supply",
-                        ]:
-                            df[col] = 0
-                        elif col == "total_population":
-                            df[col] = (
-                                df["total_housing_units"] * 2.5
-                                if "total_housing_units" in df.columns
-                                else 0
-                            )
-                        elif col == "median_household_income":
-                            df[col] = 50000  # Default value
+            # Ensure required columns for analysis are present, fill with 0 or NaN if missing
+            # This step might be less critical if DataProcessor ensures these columns
+            for col in ["retail_gap", "retail_demand", "retail_supply", "total_population", "retail_space"]:
+                if col not in retail_deficit_df.columns:
+                    logger.warning(f"Column '{col}' missing in retail_deficit_df. Will be filled with NaN/0.")
+                    retail_deficit_df[col] = np.nan # Or 0, depending on downstream expectation
 
-            # Merge datasets
-            merged = pd.merge(census_data, permit_data, on=["zip_code", "year"], how="left")
-            merged = pd.merge(merged, retail_data, on=["zip_code", "year"], how="left")  # ✅ FIX
-            merged = pd.merge(merged, retail_deficit, on=["zip_code", "year"], how="left")  # ✅ FIX
-
-            # Fill missing values
-            merged = merged.fillna(
-                {
-                    "total_permits": 0,
-                    "total_construction_cost": 0,
-                    "retail_space": 0,
-                    "vacancy_rate": 0.1,
-                    "retail_gap": 0,
-                    "retail_demand": 0,
-                    "retail_supply": 0,
-                }
-            )
-
-            # Log data shapes
-            logger.info(f"Census data: {census_data.shape}")
-            logger.info(f"Permits data: {permit_data.shape}")
-            logger.info(f"Retail data: {retail_data.shape}")
-            logger.info(f"Retail deficit data: {retail_deficit.shape}")
-            logger.info(f"Merged data: {merged.shape}")
-
-            return {
-                "census": census_data,
-                "permits": permit_data,
-                "retail": retail_data,
-                "deficit": retail_deficit,
-                "merged": merged,
-            }
+            return retail_deficit_df
 
         except Exception as e:
             return self._extracted_from_analyze_retail_deficit_88(
@@ -140,8 +93,11 @@ class RetailDeficitReport:
 
     def analyze_retail_deficit(self, data: Dict[str, pd.DataFrame]) -> Dict[str, Any]:
         """Analyze retail deficit patterns."""
+        # This method now expects a single DataFrame (retail_deficit_df)
+        # The 'data' parameter from the original was a dict, now it should be the DataFrame itself.
+        merged_data = data # Assuming 'data' is the retail_deficit_df
         try:
-            merged_data = data["merged"]
+            # merged_data = data["merged"] # Old way
 
             # Use and display all new retail metrics
             required_cols = [
@@ -160,20 +116,26 @@ class RetailDeficitReport:
             # Only keep valid Chicago ZIPs
             merged_data = merged_data[merged_data["zip_code"].isin(settings.CHICAGO_ZIP_CODES)]
 
+            # Ensure necessary columns for calculation are numeric and handle NaNs
+            merged_data["retail_space"] = pd.to_numeric(merged_data["retail_space"], errors='coerce').fillna(0)
+            merged_data["total_population"] = pd.to_numeric(merged_data["total_population"], errors='coerce').fillna(0)
+            merged_data["retail_gap"] = pd.to_numeric(merged_data["retail_gap"], errors='coerce').fillna(0)
+
             # Calculate summary metrics
             metrics = {
                 "total_retail_space": float(merged_data["retail_space"].sum()),
                 "avg_space_per_capita": float(
-                    merged_data["retail_space"].sum() / merged_data["total_population"].sum()
+                    merged_data["retail_space"].sum() / merged_data["total_population"].sum() if merged_data["total_population"].sum() != 0 else 0
                 ),
                 "total_deficit": float(merged_data["retail_gap"].sum()),
                 "avg_deficit_per_capita": float(
-                    merged_data["retail_gap"].sum() / merged_data["total_population"].sum()
+                    merged_data["retail_gap"].sum() / merged_data["total_population"].sum() if merged_data["total_population"].sum() != 0 else 0
                 ),
             }
 
             # Calculate metrics by ZIP
             zip_metrics = []
+            # Ensure 'zip_code' is present before trying to access unique values
             for zip_code in merged_data["zip_code"].unique():
                 zip_data = merged_data[merged_data["zip_code"] == zip_code]
 
@@ -181,8 +143,8 @@ class RetailDeficitReport:
                 population = int(zip_data["total_population"].sum())
                 retail_space = float(zip_data["retail_space"].sum())
                 retail_gap = float(zip_data["retail_gap"].sum())
-                retail_demand = float(zip_data["retail_demand"].sum())
-                retail_supply = float(zip_data["retail_supply"].sum())
+                retail_demand = float(zip_data["retail_demand"].sum()) if "retail_demand" in zip_data.columns else 0
+                retail_supply = float(zip_data["retail_supply"].sum()) if "retail_supply" in zip_data.columns else 0
 
                 # Calculate per capita metrics
                 retail_per_capita = retail_space / population if population > 0 else 0
@@ -239,103 +201,119 @@ class RetailDeficitReport:
         merged_data = merged_data[merged_data["zip_code"].isin(settings.CHICAGO_ZIP_CODES)]
         return merged_data
 
+    def _load_template_content(self) -> str:
+        """Loads the report template content."""
+        template_path = settings.TEMPLATES_DIR / "reports/retail_deficit_analysis.md"
+        try:
+            with open(template_path, "r") as f:
+                return f.read()
+        except FileNotFoundError:
+            logger.error(f"RetailDeficitReport: Template file not found at {template_path}")
+            raise
+        except Exception as e:
+            logger.error(f"RetailDeficitReport: Error loading template {template_path}: {e}")
+            raise
+
+    def _prepare_report_context(self, analysis_results: Dict[str, Any]) -> Dict[str, Any]:
+        """Prepares the context dictionary for template rendering."""
+        opportunity_df_for_check = pd.DataFrame(analysis_results.get("zip_metrics", []))
+        logging.info(f"RetailDeficitReport: opportunity_df_for_check columns: {list(opportunity_df_for_check.columns)}")
+
+        missing = []
+        all_zero = []
+        for col in REQUIRED_COLS: # Class level REQUIRED_COLS
+            if not opportunity_df_for_check.empty and col not in opportunity_df_for_check.columns:
+                missing.append(col)
+                logging.warning(f"RetailDeficitReport: Missing column {col} in zip_metrics for context. Template might need to handle this.")
+            elif not opportunity_df_for_check.empty and col in opportunity_df_for_check.columns and \
+                     (pd.to_numeric(opportunity_df_for_check[col], errors='coerce').fillna(0) == 0).all():
+                all_zero.append(col)
+                logging.warning(f"RetailDeficitReport: All values in {col} (in zip_metrics) are zero or NaN.")
+
+        notes = []
+        if missing:
+            notes.append(f"Missing columns in zip_metrics: {', '.join(missing)}")
+        if all_zero:
+            notes.append(f"All zero/NaN columns in zip_metrics: {', '.join(all_zero)}")
+
+        return {
+            "generation_date": datetime.now().strftime("%Y-%m-%d"),
+            "summary_metrics": analysis_results.get("summary", {}),
+            "top_deficit_areas": analysis_results.get("zip_metrics", []),
+            "recommendations": [],  # Placeholder, as in original
+            "methodology_notes": "",  # Placeholder
+            "notes": notes,
+            "missing_or_defaulted": missing + all_zero,
+        }
+
+    def _render_and_save_report(self, template_content: str, context: Dict[str, Any]) -> str:
+        """Renders the report using the template and context, then saves it."""
+        try:
+            template = Template(template_content)
+            # Use .get(k, "N/A") for robustness during rendering
+            rendered_report = template.render(**{k: context.get(k, "N/A") for k in context})
+        except Exception as e:
+            logging.error(f"RetailDeficitReport: Template rendering failed: {e}")
+            logging.error(f"Traceback: {traceback.format_exc()}")
+            error_notes = context.get('notes', [])
+            rendered_report = f"Report generation failed. Error: {e}\nNotes: {error_notes}"
+            self._extracted_from__render_and_save_report_13(
+                rendered_report, 'Retail Deficit Report (failure state) saved at '
+            )
+            raise  # Re-raise to indicate failure to the caller
+
+        self._extracted_from__render_and_save_report_13(
+            rendered_report, 'Retail Deficit Report generated at '
+        )
+        return rendered_report
+
+    # TODO Rename this here and in `_render_and_save_report`
+    def _extracted_from__render_and_save_report_13(self, rendered_report, arg1):
+        # Still try to save the failure report
+        self.output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.output_path, "w") as f:
+            f.write(rendered_report)
+        logger.info(f"{arg1}{self.output_path}")
+
     def generate_report(
         self, processed_data_dict: Dict[str, pd.DataFrame]
     ):
         try:
-            census_data = processed_data_dict.get("census_data")
-            permit_data = processed_data_dict.get("permit_data")
-            economic_data = processed_data_dict.get("economic_data")
-            zoning_data = processed_data_dict.get("zoning_data")
-            retail_metrics = processed_data_dict.get("retail_metrics") # This might be the same as retail_deficit
-            retail_deficit = processed_data_dict.get("retail_deficit")
+            retail_deficit_df = self.load_and_prepare_data(processed_data_dict)
+            if retail_deficit_df is None or retail_deficit_df.empty:
+                logger.error("RetailDeficitReport: Failed to load or prepare retail_deficit data.")
+                return "Report generation failed: Missing or empty retail_deficit data."
 
-            if retail_deficit is None:
-                logger.error("RetailDeficitReport: retail_deficit data is missing from processed_data_dict.")
-                return "Report generation failed: Missing retail_deficit data."
-
-            _ = census_data, permit_data, economic_data, zoning_data, retail_deficit
+            # Perform analysis to get data for the template
+            analysis_results = self.analyze_retail_deficit(retail_deficit_df)
+            if not analysis_results: # analyze_retail_deficit returns None on failure
+                logger.error("RetailDeficitReport: Analysis of retail deficit data failed.")
+                return "Report generation failed: Analysis returned no results."
 
             # Log input shapes for traceability
             logging.debug(
-                f"generate_report inputs: "
-                f"census_data={getattr(census_data, 'shape', 'N/A')}, "
-                f"permit_data={getattr(permit_data, 'shape', 'N/A')}, "
-                f"economic_data={getattr(economic_data, 'shape', 'N/A')}, "
-                f"zoning_data={getattr(zoning_data, 'shape', 'N/A')}, "
-                f"retail_deficit={getattr(retail_deficit, 'shape', 'N/A')}"
+                f"RetailDeficitReport generate_report using retail_deficit_df with shape: {retail_deficit_df.shape}"
             )
 
-            # Ensure all outputs only include valid Chicago ZIPs and missing data is flagged, not zero
-            retail_deficit = retail_deficit[retail_deficit["zip_code"].isin(settings.CHICAGO_ZIP_CODES)]
-            for col in ["retail_gap", "retail_demand", "retail_supply"]:
-                if col in retail_deficit.columns and (retail_deficit[col] == 0).all():
-                    retail_deficit[col] = np.nan
-                    retail_deficit[f"{col}_status"] = "insufficient data"
-                elif col in retail_deficit.columns:
-                    retail_deficit[f"{col}_status"] = retail_deficit[col].apply(
-                        lambda x: "insufficient data" if pd.isna(x) or x == 0 else "ok"
-                    )
-
-            # Load report template
-            template_path = settings.TEMPLATES_DIR / "reports/retail_deficit_analysis.md"
-            with open(template_path, "r") as f:
-                template = Template(f.read())
-
-            # Prepare opportunity dataframe
-            opportunity_df = self._generate_opportunity_df(retail_deficit)
-
-            # Fill missing retail metrics with 0
-            for col in ["retail_space", "vacancy_rate"]:
-                if col not in opportunity_df.columns:
-                    opportunity_df[col] = 0
-
-            # Log available columns
-            logging.info(f"RetailDeficitReport: opportunity_df columns: {list(opportunity_df.columns)}")
-
-            # Check for missing/zeroed required columns
-            missing = []
-            all_zero = []
-            for col in REQUIRED_COLS:
-                if col not in opportunity_df.columns:
-                    missing.append(col)
-                    opportunity_df[col] = 0
-                    logging.warning(f"RetailDeficitReport: Missing column {col}, set to 0.")
-                elif (opportunity_df[col] == 0).all():
-                    all_zero.append(col)
-                    logging.warning(f"RetailDeficitReport: All values in {col} are zero.")
-
-            notes = []
-            if missing:
-                notes.append(f"Missing columns: {', '.join(missing)}")
-            if all_zero:
-                notes.append(f"All zero columns: {', '.join(all_zero)}")
-
-            # Prepare context
-            context = {
-                "generation_date": datetime.now().strftime("%Y-%m-%d"),
-                "opportunity_areas": {},
-                "high_deficit_areas": [],
-                "recommendations": [],
-                "methodology_notes": "",
-                "notes": notes,
-                "missing_or_defaulted": missing + all_zero,
-            }
-            if "opportunity_areas" not in context or context["opportunity_areas"] is None:
-                context["opportunity_areas"] = {}
-
-            # Render template
-            try:
-                rendered = template.render(**{k: context.get(k, "N/A") for k in context})
-            except Exception as e:
-                logging.error(f"RetailDeficitReport: Template rendering failed: {e}")
-                rendered = f"Report generation failed. Error: {e}\nNotes: {context.get('notes', [])}"
-
-            return rendered
-
+            template_content = self._load_template_content()
+            context = self._prepare_report_context(analysis_results)
+            return self._render_and_save_report(template_content, context)
+        except FileNotFoundError: # Caught from _load_template_content
+             return "Report generation failed: Template file not found."
+        except jinja2.exceptions.TemplateError as e: # Caught from _render_and_save_report
+            logger.error(f"RetailDeficitReport: Jinja2 template error during report generation: {e}")
+            return f"Report generation failed due to a template error: {e}"
         except Exception as e:
-            logging.error(f"RetailDeficitReport: Failed to generate report: {e}")
-            return f"Report generation failed. Error: {e}"
+            logger.error(f"RetailDeficitReport: An unexpected error occurred during generate_report: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            # Attempt to write a failure report if not already done by _render_and_save_report
+            try:
+                self.output_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(self.output_path, "w") as f:
+                    f.write(f"# Report Generation Failed\n\nError: {e}\n\nTraceback:\n{traceback.format_exc()}")
+            except Exception as e_write:
+                logger.error(f"Failed to write failure report: {e_write}")
+            return f"Report generation failed due to an unexpected error: {e}"
 
     def ensure_retail_columns(self, retail_data: pd.DataFrame) -> pd.DataFrame:
         """Ensure all required retail columns exist, adding with default 0 if missing. Log only once per column."""
@@ -358,20 +336,21 @@ class RetailDeficitReport:
         return retail_data
 
     def _generate_opportunity_df(self, retail_deficit_df: pd.DataFrame) -> pd.DataFrame:
-        logger.debug(f"_generate_opportunity_df: retail_deficit_df type={type(retail_deficit_df)}, shape={retail_deficit_df.shape if hasattr(retail_deficit_df, 'shape') else 'N/A'}")
+        # This method might be obsolete if analyze_retail_deficit prepares the data for the template.
+        # If still needed, ensure it selects columns that exist.
+        logger.debug(f"RetailDeficitReport._generate_opportunity_df input shape: {retail_deficit_df.shape if retail_deficit_df is not None else 'None'}")
         if retail_deficit_df is not None and not retail_deficit_df.empty:
-            return retail_deficit_df[
-                [
-                    "zip_code",
-                    "total_population",
-                    "median_household_income",
-                    "retail_space",
-                    "vacancy_rate",
-                ]
-            ].copy()
-        return pd.DataFrame()
-
-
+            cols_to_select = [
+                "zip_code", "total_population", "median_household_income",
+                "retail_space", "vacancy_rate"
+            ]
+            if existing_cols := [
+                col for col in cols_to_select if col in retail_deficit_df.columns
+            ]:
+                return retail_deficit_df[existing_cols].copy()
+            else:
+                return pd.DataFrame()
+        return pd.DataFrame(columns=["zip_code"]) # Return empty DataFrame with at least zip_code if input is None/empty
 def generate_retail_deficit_report(df, output_path):
     """
     Generate a retail deficit report, explicitly flagging ZIPs with missing retail metrics.

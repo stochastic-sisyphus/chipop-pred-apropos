@@ -346,9 +346,11 @@ class DataProcessor:
 
     def _align_keys(self, df: pd.DataFrame) -> pd.DataFrame:
         if 'zip_code' in df.columns:
-            df['zip_code'] = df['zip_code'].apply(clean_zip) # clean_zip returns 5-digit string or None
+            # Ensure it's string before applying clean_zip, handle potential float/int inputs
+            df['zip_code'] = df['zip_code'].astype(str).apply(clean_zip) 
         if 'year' in df.columns:
-            df['year'] = pd.to_numeric(df['year'], errors='coerce').astype('Int64')
+            # Coerce to numeric, then to Int64 to handle NaNs gracefully
+            df['year'] = pd.to_numeric(df['year'], errors='coerce').astype('Int64') 
         return df
 
     def _safe_merge(self, left: pd.DataFrame, right: pd.DataFrame, on: list, how: str, label: str) -> pd.DataFrame:
@@ -356,6 +358,11 @@ class DataProcessor:
             left = self._align_keys(left)
             right = self._align_keys(right)
             merged = left.merge(right, on=on, how=how, suffixes=("", f"_{label}"))
+            # Log dtypes of 'on' columns before merge for debugging
+            # for col_key in on:
+            #     logger.debug(f"Merge '{label}': Left '{col_key}' dtype: {left[col_key].dtype if col_key in left else 'N/A'}, Right '{col_key}' dtype: {right[col_key].dtype if col_key in right else 'N/A'}")
+            
+            # merged = left.merge(right, on=on, how=how, suffixes=("", f"_{label}"))
             # Deduplicate columns and resolve suffixes
             merged = self._deduplicate_and_resolve_columns(merged)
             logger.info(f"After merging {label}: columns={list(merged.columns)} shape={merged.shape}")
@@ -363,18 +370,21 @@ class DataProcessor:
             logger.info(f"year dtype: {merged['year'].dtype}, unique: {merged['year'].nunique()}")
             return merged
         except Exception as e:
-            logger.error(f"Merge failed for {label}: {e}")
-            # Attempt to coerce dtypes and retry
-            left = self._align_keys(left)
-            right = self._align_keys(right)
-            try:
-                merged = left.merge(right, on=on, how=how, suffixes=("", f"_{label}"))
-                merged = self._deduplicate_and_resolve_columns(merged)
-                logger.info(f"After retry merging {label}: columns={list(merged.columns)} shape={merged.shape}")
-                return merged
-            except Exception as e2:
-                logger.error(f"Retry merge failed for {label}: {e2}")
-                return left
+            logger.error(f"Merge failed for {label} on columns {on}: {e}")
+            logger.error(f"Left dtypes: {left[on].dtypes if all(c in left.columns for c in on) else 'Key missing in left'}")
+            logger.error(f"Right dtypes: {right[on].dtypes if all(c in right.columns for c in on) else 'Key missing in right'}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            # # Attempt to coerce dtypes and retry (removed retry to fail faster on problematic merges)
+            # left = self._align_keys(left) 
+            # right = self._align_keys(right)
+            # try:
+            #     merged = left.merge(right, on=on, how=how, suffixes=("", f"_{label}"))
+            #     merged = self._deduplicate_and_resolve_columns(merged)
+            #     logger.info(f"After retry merging {label}: columns={list(merged.columns)} shape={merged.shape}")
+            #     return merged
+            # except Exception as e2:
+            #     logger.error(f"Retry merge failed for {label}: {e2}")
+            return left # Return left to allow pipeline to continue, though data will be incomplete
 
     def _deduplicate_and_resolve_columns(self, df: pd.DataFrame) -> pd.DataFrame:
         # Remove duplicate columns and resolve _x/_y suffixes
@@ -716,13 +726,14 @@ class DataProcessor:
         try:
             retail_metrics_path = self.processed_data_dir / "retail_metrics.csv"
             if not retail_metrics_path.exists():
-                logger.warning("Retail metrics not found, generating from scratch")
-                retail_metrics = self.generate_retail_metrics()
-                if retail_metrics is None:
-                    logger.error("Failed to generate retail metrics")
+                logger.warning(f"{retail_metrics_path} not found. Retail deficit calculation might be based on incomplete data or fail if enrich_retail_metrics cannot produce it.")
+                # Attempt to create a base for enrichment if merged_data.csv exists
+                if settings.MERGED_DATA_PATH.exists():
+                    base_df = pd.read_csv(settings.MERGED_DATA_PATH, dtype={'zip_code': str})
+                    retail_metrics = self.enrich_retail_metrics(base_df.copy())
+                else:
+                    logger.error("Cannot generate retail_metrics as merged_data.csv is also missing.")
                     return None
-            else:
-                retail_metrics = pd.read_csv(retail_metrics_path)
 
             # Enrich retail metrics before saving
             retail_metrics = self.enrich_retail_metrics(retail_metrics)
@@ -733,12 +744,12 @@ class DataProcessor:
                     retail_metrics = retail_metrics.drop(columns=[col])
 
             # Save retail_metrics.csv
-            retail_metrics.to_csv(
-                settings.PROCESSED_DATA_DIR / "retail_metrics.csv", index=False
-            )
-            logger.info(
-                f"Saved retail metrics to {settings.PROCESSED_DATA_DIR / 'retail_metrics.csv'}"
-            )
+            # retail_metrics.to_csv(
+            #     settings.PROCESSED_DATA_DIR / "retail_metrics.csv", index=False
+            # )
+            # logger.info(
+            #     f"Saved retail metrics to {settings.PROCESSED_DATA_DIR / 'retail_metrics.csv'}"
+            # )
 
             # Calculate and save retail deficit metrics
             retail_deficit = retail_metrics.copy()
@@ -753,12 +764,12 @@ class DataProcessor:
                     retail_deficit = retail_deficit.drop(columns=[col])
 
             # Save retail_deficit.csv
-            retail_deficit.to_csv(
-                settings.PROCESSED_DATA_DIR / "retail_deficit.csv", index=False
-            )
-            logger.info(
-                f"Saved retail deficit metrics to {settings.PROCESSED_DATA_DIR / 'retail_deficit.csv'}"
-            )
+            # retail_deficit.to_csv(
+            #     settings.PROCESSED_DATA_DIR / "retail_deficit.csv", index=False
+            # )
+            # logger.info(
+            #     f"Saved retail deficit metrics to {settings.PROCESSED_DATA_DIR / 'retail_deficit.csv'}"
+            # )
 
             return retail_deficit  # Return the DataFrame now
 
@@ -1505,10 +1516,10 @@ class DataProcessor:
                 df[col] = df[col].fillna(0)
             elif (
                 col == "retail_gap"
-                and "retail_demand" in df.columns
-                and "retail_supply" in df.columns
+                and "retail_demand" in df.columns and pd.notna(df["retail_demand"]).any()
+                and "retail_supply" in df.columns and pd.notna(df["retail_supply"]).any()
             ):
-                df["retail_gap"] = df["retail_demand"] - df["retail_supply"]
+                df["retail_gap"] = df["retail_demand"].fillna(0) - df["retail_supply"].fillna(0)
             else:
                 df[col] = 0
                 logger.warning(
@@ -1804,7 +1815,10 @@ class DataProcessor:
         # but the core logic is handled by the more generic _perform_retail_feature_enrichment.
         logger.info("Enriching retail metrics...")
         # Make a copy to avoid modifying the original DataFrame passed to this public method
-        df_to_enrich = df.copy()
+        df_to_enrich = df.copy() if df is not None else pd.DataFrame()
+        if df_to_enrich.empty:
+            logger.warning("Input DataFrame for retail enrichment is empty. Result will be empty.")
+            return df_to_enrich
         df_enriched = self._perform_retail_feature_enrichment(df_to_enrich)
         
         # Log any warnings collected during the enrichment process
@@ -1864,10 +1878,12 @@ class DataProcessor:
         retail_metrics_cols = ["zip_code", "year", "retail_space", "retail_demand", "retail_gap", "retail_supply"]
         for col in ["retail_space", "retail_demand", "retail_gap", "retail_supply"]:
             if col in df.columns:
-                df[col] = df[col].replace(0, pd.NA)
-                # Ensure the column is numeric before fillna with mean to avoid downcasting issues
+                # Convert to numeric, coercing errors. This handles cases where a column might be object type.
                 df[col] = pd.to_numeric(df[col], errors='coerce')
-                df[col] = df.groupby("zip_code")[col].transform(lambda x: x.fillna(x.mean())) # Now fillna should be safer
+                # df[col] = df[col].replace(0, pd.NA) # Replacing 0 with NA might be too aggressive if 0 is a valid value.
+                # Ensure the column is numeric before fillna with mean to avoid downcasting issues
+                # Fill NaNs by group mean, then overall mean for groups that are all NaN
+                df[col] = df.groupby("zip_code")[col].transform(lambda x: x.fillna(x.mean())) 
                 df[col] = df[col].fillna(df[col].mean())
                 df[f"{col}_status"] = df[col].apply(lambda x: "insufficient data" if pd.isna(x) or x == 0 else "ok")
         if all(col in df.columns for col in retail_metrics_cols):
@@ -1877,11 +1893,14 @@ class DataProcessor:
 
     def _save_retail_deficit(self, df: pd.DataFrame) -> None:
         if "retail_gap" in df.columns:
-            df["zip_code"] = df["zip_code"].apply(clean_zip)
-            retail_deficit = df[["zip_code", "year", "retail_gap"]].copy()
+            retail_deficit_cols = ["zip_code", "year", "retail_gap", "retail_demand", "retail_supply", "retail_space"] # Add more context
+            retail_deficit_cols_present = [col for col in retail_deficit_cols if col in df.columns]
+            
+            retail_deficit = df[retail_deficit_cols_present].copy()
+            retail_deficit["zip_code"] = retail_deficit["zip_code"].apply(clean_zip)
             retail_deficit.to_csv(settings.PROCESSED_DATA_DIR / "retail_deficit.csv", index=False)
             logger.info(f"Saved retail deficit to {settings.PROCESSED_DATA_DIR / 'retail_deficit.csv'}")
-
+            
     def _save_population_shift_patterns(self, df: pd.DataFrame) -> None:
         if "total_population" in df.columns:
             pop_shift = df[["zip_code", "year", "total_population"]].copy()
@@ -1891,10 +1910,12 @@ class DataProcessor:
 
     def _save_zip_summary(self, df: pd.DataFrame) -> None:
         zip_summary_cols = ["zip_code", "total_population", "median_household_income", "total_housing_units", "retail_space", "retail_demand", "retail_gap", "retail_supply"]
-        zip_summary = df.groupby("zip_code").last().reset_index()[zip_summary_cols]
-        zip_summary["zip_code"] = zip_summary["zip_code"].apply(clean_zip)
-        zip_summary.to_csv(settings.PREDICTIONS_DIR / "zip_summary.csv", index=False)
-        logger.info(f"Saved zip summary to {settings.PREDICTIONS_DIR / 'zip_summary.csv'}")
+        cols_present = [col for col in zip_summary_cols if col in df.columns]
+        if 'zip_code' in cols_present and cols_present: # ensure zip_code and other cols are there
+            zip_summary = df.groupby("zip_code").last().reset_index()[cols_present]
+            zip_summary["zip_code"] = zip_summary["zip_code"].apply(clean_zip)
+            zip_summary.to_csv(settings.PREDICTIONS_DIR / "zip_summary.csv", index=False)
+            logger.info(f"Saved zip summary to {settings.PREDICTIONS_DIR / 'zip_summary.csv'}")
 
     def _save_ten_year_growth_areas(self, merged_df: pd.DataFrame) -> None:
         # Only proceed if required columns exist
