@@ -954,29 +954,36 @@ class DataCollector:
                 )
                 logging.info("Completed transformation step 1...")
                 # Robust ZIP extraction using ZipResolver, but do NOT geocode business names if ZIP present
+                # Also, ensure zip_code column exists even if not in Socrata output.
+                if "zip_code" not in df.columns:
+                    df["zip_code"] = None
+
                 def resolve_zip_business(row):
                     if pd.notna(row.get("zip_code")) and str(row.get("zip_code")).strip() != '':
-                        return row.get("zip_code")
+                        # Clean existing zip_code first
+                        return clean_zip(row.get("zip_code"))
                     # Only use crosswalk/uszipcode, never Nominatim for business names
                     return self.zip_resolver.lookup_crosswalk(row.get("doing_business_as_name", ""), row.get("legal_name", ""), "IL") or \
                            self.zip_resolver._lookup_uszipcode(row.get("doing_business_as_name", ""), row.get("legal_name", ""), "IL")
+                
                 df["zip_code"] = df.apply(resolve_zip_business, axis=1)
+                df["zip_code"] = df["zip_code"].apply(clean_zip) # Ensure all zips are cleaned
                 logging.info("Completed ZIP resolution for business licenses.")
-                # Validate ZIPs
-                df = df[df["zip_code"].isin(settings.CHICAGO_ZIP_CODES)]
+
                 # --- FIX: Filter for retail using license_description or business_activity ---
                 is_retail = (
                     df["license_description"].str.contains("retail", case=False, na=False) |
                     df["business_activity"].str.contains("retail", case=False, na=False)
                 )
-                retail_df = df[is_retail].copy()
-                retail_df["zip_code"] = retail_df["zip_code"].astype(str).str.zfill(5)
+                # Filter for retail AND valid Chicago ZIPs for the retail_business_count.csv
+                retail_df = df[is_retail & df["zip_code"].isin(settings.CHICAGO_ZIP_CODES)].copy()
+                # zip_code in retail_df is already cleaned
                 retail_count = retail_df.groupby("zip_code").size().reset_index(name="retail_business_count")
                 retail_count.to_csv(settings.PROCESSED_DATA_DIR / "retail_business_count.csv", index=False)
                 logging.info(f"Saved retail business count to {settings.PROCESSED_DATA_DIR / 'retail_business_count.csv'}")
-                # Save processed business licenses directly
-                df.to_csv(settings.PROCESSED_DATA_DIR / "business_licenses_processed.csv", index=False)
-                logging.info(f"Saved business licenses to {settings.PROCESSED_DATA_DIR / 'business_licenses_processed.csv'}")
+                # Save the full (but ZIP cleaned) business licenses to RAW path for DataProcessor
+                df.to_csv(settings.BUSINESS_LICENSES_PATH, index=False) # Save to RAW path
+                logging.info(f"Saved raw business licenses to {settings.BUSINESS_LICENSES_PATH}")
                 return df
             except Exception as e:
                 if attempt == 0:  # First attempt failed
@@ -1230,8 +1237,7 @@ class DataCollector:
         logger.debug(f"_merge_permits_and_licenses: permits_df type={type(permits_df)}, shape={permits_df.shape if hasattr(permits_df, 'shape') else 'N/A'}")
         logger.debug(f"_merge_permits_and_licenses: licenses_df type={type(licenses_df)}, shape={licenses_df.shape if hasattr(licenses_df, 'shape') else 'N/A'}")
         if permits_df is not None and not permits_df.empty and licenses_df is not None and not licenses_df.empty:
-            merged_df = permits_df.merge(licenses_df, on="zip_code", how="left")
-            return merged_df
+            return permits_df.merge(licenses_df, on="zip_code", how="left")
         return permits_df
 
 

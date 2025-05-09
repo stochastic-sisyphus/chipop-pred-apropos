@@ -38,6 +38,7 @@ from src.reporting.ten_year_growth_report import TenYearGrowthReport
 from src.reporting.retail_deficit_report import RetailDeficitReport
 from src.reporting.housing_retail_balance_report import HousingRetailBalanceReport
 from src.utils.helpers import ensure_output_structure, validate_outputs
+from src.pipeline.dynamic_runner import DynamicRunner
 
 # Set up logging
 logging.basicConfig(
@@ -391,6 +392,7 @@ def load_processed_data():
             "zoning_data": pd.read_csv(settings.PROCESSED_DATA_DIR / "zoning_processed.csv"),
             "retail_metrics": pd.read_csv(settings.PROCESSED_DATA_DIR / "retail_metrics.csv"),
             "retail_deficit": pd.read_csv(settings.PROCESSED_DATA_DIR / "retail_deficit.csv"),
+            "merged_data": pd.read_csv(settings.MERGED_DATA_PATH), # Add merged_dataset
         }
     except Exception as e:
         logger.error(f"Error loading processed data: {str(e)}")
@@ -602,11 +604,23 @@ def main():
             logger.error("Failed to process data")
             return False
 
-        # Generate reports
-        logger.info("Generating reports...")
-        if not generate_reports():
-            logger.error("Failed to generate reports")
+        # Load processed data for model/report execution
+        processed_data = load_processed_data() # Use the local load_processed_data function
+        if processed_data is None:
+            logger.error("Failed to load processed data for model/report execution")
             return False
+
+        # Initialize and use DynamicRunner
+        runner = DynamicRunner(base_dir=Path(__file__).parent / "src")
+        runner.load_all()
+
+        # Run all discovered models
+        logger.info("Running all models via DynamicRunner...")
+        runner.run_all_models(processed_data)
+
+        # Run all discovered reports
+        logger.info("Running all reports via DynamicRunner...")
+        runner.run_all_reports(processed_data)
 
         logger.info("Pipeline completed successfully")
         return True

@@ -561,11 +561,11 @@ def clean_zip(zip_val):
     if pd.isnull(zip_val):
         return None
     zip_str = str(zip_val).strip()
+    # Handle cases like "60601.0"
+    zip_str = zip_str.removesuffix(".0")
     # Remove trailing dashes or anything after a dash
     zip_str = zip_str.split('-')[0]
     # Remove all non-digit characters
     zip_str = re.sub(r'\D', '', zip_str)
-    if len(zip_str) == 5 and zip_str.isdigit():
-        return zip_str
-    logger.debug(f"Invalid or cleaned ZIP: original='{zip_val}', cleaned='{zip_str}'")
-    return None
+    # logger.debug(f"Invalid or cleaned ZIP: original='{zip_val}', cleaned_to_non_5_digit='{zip_str}'") # Avoid excessive logging
+    return zip_str if len(zip_str) == 5 and zip_str.isdigit() else None

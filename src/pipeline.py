@@ -5,6 +5,7 @@ import json
 
 from src.config import settings
 from src.data_processing.processor import DataProcessor
+from src.pipeline.dynamic_runner import DynamicRunner
 from src.reporting.ten_year_growth_report import TenYearGrowthReport
 from src.visualization.visualizer import Visualizer
 from src.features.engineering import add_housing_retail_lag, add_retail_leakage, add_void_analysis_flags

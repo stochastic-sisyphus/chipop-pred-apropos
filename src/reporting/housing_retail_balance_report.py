@@ -162,17 +162,27 @@ class HousingRetailBalanceReport:
             return None
 
     def generate_report(
-        self, census_data, permit_data, economic_data, zoning_data, retail_metrics, retail_deficit
+        self, processed_data_dict: Dict[str, pd.DataFrame]
     ):
         try:
+            census_data = processed_data_dict.get("census_data")
+            # permit_data = processed_data_dict.get("permit_data") # Not directly used by name in current logic
+            # economic_data = processed_data_dict.get("economic_data") # Not directly used
+            # zoning_data = processed_data_dict.get("zoning_data") # Not directly used
+            retail_metrics = processed_data_dict.get("retail_metrics")
+            # retail_deficit = processed_data_dict.get("retail_deficit") # Not directly used by name
+
+            if census_data is None or retail_metrics is None:
+                logger.error("HousingRetailBalanceReport: census_data or retail_metrics is missing from processed_data_dict.")
+                return "Report generation failed: Missing census_data or retail_metrics."
+
             # Check for required columns
             required_cols = ["total_housing_units", "retail_space", "retail_supply", "retail_demand"]
             for col in required_cols:
                 if col not in retail_metrics.columns:
                     logger.warning(f"Column '{col}' missing from retail_metrics. Skipping related analysis.")
-                else:
-                    if (retail_metrics[col] == 0).all():
-                        logger.warning(f"All values in {col} are zero. Downstream metrics may be misleading.")
+                elif (retail_metrics[col] == 0).all():
+                    logger.warning(f"All values in {col} are zero. Downstream metrics may be misleading.")
             retail_metrics = self._filter_valid_zips(retail_metrics)
             self._flag_insufficient_retail_data(retail_metrics)
             template = self._load_template()
@@ -214,8 +224,12 @@ class HousingRetailBalanceReport:
         logger.debug(f"_merge_data: housing_df type={type(housing_df)}, shape={housing_df.shape if hasattr(housing_df, 'shape') else 'N/A'}")
         logger.debug(f"_merge_data: retail_df type={type(retail_df)}, shape={retail_df.shape if hasattr(retail_df, 'shape') else 'N/A'}")
         if housing_df is not None and not housing_df.empty and retail_df is not None and not retail_df.empty:
-            merged = housing_df.merge(retail_df, on=["zip_code", "year"], suffixes=("", "_retail"), how="left")
-            return merged
+            return housing_df.merge(
+                retail_df,
+                on=["zip_code", "year"],
+                suffixes=("", "_retail"),
+                how="left",
+            )
         return housing_df
 
     def _log_columns(self, merged):

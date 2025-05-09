@@ -134,10 +134,9 @@ class RetailDeficitReport:
             }
 
         except Exception as e:
-            logger.error(f"Error loading data: {str(e)}")
-            logger.error(f"Error type: {type(e)}")
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            return None
+            return self._extracted_from_analyze_retail_deficit_88(
+                'Error loading data: ', e
+            )
 
     def analyze_retail_deficit(self, data: Dict[str, pd.DataFrame]) -> Dict[str, Any]:
         """Analyze retail deficit patterns."""
@@ -210,10 +209,16 @@ class RetailDeficitReport:
             return {"summary": metrics, "zip_metrics": zip_metrics[:5]}  # Top 5 deficit areas
 
         except Exception as e:
-            logger.error(f"Failed to analyze retail deficit: {str(e)}")
-            logger.error(f"Error type: {type(e)}")
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            return None
+            return self._extracted_from_analyze_retail_deficit_88(
+                'Failed to analyze retail deficit: ', e
+            )
+
+    # TODO Rename this here and in `load_and_prepare_data` and `analyze_retail_deficit`
+    def _extracted_from_analyze_retail_deficit_88(self, arg0, e):
+        logger.error(f"{arg0}{str(e)}")
+        logger.error(f"Error type: {type(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return None
 
     def ensure_merged_retail_columns(self, merged_data: pd.DataFrame, retail_deficit: pd.DataFrame) -> pd.DataFrame:
         """
@@ -235,10 +240,20 @@ class RetailDeficitReport:
         return merged_data
 
     def generate_report(
-        self, census_data, permit_data, economic_data, zoning_data, retail_metrics, retail_deficit
+        self, processed_data_dict: Dict[str, pd.DataFrame]
     ):
         try:
-            # Explicitly access all inputs to avoid "unused parameter" warnings
+            census_data = processed_data_dict.get("census_data")
+            permit_data = processed_data_dict.get("permit_data")
+            economic_data = processed_data_dict.get("economic_data")
+            zoning_data = processed_data_dict.get("zoning_data")
+            retail_metrics = processed_data_dict.get("retail_metrics") # This might be the same as retail_deficit
+            retail_deficit = processed_data_dict.get("retail_deficit")
+
+            if retail_deficit is None:
+                logger.error("RetailDeficitReport: retail_deficit data is missing from processed_data_dict.")
+                return "Report generation failed: Missing retail_deficit data."
+
             _ = census_data, permit_data, economic_data, zoning_data, retail_deficit
 
             # Log input shapes for traceability
@@ -345,8 +360,15 @@ class RetailDeficitReport:
     def _generate_opportunity_df(self, retail_deficit_df: pd.DataFrame) -> pd.DataFrame:
         logger.debug(f"_generate_opportunity_df: retail_deficit_df type={type(retail_deficit_df)}, shape={retail_deficit_df.shape if hasattr(retail_deficit_df, 'shape') else 'N/A'}")
         if retail_deficit_df is not None and not retail_deficit_df.empty:
-            opportunity_df = retail_deficit_df[["zip_code", "total_population", "median_household_income", "retail_space", "vacancy_rate"]].copy()
-            return opportunity_df
+            return retail_deficit_df[
+                [
+                    "zip_code",
+                    "total_population",
+                    "median_household_income",
+                    "retail_space",
+                    "vacancy_rate",
+                ]
+            ].copy()
         return pd.DataFrame()
 
 
@@ -365,8 +387,7 @@ def generate_retail_deficit_report(df, output_path):
     ]
     missing_report = {}
     for col in missing_cols:
-        missing_zips = df[df[col].isnull()]["zip_code"].tolist()
-        if missing_zips:
+        if missing_zips := df[df[col].isnull()]["zip_code"].tolist():
             logger.warning(f"Missing {col} for ZIPs: {missing_zips}")
             missing_report[col] = missing_zips
 
@@ -397,9 +418,8 @@ def generate_report(merged_df: pd.DataFrame, output_path: str):
     for col in required_cols:
         if col not in merged_df.columns:
             logger.warning(f"Column '{col}' missing from merged_df. Skipping related analysis.")
-        else:
-            if (merged_df[col] == 0).all():
-                logger.warning(f"All values in {col} are zero. Downstream metrics may be misleading.")
+        elif (merged_df[col] == 0).all():
+            logger.warning(f"All values in {col} are zero. Downstream metrics may be misleading.")
     insufficient_zips = []
     if all(col in merged_df.columns for col in required_cols):
         insufficient_zips = merged_df[
