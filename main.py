@@ -417,7 +417,7 @@ def generate_all_reports():
                     "generation_time": datetime.now().strftime("%H:%M:%S"),
                     # Add more context keys as needed, or pass data directly
                 }
-                if report.generate_report(context):
+                if report.generate_report_from_context_dict(context): # Updated method name
                     logger.info(f"Generated {name} report")
                 else:
                     logger.warning(f"Failed to generate {name} report")

@@ -68,10 +68,10 @@ class ChicagoZipSummaryReport:
 
             # Log available columns before rendering
             logging.info(f"ChicagoZipSummaryReport: data_df columns: {list(data_df.columns)}")
-            
+
             # Analyze data to build the content for the 'summary' key
             summary_content = self.analyze_zip_summary(data_df) # This returns a dict like {"zip_summary_data": ..., "notes": ...}
-            
+
             # Structure the context as expected by the template
             context = {
                 "summary": summary_content # Nest the analysis results under 'summary'
@@ -84,7 +84,12 @@ class ChicagoZipSummaryReport:
             for col in REQUIRED_COLS:
                 # Check if column exists in the aggregated last year data
                 # This logic might need adjustment based on how context is truly built by analyze_zip_summary
-                if not any(col in record for record in context.get("summary", {}).get("zip_summary_data", [])):
+                if all(
+                    col not in record
+                    for record in context.get("summary", {}).get(
+                        "zip_summary_data", []
+                    )
+                ):
                     missing.append(col)
                     # Add a placeholder to context if needed by template, or handle in template
                 elif all(record.get(col, 0) == 0 for record in context.get("summary", {}).get("zip_summary_data", [])):
@@ -101,10 +106,10 @@ class ChicagoZipSummaryReport:
                     f"All zero columns in aggregated data: {', '.join(all_zero)}"
                 ]
                 logging.warning(f"ChicagoZipSummaryReport: All zero columns in aggregated data: {all_zero}")
-            
+
             # Ensure missing_or_defaulted is also part of the summary if template expects it there
             context["summary"]["missing_or_defaulted"] = missing + all_zero
-            
+
             # Render template (assuming a template exists)
             template = self.template_env.get_template("chicago_zip_summary.md") # Ensure this template exists
             rendered_report = template.render(context)
@@ -136,47 +141,3 @@ class ChicagoZipSummaryReport:
             summary_list.append(summary_item)
         
         return {"zip_summary_data": summary_list}
-
-# The following block was outside the class, causing indentation and scope errors.
-# It seems like an attempt to call the generate_report method.
-# This should typically be done from your main script or a runner, not at the module level.
-# I'm commenting it out as its placement is incorrect.
-# If you intend to run this report directly for testing, you'd do something like:
-# if __name__ == "__main__":
-#     report_generator = ChicagoZipSummaryReport()
-#     report_generator.generate_report() # Potentially pass data if needed
-
-# try:
-#     # ... existing code to load and prepare data ...
-#     data = self.load_and_prepare_data() # 'self' is not defined here
-#     # Log available columns before rendering
-#     for k, v in data.items():
-#         if hasattr(v, "columns"):
-#             logging.info(f"ChicagoZipSummaryReport: {k} columns: {list(v.columns)}")
-#     context = self.analyze_zip_summary(data) # 'self' is not defined here
-#     logging.info(f"ChicagoZipSummaryReport: context keys: {list(context.keys())}")
-#     # Check for required keys/columns and add warnings if missing or all zero
-#     missing = []
-#     all_zero = []
-#     for col in REQUIRED_COLS:
-#         val = context.get(col)
-#         if val is None:
-#             missing.append(col)
-#             context[col] = 0
-#         elif isinstance(val, (int, float)) and val == 0:
-#             all_zero.append(col)
-#     if missing:
-#         context["warnings"] = context.get("warnings", []) + [
-#             f"Missing columns: {', '.join(missing)}"
-#         ]
-#         logging.warning(f"ChicagoZipSummaryReport: Missing columns: {missing}")
-#     if all_zero:
-#         context["warnings"] = context.get("warnings", []) + [
-#             f"All zero columns: {', '.join(all_zero)}"
-#         ]
-#         logging.warning(f"ChicagoZipSummaryReport: All zero columns: {all_zero}")
-#     context["missing_or_defaulted"] = missing + all_zero
-#     # ... existing code to render template ...
-# except Exception as e:
-#     logging.error(f"Failed to generate chicago zip summary report: {e}")
-#     return False # 'return' outside function

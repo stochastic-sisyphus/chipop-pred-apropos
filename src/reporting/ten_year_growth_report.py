@@ -1839,7 +1839,7 @@ class TenYearGrowthReport:
             else:
                 context.setdefault(key, default)
 
-    def generate_report(self, context: dict) -> str:
+    def generate_report_from_context_dict(self, context: dict) -> str:
         try:
             # Ensure all required context keys for template
             if "historical_trends" not in context:
