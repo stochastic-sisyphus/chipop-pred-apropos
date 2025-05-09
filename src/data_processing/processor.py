@@ -249,16 +249,36 @@ class DataProcessor:
 
     def _process_optional_sources(self) -> Dict[str, bool]:
         """Process optional data sources."""
-        results = {"property": False, "zoning": False}
+        results = {"property": False, "zoning": False, "multifamily_permits": False}
         if os.path.exists(settings.PROPERTY_DATA_PATH):
             results["property"] = self.process_property_data()
         else:
             logger.warning("Property data file not found - skipping")
 
         if os.path.exists(settings.ZONING_DATA_PATH):
-            results["zoning"] = self.process_zoning_data()
+            try:
+                zoning_df = pd.read_csv(settings.ZONING_DATA_PATH)
+                results["zoning"] = self.process_zoning_data(zoning_df)
+            except Exception as e:
+                logger.error(f"Failed to load or process raw zoning data: {e}")
+                results["zoning"] = False
         else:
             logger.warning("Zoning data file not found - skipping")
+
+        # Process multifamily permits
+        multifam_raw_path = settings.RAW_DATA_DIR / "multifamily_permits.csv"
+        if multifam_raw_path.exists():
+            try:
+                processed_mf_df = self.process_multifamily_permits()
+                results["multifamily_permits"] = not processed_mf_df.empty if processed_mf_df is not None else False
+                if not results["multifamily_permits"]:
+                     logger.warning("Multifamily permits processing resulted in an empty or None DataFrame.")
+            except Exception as e:
+                logger.error(f"Error processing multifamily permits: {e}")
+                results["multifamily_permits"] = False
+        else:
+            logger.warning(f"Raw multifamily permits file not found at {multifam_raw_path} - skipping.")
+
         return results
 
     def _merge_processed_files(
@@ -1801,6 +1821,20 @@ class DataProcessor:
         """
         merged_df = self._filter_valid_zips(merged_df)
         merged_df = self._flag_insufficient_data(merged_df)
+
+        # Ensure retail opportunity areas are processed if dependencies exist
+        mf_processed_path = self.processed_data_dir / "multifamily_permits_processed.csv"
+        permits_processed_path = self.processed_data_dir / "permits_processed.csv"
+        if mf_processed_path.exists() and permits_processed_path.exists():
+            try:
+                self.process_retail_opportunity_areas() # This saves retail_opportunity_areas.csv
+            except Exception as e:
+                logger.error(f"Failed to process retail opportunity areas: {e}")
+        else:
+            logger.warning(
+                "Skipping retail opportunity areas processing due to missing dependencies (multifamily_permits_processed.csv or permits_processed.csv)."
+            )
+
         self._save_retail_metrics(merged_df)
         self._save_retail_deficit(merged_df)
         self._save_population_shift_patterns(merged_df)
