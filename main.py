@@ -375,6 +375,79 @@ def run_pipeline():
             logger.error("Failed to validate outputs")
             return False
 
+        # After merged_df is created and enriched
+        merged_df = pd.read_csv(settings.MERGED_DATA_PATH, dtype={'zip_code': str})
+        # --- Retail-Housing Opportunity Output ---
+        try:
+            opportunity_df = processor.identify_retail_housing_opportunity(merged_df)
+            out_path = Path(settings.PREDICTIONS_DIR) / "retail_housing_opportunity.csv"
+            opportunity_df.to_csv(out_path, index=False)
+            logger.info(f"Saved retail_housing_opportunity.csv to {out_path} ({len(opportunity_df)} rows)")
+        except Exception as e:
+            logger.error(f"Failed to generate retail_housing_opportunity.csv: {e}")
+        # --- Top Emerging Multifamily ZIPs ---
+        try:
+            # Load multifamily permits processed
+            mf_path = Path(settings.PROCESSED_DATA_DIR) / "multifamily_permits_processed.csv"
+            if mf_path.exists():
+                mf = pd.read_csv(mf_path, dtype={'zip_code': str})
+                mf["zip_code"] = mf["zip_code"].apply(lambda z: str(z).zfill(5))
+                min_year, max_year = mf["year"].min(), mf["year"].max()
+                mid_year = min_year + (max_year - min_year) // 2
+                hist = (
+                    mf[mf["year"] <= mid_year]
+                    .groupby("zip_code")["unit_count"]
+                    .sum()
+                    .reset_index(name="hist_units")
+                )
+                recent = (
+                    mf[mf["year"] > mid_year]
+                    .groupby("zip_code")["unit_count"]
+                    .sum()
+                    .reset_index(name="recent_units")
+                )
+                growth = pd.merge(hist, recent, on="zip_code", how="outer").fillna(0)
+                growth["growth_pct"] = growth.apply(lambda r: (r["recent_units"] - r["hist_units"]) / r["hist_units"] if r["hist_units"] > 0 else (1.0 if r["recent_units"] > 0 else 0), axis=1)
+                # Exclude downtown/Loop ZIPs and oversupplied
+                downtown_zips = ["60601", "60602", "60603", "60604", "60605", "60606", "60607", "60610", "60611"]
+                growth = growth[~growth["zip_code"].isin(downtown_zips)]
+                # Exclude oversupplied: top 20% by recent_units
+                oversupply_thresh = growth["recent_units"].quantile(0.8)
+                growth = growth[growth["recent_units"] < oversupply_thresh]
+                # Top 5 by growth_pct
+                top5 = growth.sort_values("growth_pct", ascending=False).head(5)
+                out_path = Path(settings.PREDICTIONS_DIR) / "top_emerging_multifamily_areas.csv"
+                top5.to_csv(out_path, index=False)
+                logger.info(f"Saved top_emerging_multifamily_areas.csv to {out_path} ({len(top5)} rows)")
+            else:
+                logger.warning(f"multifamily_permits_processed.csv not found at {mf_path}")
+        except Exception as e:
+            logger.error(f"Failed to generate top_emerging_multifamily_areas.csv: {e}")
+        # --- Retail Lagging Areas Output ---
+        try:
+            # Use the same logic as identify_retail_housing_opportunity, but output all qualifying ZIPs
+            lagging_df = processor.identify_retail_housing_opportunity(merged_df)
+            out_path = Path(settings.PREDICTIONS_DIR) / "retail_lagging_areas.csv"
+            lagging_df.to_csv(out_path, index=False)
+            logger.info(f"Saved retail_lagging_areas.csv to {out_path} ({len(lagging_df)} rows)")
+        except Exception as e:
+            logger.error(f"Failed to generate retail_lagging_areas.csv: {e}")
+        # --- Final Output Summary Log ---
+        try:
+            summary_files = [
+                ("retail_housing_opportunity.csv", Path(settings.PREDICTIONS_DIR) / "retail_housing_opportunity.csv"),
+                ("top_emerging_multifamily_areas.csv", Path(settings.PREDICTIONS_DIR) / "top_emerging_multifamily_areas.csv"),
+                ("retail_lagging_areas.csv", Path(settings.PREDICTIONS_DIR) / "retail_lagging_areas.csv"),
+            ]
+            for fname, fpath in summary_files:
+                if fpath.exists():
+                    df = pd.read_csv(fpath)
+                    logger.info(f"Output: {fname} ({len(df)} rows) at {fpath}")
+                else:
+                    logger.warning(f"Output: {fname} not found at {fpath}")
+        except Exception as e:
+            logger.error(f"Error in output summary log: {e}")
+
         logger.info("Pipeline completed successfully")
         return True
 

@@ -71,7 +71,6 @@ class RetailModel:
             "retail_space",
             "retail_demand",
             "retail_supply",
-            "retail_gap",
             # "retail_sales", # Not consistently available in merged_dataset.csv logs
             # "retail_employees", # Not consistently available in merged_dataset.csv logs
             # "retail_establishments", # Not consistently available in merged_dataset.csv logs
@@ -98,7 +97,8 @@ class RetailModel:
 
         # Add available retail features
         retail_count = 0
-        for feature in retail_features:
+        # Ensure retail_gap is considered here if it's a primary retail feature
+        for feature in retail_features + ["retail_gap"]: # Add retail_gap here if it's core
             if feature in df.columns and not df[feature].isna().all():
                 features.append(feature)
                 retail_count += 1
@@ -109,7 +109,8 @@ class RetailModel:
 
         # Add optional features if available
         for feature in optional_features:
-            if feature in df.columns and not df[feature].isna().all():
+            # Ensure not to add 'retail_gap' again if it was part of core retail_features
+            if feature in df.columns and not df[feature].isna().all() and feature not in features:
                 features.append(feature)
                 logger.debug(f"Added optional feature: {feature}")
 

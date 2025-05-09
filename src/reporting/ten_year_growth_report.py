@@ -1832,12 +1832,16 @@ class TenYearGrowthReport:
         """
         Recursively ensure all keys in required_structure exist in context, filling with defaults.
         """
-        for key, default in required_structure.items():
-            if isinstance(default, dict):
+        for key, default_value_or_structure in required_structure.items(): # Renamed for clarity
+            if isinstance(default_value_or_structure, dict):
+                # Ensure the key exists and is a dictionary
                 context.setdefault(key, {})
-                self._ensure_template_keys(context[key], default)
+                # If what's in context is not a dict (e.g. "N/A" from a previous failed render), reset it
+                if not isinstance(context[key], dict):
+                    context[key] = {}
+                self._ensure_template_keys(context[key], default_value_or_structure)
             else:
-                context.setdefault(key, default)
+                context.setdefault(key, default_value_or_structure)
 
     def generate_report_from_context_dict(self, context: dict) -> str:
         try:
@@ -2112,6 +2116,15 @@ class TenYearGrowthReport:
                 "current_analysis": {"population": {}, "market": {}, "development": {}, "economic": {}, "retail": {}},
                 "historical_trends": {"population": {}},
                 "projections": {"population": {}, "market": {}, "development": {}, "economic": {}, "retail": {}},
+                "growth_areas": { # Add this structure
+                    "primary_centers": [], 
+                    "emerging_markets": [], 
+                    "stabilization_zones": []
+                },
+                "recommendations": { # Add default structure for recommendations
+                    "strategic": [],
+                    "implementation": []
+                },
                 "impacts": {"housing": {}, "retail": {}, "economic": {}, "community": {}},
                 "emerging_multifamily_areas": [],
                 "retail_opportunities": [],

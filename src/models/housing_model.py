@@ -423,8 +423,12 @@ class HousingModel:
             for col in large_value_cols:
                 resolved_col = resolve_column_name(X, col, column_aliases)
                 if resolved_col in X.columns:
-                    X[resolved_col] = np.log1p(X[resolved_col])
+                    # Ensure column is numeric and handle negatives before log transform
+                    X[resolved_col] = pd.to_numeric(X[resolved_col], errors='coerce')
+                    X[resolved_col] = X[resolved_col].fillna(0) # Or median, depending on strategy
+                    X[resolved_col] = np.log1p(np.maximum(0, X[resolved_col]))
             # Ensure no NaNs/Infs before scaling from log transform
+            # This replace should ideally happen after all transformations that might introduce Inf
             X.replace([np.inf, -np.inf], np.nan, inplace=True)
             if X.isnull().any().any():
                 logger.warning(

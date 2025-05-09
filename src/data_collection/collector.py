@@ -304,6 +304,14 @@ class ZipResolver:
                     df.at[idx, zip_col] = zip_code
         self.save_cache()
         return df
+    
+    def close(self):
+        # Let SearchEngine's __del__ handle closing its own session.
+        # The primary role of ZipResolver.close() is to save its cache.
+        # The uszipcode.SearchEngine instance (self.search) will be garbage collected,
+        # and its __del__ method will attempt to close the session.
+        self.save_cache()
+        logging.info("ZipResolver.close() called, cache saved.")
 
 
 class DataCollector:
@@ -325,8 +333,8 @@ class DataCollector:
 
     def __del__(self):
         # Save cache on exit
-        if hasattr(self, "zip_resolver"):
-            self.zip_resolver.save_cache()
+        if hasattr(self, "zip_resolver") and self.zip_resolver:
+            self.zip_resolver.close()
 
     def map_permit_type(self, permit_type: str) -> str:
         """
@@ -633,6 +641,10 @@ class DataCollector:
             if df is None or df.empty:  # Explicit check for None or empty DataFrame (prevents ambiguous truth value errors)
                 logger.warning("Permit data is empty; skipping permit-dependent processing.")
                 return None
+            # Ensure 'work_description' column exists for downstream logic
+            if 'work_description' not in df.columns:
+                logger.warning("'work_description' column missing from permit data. Adding empty string column.")
+                df['work_description'] = ""
             # Dynamically create 'address' column
             df['address'] = (
                 df['street_number'].astype(str).str.strip() + ' '
