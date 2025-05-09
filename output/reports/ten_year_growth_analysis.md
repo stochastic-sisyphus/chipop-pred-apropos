@@ -4,9 +4,9 @@ Error: 'growth_areas' is undefined
 
 Traceback:
 Traceback (most recent call last):
-  File "/Users/vanessa/Library/CloudStorage/Dropbox/allCode/achipos/src/reporting/ten_year_growth_report.py", line 2125, in generate_report
-    rendered_report = template.render(context)
-                      ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/vanessa/Library/CloudStorage/Dropbox/allCode/achipos/src/reporting/ten_year_growth_report.py", line 2133, in generate_report
+    rendered_report = template.render(self.report_data)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   File "/Users/vanessa/Library/CloudStorage/Dropbox/allCode/achipos/.venv/lib/python3.11/site-packages/jinja2/environment.py", line 1295, in render
     self.environment.handle_exception()
   File "/Users/vanessa/Library/CloudStorage/Dropbox/allCode/achipos/.venv/lib/python3.11/site-packages/jinja2/environment.py", line 942, in handle_exception

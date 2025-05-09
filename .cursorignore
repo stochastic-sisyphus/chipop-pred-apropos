@@ -1,0 +1,85 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+.Python
+*.pyc
+
+# Virtual Environments
+venv/
+ENV/
+env/
+.venv/
+
+# IDE and Editor Files
+.idea/
+.vscode/*
+!.vscode/settings.json
+*.swp
+*.swo
+.DS_Store
+
+# Build and Distribution
+build/
+dist/
+wheels/
+
+# Project-specific directories
+logs/*
+!logs/.gitkeep
+
+# Data directories
+data/interim/*
+!data/interim/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+data/raw/*
+!data/raw/.gitkeep
+
+# Output directories
+output/analysis_results/*
+output/model_metrics/*
+output/models/*
+!output/models/.gitkeep
+output/predictions/*
+output/reports/*
+!output/reports/.gitkeep
+!output/reports/figures/.gitkeep
+!output/reports/tables/.gitkeep
+output/run_archives/*
+!output/run_archives/.gitkeep
+output/visualizations/*
+!output/visualizations/.gitkeep
+output/trained_models/*
+
+# Temporary and Cache Files
+*.tmp
+*.cache
+.ruff_cache/*
+!.ruff_cache/.gitignore
+local_zip_cache.json
+
+# Jupyter
+.ipynb_checkpoints
+*.ipynb
+!eda.ipynb
+
+# Generated files
+permits_missing_zip.csv
+**/debug_*.csv
+*.log
+
+# Date-stamped directories
+output/models/20[0-9][0-9]-*
+output/reports/20[0-9][0-9]-*
+
+# Keep template files
+!src/templates/**/*
+
+# Hidden files
+.*
+!.gitignore
+!.env.example
+!.cursor/rules/*.mdc

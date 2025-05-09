@@ -19,6 +19,9 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+.cursor/
+.cursorrules
+.ruff_cache/
 
 # Virtual Environment
 venv/
@@ -39,12 +42,12 @@ env/
 # Logs
 logs/*
 *.log
-!logs/.gitkeep
 logs/
 
 # IDE
 .idea/
 .vscode/
+.cursor/
 *.swp
 *.swo
 
@@ -87,13 +90,6 @@ site/
 
 
 # Dot files
-.*
-!.git*
-!.env.example
-!.config.example
-!.cursor
-!.vscode
-!.ruff_cache
-!.gitkeep
+.*@
 
 
