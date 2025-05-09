@@ -10,6 +10,7 @@ import requests
 import time
 from functools import lru_cache
 import os
+import re
 
 import pandas as pd
 import numpy as np
@@ -549,3 +550,22 @@ def geocode_address_zip(address: str, city: str = '', state: str = 'IL', sleep: 
     except Exception as e:
         logging.warning(f"Nominatim geocode failed for: {address}, {city}, {state}: {e}")
     return None
+
+
+def clean_zip(zip_val):
+    """
+    Clean and validate a ZIP code string. Returns a valid 5-digit ZIP or None.
+    Handles trailing dashes, non-digit characters, and malformed values.
+    Adds debug logging for invalid/cleaned ZIPs.
+    """
+    if pd.isnull(zip_val):
+        return None
+    zip_str = str(zip_val).strip()
+    # Handle cases like "60601.0"
+    zip_str = zip_str.removesuffix(".0")
+    # Remove trailing dashes or anything after a dash
+    zip_str = zip_str.split('-')[0]
+    # Remove all non-digit characters
+    zip_str = re.sub(r'\D', '', zip_str)
+    # logger.debug(f"Invalid or cleaned ZIP: original='{zip_val}', cleaned_to_non_5_digit='{zip_str}'") # Avoid excessive logging
+    return zip_str if len(zip_str) == 5 and zip_str.isdigit() else None

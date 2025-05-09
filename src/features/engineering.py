@@ -65,17 +65,19 @@ class FeatureEngineering:
         try:
             density_df = df.copy()
 
-            # Calculate population density
-            if all(col in df.columns for col in ["total_population", "land_area"]):
-                density_df["population_density"] = df["total_population"] / df["land_area"]
-
-            # Calculate housing density
-            if all(col in df.columns for col in ["total_housing_units", "land_area"]):
-                density_df["housing_density"] = df["total_housing_units"] / df["land_area"]
-
-            # Calculate business density
-            if all(col in df.columns for col in ["total_businesses", "land_area"]):
-                density_df["business_density"] = df["total_businesses"] / df["land_area"]
+            # Check DataFrame validity and calculate density features
+            if df is not None and not df.empty:
+                # Population density
+                if all(col in df.columns for col in ["total_population", "land_area"]):
+                    density_df["population_density"] = df["total_population"] / df["land_area"]
+                
+                # Housing density
+                if all(col in df.columns for col in ["total_housing_units", "land_area"]):
+                    density_df["housing_density"] = df["total_housing_units"] / df["land_area"]
+                
+                # Business density
+                if all(col in df.columns for col in ["total_businesses", "land_area"]):
+                    density_df["business_density"] = df["total_businesses"] / df["land_area"]
 
             logger.info("Successfully created density features")
             return density_df
@@ -113,24 +115,26 @@ class FeatureEngineering:
             # Only keep valid Chicago ZIPs
             retail_df = retail_df[retail_df["zip_code"].isin(settings.CHICAGO_ZIP_CODES)]
 
-            # Calculate retail space per capita
-            if all(col in retail_df.columns for col in ["retail_space", "total_population"]):
-                retail_df["retail_space_per_capita"] = retail_df["retail_space"] / retail_df["total_population"]
+            # Calculate retail features if DataFrame is valid
+            if df is not None and not df.empty:
+                # Calculate retail space per capita
+                if all(col in retail_df.columns for col in ["retail_space", "total_population"]):
+                    retail_df["retail_space_per_capita"] = retail_df["retail_space"] / retail_df["total_population"]
 
-            # Calculate retail spending potential
-            if "median_household_income" in retail_df.columns:
-                retail_df["retail_spending_potential"] = (
-                    retail_df["median_household_income"] * 0.3
-                )  # Assumed 30% of income
+                # Calculate retail spending potential
+                if "median_household_income" in retail_df.columns:
+                    retail_df["retail_spending_potential"] = (
+                        retail_df["median_household_income"] * 0.3
+                    )  # Assumed 30% of income
 
-            # Calculate retail gap
-            if all(
-                col in retail_df.columns
-                for col in ["retail_space_per_capita", "retail_spending_potential"]
-            ):
-                retail_df["retail_gap"] = retail_df["retail_spending_potential"] - (
-                    retail_df["retail_space_per_capita"] * settings.RETAIL_SALES_PER_SF
-                )
+                # Calculate retail gap
+                if all(
+                    col in retail_df.columns
+                    for col in ["retail_space_per_capita", "retail_spending_potential"]
+                ):
+                    retail_df["retail_gap"] = retail_df["retail_spending_potential"] - (
+                        retail_df["retail_space_per_capita"] * settings.RETAIL_SALES_PER_SF
+                    )
 
             logger.info("Successfully created retail features")
             return retail_df
@@ -153,18 +157,18 @@ class FeatureEngineering:
             dev_df = df.copy()
 
             # Calculate development intensity
-            if "estimated_cost" in df.columns:
+            if df is not None and not df.empty and "estimated_cost" in df.columns:
                 dev_df["development_intensity"] = df["estimated_cost"] / df.groupby("year")[
                     "estimated_cost"
                 ].transform("mean")
 
             # Calculate residential development share
-            if all(col in df.columns for col in ["is_residential", "is_commercial"]):
+            if df is not None and not df.empty and all(col in df.columns for col in ["is_residential", "is_commercial"]):
                 total_development = df["is_residential"] + df["is_commercial"]
                 dev_df["residential_share"] = df["is_residential"] / total_development
 
             # Calculate development potential
-            if all(col in df.columns for col in ["is_planned_development", "land_area"]):
+            if df is not None and not df.empty and all(col in df.columns for col in ["is_planned_development", "land_area"]):
                 dev_df["development_potential"] = df["is_planned_development"] * df["land_area"]
 
             logger.info("Successfully created development features")
@@ -204,9 +208,9 @@ class FeatureEngineering:
                     )
 
             # Calculate economic health score
-            if all(
-                col in econ_df.columns for col in ["median_household_income", "unemployment_impact"]
-            ):
+            if df is not None and not df.empty and all(
+                                col in econ_df.columns for col in ["median_household_income", "unemployment_impact"]
+                            ):
                 econ_df["economic_health_score"] = econ_df["median_household_income"] * (
                     1 - econ_df["unemployment_impact"] / 100
                 )
@@ -232,17 +236,16 @@ class FeatureEngineering:
             temp_df = df.copy()
 
             # Calculate moving averages
-            if "total_population" in df.columns:
+            if df is not None and not df.empty and "total_population" in df.columns:
                 temp_df["population_ma_3y"] = df["total_population"].rolling(window=3).mean()
                 temp_df["population_ma_5y"] = df["total_population"].rolling(window=5).mean()
 
             # Calculate momentum indicators
             value_cols = ["total_population", "median_household_income", "total_housing_units"]
             for col in value_cols:
-                if col in df.columns:
-                    # 3-year momentum
+                if df is not None and not df.empty and col in df.columns:
                     temp_df[f"{col}_momentum_3y"] = (df[col] - df[col].shift(3)) / df[col].shift(3)
-
+                
                     # 5-year momentum
                     temp_df[f"{col}_momentum_5y"] = (df[col] - df[col].shift(5)) / df[col].shift(5)
 
@@ -276,14 +279,13 @@ class FeatureEngineering:
 
             # Calculate neighborhood effects
             for col in ["median_household_income", "total_population", "housing_density"]:
-                if col in df.columns:
-                    # Get adjacency matrix
+                if df is not None and not df.empty and col in df.columns:
                     adjacency = gdf.topology.adjacency_matrix()
-
+                
                     # Calculate neighborhood averages
                     neighborhood_avg = adjacency.dot(df[col]) / adjacency.sum(axis=1)
                     spatial_df[f"{col}_neighborhood_avg"] = neighborhood_avg
-
+                
                     # Calculate relative position
                     spatial_df[f"{col}_relative_to_neighbors"] = df[col] / neighborhood_avg
 
@@ -314,8 +316,7 @@ class FeatureEngineering:
                 "development_potential",
                 "economic_health_score",
             ]
-            if all(col in df.columns for col in growth_features):
-                # Normalize features
+            if df is not None and not df.empty and all(col in df.columns for col in growth_features):
                 normalized_growth = self.scaler.fit_transform(df[growth_features])
                 # Calculate weighted sum
                 score_df["growth_potential_score"] = np.average(
@@ -329,7 +330,7 @@ class FeatureEngineering:
                 "business_density",
                 "population_density",
             ]
-            if all(col in df.columns for col in retail_features):
+            if df is not None and not df.empty and all(col in df.columns for col in retail_features):
                 normalized_retail = self.scaler.fit_transform(df[retail_features])
                 score_df["retail_opportunity_score"] = np.average(
                     normalized_retail, weights=settings.RETAIL_OPPORTUNITY_WEIGHTS, axis=1
@@ -342,7 +343,7 @@ class FeatureEngineering:
                 "housing_density",
                 "price_to_national_ratio",
             ]
-            if all(col in df.columns for col in housing_features):
+            if df is not None and not df.empty and all(col in df.columns for col in housing_features):
                 normalized_housing = self.scaler.fit_transform(df[housing_features])
                 score_df["housing_demand_score"] = np.average(
                     normalized_housing, weights=settings.HOUSING_DEMAND_WEIGHTS, axis=1
@@ -441,3 +442,64 @@ class FeatureEngineering:
         except Exception as e:
             logger.error(f"Error in engineer_all_features: {str(e)}")
             raise
+
+    def add_housing_retail_lag(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Add a column for housing-retail lag: difference between housing unit growth and retail permit growth.
+        """
+        if (df is not None and not df.empty and 
+            "total_housing_units" in df.columns and "retail_permits" in df.columns):
+            df["housing_retail_lag"] = df["total_housing_units"] - df["retail_permits"]
+        return df
+
+    def add_retail_leakage(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Add a column for retail leakage: difference between retail demand and supply.
+        """
+        if (df is not None and not df.empty and 
+            "retail_demand" in df.columns and "retail_supply" in df.columns):
+            df["retail_leakage"] = df["retail_demand"] - df["retail_supply"]
+        return df
+
+    def add_void_analysis_flags(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Add flags for void analysis: flag ZIPs with high housing growth and low retail provision.
+        """
+        if (df is not None and not df.empty and 
+            "total_housing_units" in df.columns and "retail_space" in df.columns):
+            housing_q = df["total_housing_units"].quantile(0.8)
+            retail_q = df["retail_space"].quantile(0.2)
+            df["void_flag"] = ((df["total_housing_units"] >= housing_q) & 
+                             (df["retail_space"] <= retail_q)).fillna(0).astype(int)
+        return df
+
+    @staticmethod
+    def add_density_features(df: pd.DataFrame) -> pd.DataFrame:
+        logger.debug(f"add_density_features: df type={type(df)}, shape={df.shape if hasattr(df, 'shape') else 'N/A'}")
+        if df is not None and not df.empty:
+            if all(col in df.columns for col in ["total_population", "land_area"]):
+                df["population_density"] = df["total_population"] / df["land_area"]
+            if all(col in df.columns for col in ["total_housing_units", "land_area"]):
+                df["housing_density"] = df["total_housing_units"] / df["land_area"]
+            if all(col in df.columns for col in ["total_businesses", "land_area"]):
+                df["business_density"] = df["total_businesses"] / df["land_area"]
+        return df
+
+    @staticmethod
+    def add_retail_metrics(retail_df: pd.DataFrame) -> pd.DataFrame:
+        logger.debug(f"add_retail_metrics: retail_df type={type(retail_df)}, shape={retail_df.shape if hasattr(retail_df, 'shape') else 'N/A'}")
+        if retail_df is not None and not retail_df.empty:
+            for col in ["retail_space", "retail_demand", "retail_gap", "retail_supply"]:
+                if col not in retail_df.columns:
+                    retail_df[col] = float('nan')
+                if retail_df[col].isnull().all():
+                    logger.warning(f"All values in {col} are null or missing. Downstream metrics may be misleading.")
+            if all(col in retail_df.columns for col in ["retail_space", "total_population"]):
+                retail_df["retail_sqft_per_capita"] = retail_df["retail_space"] / retail_df["total_population"]
+            if "median_household_income" in retail_df.columns:
+                retail_df["income_bracket"] = pd.cut(
+                    retail_df["median_household_income"],
+                    bins=[0, 40000, 80000, 120000, float('inf')],
+                    labels=["low", "mid", "upper-mid", "high"],
+                )
+        return retail_df

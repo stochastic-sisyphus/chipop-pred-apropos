@@ -6,7 +6,7 @@ import logging
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestRegressor # type: ignore
 import joblib
 from typing import Tuple
 
@@ -15,8 +15,9 @@ from src.utils.helpers import (
     match_features,
     resolve_column_name,
     safe_train_model,
+    Union, Dict # Added Union, Dict
 )
-from src.config.column_alias_map import column_aliases
+from src.config.column_alias_map import column_aliases # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +37,21 @@ class HousingModel:
         self.scaler = StandardScaler()
         self.feature_names = None
 
-    def train(self, df: pd.DataFrame) -> bool:
+    def train(self, data_input: Union[pd.DataFrame, Dict[str, pd.DataFrame]]) -> bool:
         """Train the housing model."""
         try:
             logger.info("Training housing model...")
+
+            if isinstance(data_input, dict):
+                df = data_input.get('merged_data')
+                if df is None:
+                    logger.error(f"'{self.__class__.__name__}': 'merged_data' not found in input dictionary. Available keys: {list(data_input.keys())}")
+                    return False
+            elif isinstance(data_input, pd.DataFrame):
+                df = data_input
+            else:
+                logger.error(f"'{self.__class__.__name__}': Invalid data input type: {type(data_input)}")
+                return False
 
             # Prepare features
             X, y = self.prepare_features(df)
@@ -411,14 +423,25 @@ class HousingModel:
             for col in large_value_cols:
                 resolved_col = resolve_column_name(X, col, column_aliases)
                 if resolved_col in X.columns:
-                    X[resolved_col] = np.log1p(X[resolved_col])
+                    # Ensure column is numeric and handle negatives before log transform
+                    X[resolved_col] = pd.to_numeric(X[resolved_col], errors='coerce')
+                    X[resolved_col] = X[resolved_col].fillna(0) # Or median, depending on strategy
+                    X[resolved_col] = np.log1p(np.maximum(0, X[resolved_col]))
+            # Ensure no NaNs/Infs before scaling from log transform
+            # This replace should ideally happen after all transformations that might introduce Inf
+            X.replace([np.inf, -np.inf], np.nan, inplace=True)
+            if X.isnull().any().any():
+                logger.warning(
+                    "NaNs found in features after log transform, before scaling. Imputing with column median."
+                )
+                for col_with_nan in X.columns[X.isnull().any()]:
+                    X[col_with_nan] = X[col_with_nan].fillna(X[col_with_nan].median())
 
             # Scale features
             X = pd.DataFrame(self.scaler.fit_transform(X), columns=X.columns, index=X.index)
 
             logger.info("Housing features prepared successfully")
             return X, y
-
         except Exception as e:
             logger.error(f"Error preparing housing features: {str(e)}")
             return None, None

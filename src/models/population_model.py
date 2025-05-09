@@ -8,7 +8,7 @@ import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestRegressor
 import joblib
-from typing import Tuple, Optional, List
+from typing import Tuple, Optional, List, Union, Dict # Added Union, Dict
 
 from src.config import settings
 from src.utils.helpers import (
@@ -17,7 +17,7 @@ from src.utils.helpers import (
     resolve_column_name,
     safe_train_model,
 )
-from src.config.column_alias_map import column_aliases
+from src.config.column_alias_map import column_aliases # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -321,15 +321,27 @@ class PopulationModel:
             logger.error(f"Error preparing features: {str(e)}")
             return None, None
 
-    def train(self, df: pd.DataFrame) -> bool:
+    def train(self, data_input: Union[pd.DataFrame, Dict[str, pd.DataFrame]]) -> bool:
         """Train the population model."""
         try:
             logger.info("Training population model...")
+
+            if isinstance(data_input, dict):
+                df = data_input.get('merged_data')
+                if df is None:
+                    logger.error(f"'{self.__class__.__name__}': 'merged_data' not found in input dictionary. Available keys: {list(data_input.keys())}")
+                    return False
+            elif isinstance(data_input, pd.DataFrame):
+                df = data_input
+            else:
+                logger.error(f"'{self.__class__.__name__}': Invalid data input type: {type(data_input)}")
+                return False
 
             # Prepare features
             X, y = self.prepare_features(df)
             if X is None or y is None:
                 logger.error("Failed to prepare features for training")
+                logger.error(f"Input df shape to prepare_features was: {df.shape if df is not None else 'None'}")
                 return False
 
             # Log training data shape
@@ -439,6 +451,11 @@ class PopulationModel:
             # Save predictions
             results_df.to_csv(settings.PREDICTIONS_DIR / "population_predictions.csv", index=False)
             logger.info("Generated population predictions successfully")
+
+            # Explicit check for DataFrame non-emptiness (prevents ambiguous truth value errors)
+            if results_df is None or results_df.empty:
+                logger.error("Failed to generate population predictions")
+                return False
 
             return results_df
 
@@ -620,12 +637,12 @@ class PopulationModel:
         try:
             logger.info("Generating baseline population projection...")
 
+            # Explicit check for DataFrame non-emptiness (prevents ambiguous truth value errors)
             if df is None and self.predictions is not None:
                 df = self.predictions
             elif df is None:
                 df = pd.read_csv(settings.PREDICTIONS_DIR / "population_predictions.csv")
-
-            if df.empty:
+            if df is not None and df.empty:
                 logger.warning("Empty dataframe provided for baseline projection")
                 return pd.DataFrame()
 

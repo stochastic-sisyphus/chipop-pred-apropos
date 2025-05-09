@@ -1,382 +1,78 @@
-# Chicago Housing-Retail Balance Analysis
-Generated on 2025-05-04
-
-## Overview
-This report analyzes the balance between housing development and retail provision across Chicago's ZIP codes, identifying areas of imbalance and opportunities for harmonized development.
-
-## Current State Analysis
-
-### Housing Metrics
-- Total Housing Units: 1,311,620
-- Average Density: 0.5 units/acre
-- Development Pipeline: 0.0 units
-
-### Retail Metrics
-- Total Retail Space: 0.0 sq ft
-- Retail per Capita: 0.0 sq ft
-- Vacancy Rate: 10.0%
-
-## Balance Analysis
-
-### High Imbalance Areas
-#### 60601
-- Housing Units: 10,727
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60602
-- Housing Units: 551
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60603
-- Housing Units: 984
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60605
-- Housing Units: 20,478
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60606
-- Housing Units: 3,032
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60607
-- Housing Units: 16,540
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60608
-- Housing Units: 32,617
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60609
-- Housing Units: 26,122
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60610
-- Housing Units: 30,091
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60611
-- Housing Units: 28,239
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60612
-- Housing Units: 16,763
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60613
-- Housing Units: 31,263
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60614
-- Housing Units: 38,089
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60615
-- Housing Units: 24,997
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60616
-- Housing Units: 26,912
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60617
-- Housing Units: 35,031
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60618
-- Housing Units: 41,053
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60619
-- Housing Units: 33,547
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60620
-- Housing Units: 30,008
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60621
-- Housing Units: 15,348
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60622
-- Housing Units: 27,630
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60623
-- Housing Units: 31,300
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60624
-- Housing Units: 16,250
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60625
-- Housing Units: 33,932
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60626
-- Housing Units: 26,812
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60628
-- Housing Units: 28,736
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60629
-- Housing Units: 36,283
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60630
-- Housing Units: 23,393
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60631
-- Housing Units: 12,757
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60632
-- Housing Units: 28,860
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60633
-- Housing Units: 5,713
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60634
-- Housing Units: 29,344
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60636
-- Housing Units: 14,363
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60637
-- Housing Units: 26,717
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60638
-- Housing Units: 21,636
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60639
-- Housing Units: 28,656
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60640
-- Housing Units: 40,850
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60641
-- Housing Units: 27,377
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60642
-- Housing Units: 12,144
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60643
-- Housing Units: 19,541
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60644
-- Housing Units: 20,619
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60645
-- Housing Units: 18,143
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60646
-- Housing Units: 11,636
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60647
-- Housing Units: 41,975
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60649
-- Housing Units: 28,249
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60651
-- Housing Units: 22,885
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60652
-- Housing Units: 13,709
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60653
-- Housing Units: 18,279
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60654
-- Housing Units: 17,960
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60655
-- Housing Units: 11,277
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60656
-- Housing Units: 12,840
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60657
-- Housing Units: 42,246
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60659
-- Housing Units: 14,748
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60660
-- Housing Units: 23,508
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60661
-- Housing Units: 8,049
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60666
-- Housing Units: 22,230
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60707
-- Housing Units: 16,590
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-#### 60827
-- Housing Units: 11,481
-- Retail Space: 0.0 sq ft
-- Balance Score: 0.0
-- Primary Need: Retail Development
-
-### Development Patterns
-#### High Growth Areas
-- Trend: Increasing housing development
-- Impact: High retail demand potential
-- Risk Level: Low
-
-## Opportunity Areas
-
-### Mixed-Use Development Sites
-#### ZIP 60601
-- Development Potential: High
-- Housing Units: 10,727
-- Retail Space: 0.0 sq ft
-- Investment Value: $0
-#### ZIP 60602
-- Development Potential: High
-- Housing Units: 551
-- Retail Space: 0.0 sq ft
-- Investment Value: $0
-#### ZIP 60603
-- Development Potential: High
-- Housing Units: 984
-- Retail Space: 0.0 sq ft
-- Investment Value: $0
-#### ZIP 60604
-- Development Potential: High
-- Housing Units: 510
-- Retail Space: 0.0 sq ft
-- Investment Value: $0
-#### ZIP 60605
-- Development Potential: High
-- Housing Units: 20,478
-- Retail Space: 0.0 sq ft
-- Investment Value: $0
-
-## Recommendations
-
-### Development Priorities
-1. Focus retail development in high-growth residential areas
-1. Prioritize mixed-use development in opportunity zones
-1. Incentivize retail in underserved neighborhoods
-
-### Policy Recommendations
-1. Update zoning to encourage mixed-use development
-1. Streamline retail development permits
-1. Create retail attraction programs
-
-### Implementation Timeline
-1. Immediate Actions (0-6 months)
-   - Site prioritization
-   - Developer engagement
-   - Policy alignment
-2. Near-Term (6-18 months)
-   - Project initiation
-   - Infrastructure preparation
-   - Community engagement
-3. Long-Term (18+ months)
-   - Construction oversight
-   - Balance monitoring
-   - Impact assessment
-
-## Success Metrics
-1. Balance Score Improvement
-2. Vacancy Rate Reduction
-3. Mixed-Use Development Increase
-4. Community Satisfaction
-5. Economic Impact
-
----
-*This analysis was generated by the Chicago Population Analysis Pipeline* 
+year,total_population,median_household_income,median_home_value,labor_force,state,zip_code,retail_space,retail_demand,retail_gap,retail_supply,retail_gap_status,retail_demand_status,retail_supply_status,retail_space_status,total_housing_units,vacancy_rate,retail_data_status
+2015,3098.0,106661.0,364600.0,2460.0,17.0,60606,110250.0,99130733.4,66055733.39999999,33075000.0,ok,ok,ok,ok,0,0,ok
+2016,3011.0,119973.0,393500.0,2416.0,17.0,60606,3600.0,108371610.9,107291610.9,1080000.0,ok,ok,ok,ok,0,0,ok
+2017,2959.0,139179.0,441900.0,2401.0,17.0,60606,20825.0,123549198.3,117301698.3,6247500.0,ok,ok,ok,ok,0,0,ok
+2018,3101.0,131477.0,421500.0,2620.0,17.0,60606,8250.0,122313053.1,119838053.1,2475000.0,ok,ok,ok,ok,0,0,ok
+2019,3287.0,140558.0,402500.0,2805.0,17.0,60606,470.765,138604243.79999998,138463014.29999998,141229.5,ok,ok,ok,ok,0,0,ok
+2020,3204.0,121982.0,338700.0,2874.0,17.0,60606,130375.0,117249098.4,78136598.39999999,39112500.0,ok,ok,ok,ok,0,0,ok
+2021,3298.0,130196.0,335500.0,2961.0,17.0,60606,49202.33,128815922.4,114055223.4,14760699.0,ok,ok,ok,ok,0,0,ok
+2022,3513.0,133333.0,352900.0,3185.0,17.0,60606,14875.0,140519648.7,136057148.7,4462500.0,ok,ok,ok,ok,0,0,ok
+2023,3527.0,139148.0,366500.0,3244.0,17.0,60606,8325.15,147232498.79999998,144734953.79999998,2497545.0,ok,ok,ok,ok,0,0,ok
+2024,3527.0,139148.0,366500.0,3244.0,17.0,60606,4440.0,147232498.79999998,145900498.79999998,1332000.0,ok,ok,ok,ok,0,0,ok
+2025,3527.0,139148.0,366500.0,3244.0,17.0,60606,61067.88,147232498.79999998,128912134.79999998,18320364.0,ok,ok,ok,ok,0,0,ok
+2015,79607.0,36216.0,222100.0,37708.0,17.0,60608,76225.0,864914133.6,842046633.6,22867500.0,ok,ok,ok,ok,0,0,ok
+2016,78072.0,37574.0,226700.0,36496.0,17.0,60608,334020.0,880043198.4,779837198.4,100206000.0,ok,ok,ok,ok,0,0,ok
+2017,78877.0,41226.0,239900.0,36592.0,17.0,60608,128603.96,975534960.6,936953772.6,38581188.0,ok,ok,ok,ok,0,0,ok
+2018,79205.0,44043.0,252200.0,37442.0,17.0,60608,89699.0,1046527744.5,1019618044.5,26909700.0,ok,ok,ok,ok,0,0,ok
+2019,80059.0,50133.0,265400.0,38827.0,17.0,60608,53698.0,1204079354.1,1187969954.1,16109400.0,ok,ok,ok,ok,0,0,ok
+2020,80011.0,57183.0,279300.0,38941.0,17.0,60608,45333.68,1372580703.9,1358980599.9,13600104.0,ok,ok,ok,ok,0,0,ok
+2021,83689.0,61490.0,288900.0,40912.0,17.0,60608,44112.865,1543810983.0,1530577123.5,13233859.5,ok,ok,ok,ok,0,0,ok
+2022,82749.0,66821.0,321600.0,42040.0,17.0,60608,139062.2,1658811278.7,1617092618.7,41718660.0,ok,ok,ok,ok,0,0,ok
+2023,81459.0,70704.0,341500.0,42715.0,17.0,60608,540829.325,1727843140.8,1565594343.3,162248797.5,ok,ok,ok,ok,0,0,ok
+2024,81459.0,70704.0,341500.0,42715.0,17.0,60608,222510.15,1727843140.8,1661090095.8,66753045.0,ok,ok,ok,ok,0,0,ok
+2025,81459.0,70704.0,341500.0,42715.0,17.0,60608,631749.385,1727843140.8,1538318325.3,189524815.5,ok,ok,ok,ok,0,0,ok
+2015,55516.0,75163.0,421000.0,37474.0,17.0,60622,2364.0,1251824732.4,1251115532.4,709200.0,ok,ok,ok,ok,0,0,ok
+2016,54467.0,79085.0,427800.0,37057.0,17.0,60622,1517.5,1292256808.5,1291801558.5,455250.0,ok,ok,ok,ok,0,0,ok
+2017,53680.0,87143.0,450700.0,37828.0,17.0,60622,250.0,1403350872.0,1403275872.0,75000.0,ok,ok,ok,ok,0,0,ok
+2018,52793.0,93988.0,483900.0,37325.0,17.0,60622,4717.0,1488572545.2,1487157445.2,1415100.0,ok,ok,ok,ok,0,0,ok
+2019,53294.0,101161.0,492400.0,37940.0,17.0,60622,35000.0,1617382300.2,1606882300.2,10500000.0,ok,ok,ok,ok,0,0,ok
+2020,52957.0,106128.0,524400.0,38376.0,17.0,60622,1035.0,1686066148.8,1685755648.8,310500.0,ok,ok,ok,ok,0,0,ok
+2021,54650.0,110694.0,547000.0,39167.0,17.0,60622,1375.0,1814828130.0,1814415630.0,412500.0,ok,ok,ok,ok,0,0,ok
+2022,53944.0,119134.0,616500.0,38538.0,17.0,60622,5775.0,1927969348.8,1926236848.8,1732500.0,ok,ok,ok,ok,0,0,ok
+2023,53696.0,124852.0,622900.0,39306.0,17.0,60622,19809.645,2011215897.6,2005273004.1,5942893.5,ok,ok,ok,ok,0,0,ok
+2024,53696.0,124852.0,622900.0,39306.0,17.0,60622,102749.0,2011215897.6,1980391197.6,30824700.0,ok,ok,ok,ok,0,0,ok
+2025,53696.0,124852.0,622900.0,39306.0,17.0,60622,22917.84,2011215897.6,2004340545.6,6875352.0,ok,ok,ok,ok,0,0,ok
+2015,38140.0,22204.0,154700.0,12441.0,17.0,60624,3072.5,254058168.0,253136418.0,921750.0,ok,ok,ok,ok,0,0,ok
+2016,38134.0,22160.0,159100.0,12909.0,17.0,60624,4698.25,253514832.0,252105357.0,1409475.0,ok,ok,ok,ok,0,0,ok
+2017,37665.0,22467.0,155500.0,13038.0,17.0,60624,14822.335,253865866.5,249419166.0,4446700.5,ok,ok,ok,ok,0,0,ok
+2018,36158.0,22992.0,164500.0,13102.0,17.0,60624,8063.575,249403420.8,246984348.3,2419072.5,ok,ok,ok,ok,0,0,ok
+2019,34892.0,23429.0,176400.0,13481.0,17.0,60624,2671.635,245245400.4,244443909.9,801490.5000000001,ok,ok,ok,ok,0,0,ok
+2020,35054.0,25648.0,188100.0,14173.0,17.0,60624,11515.0,269719497.6,266264997.6,3454500.0,ok,ok,ok,ok,0,0,ok
+2021,36986.0,29102.0,188700.0,15694.0,17.0,60624,16343.125,322909971.6,318007034.1,4902937.5,ok,ok,ok,ok,0,0,ok
+2022,35664.0,31768.0,223700.0,15022.0,17.0,60624,15240.195,339892185.6,335320127.1,4572058.5,ok,ok,ok,ok,0,0,ok
+2023,35711.0,32607.0,223200.0,15210.0,17.0,60624,74412.375,349328573.1,327004860.6,22323712.5,ok,ok,ok,ok,0,0,ok
+2024,35711.0,32607.0,223200.0,15210.0,17.0,60624,41656.28,349328573.1,336831689.1,12496884.0,ok,ok,ok,ok,0,0,ok
+2025,35711.0,32607.0,223200.0,15210.0,17.0,60624,181083.2,349328573.1,295003613.1,54324960.0,ok,ok,ok,ok,0,0,ok
+2015,67914.0,36242.0,119200.0,29746.0,17.0,60628,37400.0,738401756.4,727181756.4,11220000.0,ok,ok,ok,ok,0,0,ok
+2016,68077.0,35654.0,117900.0,30565.0,17.0,60628,343966.08,728165207.4,624975383.4,103189824.0,ok,ok,ok,ok,0,0,ok
+2017,67942.0,38206.0,116800.0,31143.0,17.0,60628,420518.115,778737615.6,652582181.1,126155434.5,ok,ok,ok,ok,0,0,ok
+2018,66724.0,40261.0,119400.0,31291.0,17.0,60628,803470.25,805912489.1999999,564871414.1999999,241041075.0,ok,ok,ok,ok,0,0,ok
+2019,64254.0,41169.0,120600.0,30684.0,17.0,60628,1773503.15,793581877.8,261530932.79999995,532050945.0,ok,ok,ok,ok,0,0,ok
+2020,65008.0,44410.0,123600.0,30734.0,17.0,60628,39649.3,866101584.0,854206794.0,11894790.0,ok,ok,ok,ok,0,0,ok
+2021,64489.0,46665.0,127800.0,30343.0,17.0,60628,71946.19,902813755.5,881229898.5,21583857.0,ok,ok,ok,ok,0,0,ok
+2022,61419.0,48601.0,150900.0,28397.0,17.0,60628,223799.7,895507445.6999999,828367535.6999999,67139910.0,ok,ok,ok,ok,0,0,ok
+2023,59212.0,49719.0,158500.0,27013.0,17.0,60628,316918.195,883188428.4,788112969.9,95075458.5,ok,ok,ok,ok,0,0,ok
+2024,59212.0,49719.0,158500.0,27013.0,17.0,60628,217499.195,883188428.4,817938669.9,65249758.5,ok,ok,ok,ok,0,0,ok
+2025,59212.0,49719.0,158500.0,27013.0,17.0,60628,428072.84,883188428.4,754766576.4,128421852.0,ok,ok,ok,ok,0,0,ok
+2015,91310.0,38438.0,162400.0,43200.0,17.0,60632,50918.505,1052932134.0,1037656582.5,15275551.5,ok,ok,ok,ok,0,0,ok
+2016,91668.0,40829.0,163700.0,43635.0,17.0,60632,1636430.0,1122813831.6,631884831.5999999,490929000.0,ok,ok,ok,ok,0,0,ok
+2017,91644.0,42335.0,166200.0,43898.0,17.0,60632,437730.82,1163924622.0,1032605376.0,131319246.0,ok,ok,ok,ok,0,0,ok
+2018,91039.0,42758.0,171200.0,43078.0,17.0,60632,939154.635,1167793668.6,886047278.0999999,281746390.5,ok,ok,ok,ok,0,0,ok
+2019,89857.0,44924.0,180000.0,42776.0,17.0,60632,1837994.5,1211020760.4,659622410.3999999,551398350.0,ok,ok,ok,ok,0,0,ok
+2020,86715.0,46937.0,190900.0,41075.0,17.0,60632,29230.75,1221042586.5,1212273361.5,8769225.0,ok,ok,ok,ok,0,0,ok
+2021,87395.0,48791.0,203200.0,41246.0,17.0,60632,52694.055,1279226833.5,1263418617.0,15808216.5,ok,ok,ok,ok,0,0,ok
+2022,86372.0,53966.0,226200.0,41299.0,17.0,60632,436178.965,1398345405.6,1267491716.1,130853689.5,ok,ok,ok,ok,0,0,ok
+2023,87831.0,60576.0,240600.0,42677.0,17.0,60632,182452.96,1596135196.8,1541399308.8,54735888.0,ok,ok,ok,ok,0,0,ok
+2024,87831.0,60576.0,240600.0,42677.0,17.0,60632,727175.75,1596135196.8,1377982471.8,218152725.0,ok,ok,ok,ok,0,0,ok
+2025,87831.0,60576.0,240600.0,42677.0,17.0,60632,660131.3,1596135196.8,1398095806.8,198039390.0,ok,ok,ok,ok,0,0,ok
+2015,47725.88244514107,71744.26018808778,-5962376.482758621,26009.771159874606,,,,,,,,,,,0,0,ok
+2016,47725.88244514107,71744.26018808778,-5962376.482758621,26009.771159874606,,,,,,,,,,,0,0,ok
+2017,47725.88244514107,71744.26018808778,-5962376.482758621,26009.771159874606,,,,,,,,,,,0,0,ok
+2018,47725.88244514107,71744.26018808778,-5962376.482758621,26009.771159874606,,,,,,,,,,,0,0,ok
+2019,47725.88244514107,71744.26018808778,-5962376.482758621,26009.771159874606,,,,,,,,,,,0,0,ok
+2020,47725.88244514107,71744.26018808778,-5962376.482758621,26009.771159874606,,,,,,,,,,,0,0,ok
+2021,47725.88244514107,71744.26018808778,-5962376.482758621,26009.771159874606,,,,,,,,,,,0,0,ok
+2022,47725.88244514107,71744.26018808778,-5962376.482758621,26009.771159874606,,,,,,,,,,,0,0,ok
+2023,47725.88244514107,71744.26018808778,-5962376.482758621,26009.771159874606,,,,,,,,,,,0,0,ok
+2024,47725.88244514107,71744.26018808778,-5962376.482758621,26009.771159874606,,,,,,,,,,,0,0,ok
+2025,47725.88244514107,71744.26018808778,-5962376.482758621,26009.771159874606,,,,,,,,,,,0,0,ok

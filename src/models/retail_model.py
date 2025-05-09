@@ -9,7 +9,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestRegressor
 import joblib
 import json
-from typing import Tuple, Optional, List
+from typing import Tuple, Optional, List, Union, Dict # Added Union, Dict
 
 from src.config import settings
 from src.utils.helpers import (
@@ -17,7 +17,7 @@ from src.utils.helpers import (
     resolve_column_name,
     safe_train_model,
 )
-from src.config.column_alias_map import column_aliases
+from src.config.column_alias_map import column_aliases # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -66,12 +66,14 @@ class RetailModel:
         # Core demographic features
         demographic_features = ["total_population", "median_household_income", "labor_force"]
 
-        # Core retail features
+        # Core retail features (aligned with what DataProcessor provides in merged_dataset.csv)
         retail_features = [
             "retail_space",
-            "retail_sales",
-            "retail_employees",
-            "retail_establishments",
+            "retail_demand",
+            "retail_supply",
+            # "retail_sales", # Not consistently available in merged_dataset.csv logs
+            # "retail_employees", # Not consistently available in merged_dataset.csv logs
+            # "retail_establishments", # Not consistently available in merged_dataset.csv logs
         ]
 
         # Optional features
@@ -95,7 +97,8 @@ class RetailModel:
 
         # Add available retail features
         retail_count = 0
-        for feature in retail_features:
+        # Ensure retail_gap is considered here if it's a primary retail feature
+        for feature in retail_features + ["retail_gap"]: # Add retail_gap here if it's core
             if feature in df.columns and not df[feature].isna().all():
                 features.append(feature)
                 retail_count += 1
@@ -106,7 +109,8 @@ class RetailModel:
 
         # Add optional features if available
         for feature in optional_features:
-            if feature in df.columns and not df[feature].isna().all():
+            # Ensure not to add 'retail_gap' again if it was part of core retail_features
+            if feature in df.columns and not df[feature].isna().all() and feature not in features:
                 features.append(feature)
                 logger.debug(f"Added optional feature: {feature}")
 
@@ -385,10 +389,21 @@ class RetailModel:
             logger.error(f"Error analyzing retail trends: {str(e)}")
             return None
 
-    def train(self, df: pd.DataFrame) -> bool:
+    def train(self, data_input: Union[pd.DataFrame, Dict[str, pd.DataFrame]]) -> bool:
         """Train the retail model."""
         try:
             logger.info("Training retail model...")
+
+            if isinstance(data_input, dict):
+                df = data_input.get('merged_data')
+                if df is None:
+                    logger.error(f"'{self.__class__.__name__}': 'merged_data' not found in input dictionary. Available keys: {list(data_input.keys())}")
+                    return False
+            elif isinstance(data_input, pd.DataFrame):
+                df = data_input
+            else:
+                logger.error(f"'{self.__class__.__name__}': Invalid data input type: {type(data_input)}")
+                return False
 
             # Prepare features
             X, y = self.prepare_features(df)

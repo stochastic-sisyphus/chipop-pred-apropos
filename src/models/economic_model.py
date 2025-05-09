@@ -4,7 +4,7 @@ Handles scenario-based modeling and economic impact assessment.
 """
 
 import logging
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Union # Added Union
 
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
@@ -17,7 +17,7 @@ from src.utils.helpers import (
     resolve_column_name,
     safe_train_model,
 )
-from src.config.column_alias_map import column_aliases
+from src.config.column_alias_map import column_aliases # type: ignore
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -146,10 +146,21 @@ class EconomicModel:
             logger.error(f"Error preparing economic features: {str(e)}")
             return None, None
 
-    def train(self, df: pd.DataFrame) -> bool:
+    def train(self, data_input: Union[pd.DataFrame, Dict[str, pd.DataFrame]]) -> bool:
         """Train the economic model."""
         try:
             logger.info("Training economic model...")
+
+            if isinstance(data_input, dict):
+                df = data_input.get('merged_data')
+                if df is None:
+                    logger.error(f"'{self.__class__.__name__}': 'merged_data' not found in input dictionary. Available keys: {list(data_input.keys())}")
+                    return False
+            elif isinstance(data_input, pd.DataFrame):
+                df = data_input
+            else:
+                logger.error(f"'{self.__class__.__name__}': Invalid data input type: {type(data_input)}")
+                return False
 
             # Prepare features
             X, y = self.prepare_features(df)

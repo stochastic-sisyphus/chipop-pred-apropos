@@ -6,11 +6,12 @@ a comprehensive report on Chicago's growth patterns and opportunities.
 
 import pandas as pd
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional # Added Optional
 import logging
 import jinja2
 from datetime import datetime
 import numpy as np
+import traceback # Added import for traceback
 
 from src.data_processing.processor import DataProcessor
 from src.models.population_model import PopulationModel
@@ -22,6 +23,9 @@ from src.config import settings
 logger = logging.getLogger(__name__)
 
 import logging
+
+# PATCH: Import clean_zip for robust ZIP cleaning
+from src.utils.helpers import clean_zip
 
 REQUIRED_COLS = [
     "total_population",
@@ -91,8 +95,8 @@ class TenYearGrowthReport:
             logger.error(f"ZIP code column '{zip_col}' not found in dataframe")
             return df
 
-        # Convert to string and pad with zeros
-        df[zip_col] = df[zip_col].astype(str).str.zfill(5)
+        # Convert to string and pad with zeros, then robustly clean
+        df[zip_col] = df[zip_col].astype(str).apply(clean_zip)
 
         # Filter to valid Chicago ZIP codes
         valid_zips = df[zip_col].isin(settings.CHICAGO_ZIP_CODES)
@@ -104,19 +108,36 @@ class TenYearGrowthReport:
 
         return df
 
-    def load_and_prepare_data(self):
+    def load_and_prepare_data(self, processed_data_dict: Optional[Dict[str, pd.DataFrame]] = None):
         """Load and prepare data for analysis."""
         try:
-            # Load processed data
-            census_data = pd.read_csv(settings.PROCESSED_DATA_DIR / "census_processed.csv")
-            permits_data = pd.read_csv(settings.PROCESSED_DATA_DIR / "permits_processed.csv")
-            economic_data = pd.read_csv(settings.PROCESSED_DATA_DIR / "economic_processed.csv")
+            census_data, permits_data, economic_data = None, None, None
+
+            if processed_data_dict:
+                census_data = processed_data_dict.get("census_data")
+                permits_data = processed_data_dict.get("permit_data")
+                economic_data = processed_data_dict.get("economic_data")
+                logger.info("Attempting to use data from processed_data_dict for TenYearGrowthReport.")
+
+            if census_data is None:
+                logger.info("Loading census_data from file for TenYearGrowthReport.")
+                census_data = pd.read_csv(settings.PROCESSED_DATA_DIR / "census_processed.csv")
+            if permits_data is None:
+                logger.info("Loading permit_data from file for TenYearGrowthReport.")
+                permits_data = pd.read_csv(settings.PROCESSED_DATA_DIR / "permits_processed.csv")
+            if economic_data is None:
+                logger.info("Loading economic_data from file for TenYearGrowthReport.")
+                economic_data = pd.read_csv(settings.PROCESSED_DATA_DIR / "economic_processed.csv")
 
             # Validate data loading
-            if census_data.empty or permits_data.empty:
-                logger.error("Failed to load required datasets")
+            if census_data is None or census_data.empty:
+                logger.error("Census data is missing or empty.")
                 return None
-
+            if permits_data is None or permits_data.empty:
+                logger.error("Permits data is missing or empty.")
+                # Depending on requirements, you might allow this and proceed or return None
+                # For now, let's assume it's critical for the merge.
+                return None
             # Log initial data shapes
             logger.info(
                 f"Initial shapes - Census: {census_data.shape}, Permits: {permits_data.shape}"
@@ -142,7 +163,7 @@ class TenYearGrowthReport:
                 return None
 
             # Add economic indicators if available
-            if not economic_data.empty:
+            if economic_data is not None and not economic_data.empty:
                 merged = merged.merge(economic_data, on=["year"], how="left")
 
             # Log merge results
@@ -1811,14 +1832,18 @@ class TenYearGrowthReport:
         """
         Recursively ensure all keys in required_structure exist in context, filling with defaults.
         """
-        for key, default in required_structure.items():
-            if isinstance(default, dict):
+        for key, default_value_or_structure in required_structure.items(): # Renamed for clarity
+            if isinstance(default_value_or_structure, dict):
+                # Ensure the key exists and is a dictionary
                 context.setdefault(key, {})
-                self._ensure_template_keys(context[key], default)
+                # If what's in context is not a dict (e.g. "N/A" from a previous failed render), reset it
+                if not isinstance(context[key], dict):
+                    context[key] = {}
+                self._ensure_template_keys(context[key], default_value_or_structure)
             else:
-                context.setdefault(key, default)
+                context.setdefault(key, default_value_or_structure)
 
-    def generate_report(self, context: dict) -> str:
+    def generate_report_from_context_dict(self, context: dict) -> str:
         try:
             # Ensure all required context keys for template
             if "historical_trends" not in context:
@@ -1872,54 +1897,157 @@ class TenYearGrowthReport:
                 rendered = (
                     f"Report generation failed. Error: {e}\nNotes: {context.get('notes', [])}"
                 )
-            return rendered
+            # Save the rendered report to the main output path
+            with open(self.output_paths["main"], "w") as f:
+                f.write(rendered)
+            logger.info(f"Ten Year Growth Report generated at {self.output_paths['main']}")
+            return rendered # Return the string content
         except Exception as e:
             logging.error(f"TenYearGrowthReport: Failed to generate report: {e}")
             return f"Report generation failed. Error: {e}"
 
-    def generate_report_data(self):
+    def generate_report_data(self, processed_data_dict: Optional[Dict[str, pd.DataFrame]] = None):
         """
         Populate self.report_data with real, non-empty historical_trends, current_analysis, and projections.
         """
         logger = logging.getLogger(__name__)
-        merged = self.load_and_prepare_data()
-        if merged is None or merged.empty:
+        logger.info("Generating data for Ten Year Growth Report...")
+        self.report_data = {} # Initialize report_data
+
+        merged_df = self.load_and_prepare_data(processed_data_dict=processed_data_dict)
+        
+        if merged_df is None or merged_df.empty:
             logger.error("No merged data available for report generation.")
-            return None
+            # Ensure report_data is initialized with minimal structure even on failure
+            self.report_data.update({ 
+                "current_analysis": {}, "historical_trends": {}, "projections": {},
+                "emerging_multifamily_areas": [], "retail_opportunities": [],
+                "retail_lagging_zones": [], "downtown_retail_lag": [],
+                "notes": ["Failed to load and prepare base data."]
+            })
+            return self.report_data
+
         # Historical trends
-        historical_trends = self._analyze_historical_trends(merged)
+        historical_trends = self._analyze_historical_trends(merged_df)
         # Current analysis (latest year)
-        latest_year = merged["year"].max()
-        current = merged[merged["year"] == latest_year]
-        current_analysis = {
-            "total_population": int(current["total_population"].sum()),
-            "median_household_income": float(current["median_household_income"].mean()),
-            "median_home_value": float(current["median_home_value"].mean()),
-            "labor_force": int(current["labor_force"].sum()),
-            "total_housing_units": int(current["total_housing_units"].sum()),
-            "retail_space": float(current["retail_space"].sum()),
-            "retail_demand": float(current["retail_demand"].sum()),
-            "retail_gap": float(current["retail_gap"].sum()),
-            "retail_supply": float(current["retail_supply"].sum()),
-            "vacancy_rate": float(current["vacancy_rate"].mean()),
+        current_analysis_dict = self._analyze_current_conditions(merged_df) # This is well-structured
+
+        # Build projected_analysis_dict (mirroring current_analysis_dict structure for 10-year projections)
+        projected_analysis_dict = {
+            "population": {},
+            "market": {},  # For housing and retail space projections
+            "development": {},
+            "economic": {},
+            "retail": {} # Explicitly add retail projections if available
         }
-        # Projections (use last 10 years trend for simple forecast)
-        years = sorted(merged["year"].unique())
-        proj_years = [y for y in years if y > latest_year - 10]
-        proj_df = merged[merged["year"].isin(proj_years)]
-        projections = {
-            "population_proj": int(proj_df["total_population"].mean()),
-            "housing_proj": int(proj_df["total_housing_units"].mean()),
-            "retail_demand_proj": float(proj_df["retail_demand"].mean()),
-            "retail_gap_proj": float(proj_df["retail_gap"].mean()),
+
+        raw_pop_proj = self._generate_population_projections(merged_df)
+        projected_analysis_dict["population"]["total"] = raw_pop_proj.get("projected_population_10yr", 0)
+        # Note: projected density, avg_household_size would need further calculation if required by impacts.
+
+        raw_dev_proj = self._generate_development_projections(merged_df)
+        projected_analysis_dict["development"]["total_permits"] = raw_dev_proj.get("projected_permits_10yr", 0)
+        # Note: projected_total_construction_cost would be needed for full development impact.
+
+        # Placeholder for more detailed economic and market projections if _generate_*_projections were enhanced
+        # For now, economic and market (housing units, retail space) projections will be minimal or zero
+        # leading to minimal reported impacts for those sections.
+        # Example: if _generate_economic_projections returned {'gdp': ..., 'median_income': ...}
+        # projected_analysis_dict["economic"] = self._generate_economic_projections(merged_df) 
+        # Example: if _generate_market_projections returned {'total_housing_units': ..., 'retail_space': ...}
+        # projected_analysis_dict["market"] = self._generate_market_projections(merged_df)
+
+        impacts_dict = {
+            "housing": self._analyze_housing_impacts(current_analysis_dict, projected_analysis_dict),
+            "retail": self._analyze_retail_impacts(current_analysis_dict, projected_analysis_dict),
+            "economic": self._analyze_economic_impacts(current_analysis_dict, projected_analysis_dict),
+            "community": self._analyze_community_impacts(current_analysis_dict, projected_analysis_dict),
+            # development impacts could be added if _analyze_current_development and _generate_development_projections are aligned
         }
+
+
+        # Load new analysis outputs from DataProcessor
+        emerging_multifamily_df = pd.read_csv(settings.PROCESSED_DATA_DIR / "emerging_multifamily_areas.csv") \
+            if (settings.PROCESSED_DATA_DIR / "emerging_multifamily_areas.csv").exists() else pd.DataFrame()
+        
+        retail_opportunities_df = pd.read_csv(settings.PROCESSED_DATA_DIR / "retail_development_opportunities.csv") \
+            if (settings.PROCESSED_DATA_DIR / "retail_development_opportunities.csv").exists() else pd.DataFrame()
+
+        retail_lagging_zones_df = pd.read_csv(settings.PROCESSED_DATA_DIR / "retail_lagging_zones.csv") \
+            if (settings.PROCESSED_DATA_DIR / "retail_lagging_zones.csv").exists() else pd.DataFrame()
+        
+        downtown_retail_lag_df = pd.read_csv(settings.PROCESSED_DATA_DIR / "downtown_retail_lag_analysis.csv") \
+            if (settings.PROCESSED_DATA_DIR / "downtown_retail_lag_analysis.csv").exists() else pd.DataFrame()
+
+        # Consolidate current analysis from the helper
+        # The _analyze_current_conditions already provides a structured dict.
+        # We might want to ensure all REQUIRED_COLS are represented if the template expects them directly
+        # For now, we'll use the structure from _analyze_current_conditions
+        # and ensure the template can handle potentially missing sub-keys.
+
+        # Example of ensuring specific top-level keys from REQUIRED_COLS if needed by template,
+        # though it's better if the template adapts to the nested structure.
+        # current_analysis_flat = {}
+        # if current_analysis_dict.get("population"):
+        #     current_analysis_flat["total_population"] = current_analysis_dict["population"].get("total")
+        #     current_analysis_flat["median_household_income"] = current_analysis_dict["population"].get("median_income")
+        # # ... and so on for other REQUIRED_COLS, mapping from current_analysis_dict structure.
+        # This part is commented out as it's preferable for the template to use the nested structure.
+
         self.report_data = {
+            "generation_date": self.report_data.get("generation_date", datetime.now().strftime("%Y-%m-%d")), # Preserve if already set
+            "current_analysis": current_analysis_dict,
             "historical_trends": historical_trends,
-            "current_analysis": current_analysis,
-            "projections": projections,
+            "projections": projected_analysis_dict, # Use the structured projections
+            "impacts": impacts_dict, # Add the computed impacts
+            "emerging_multifamily_areas": [] if emerging_multifamily_df.empty else emerging_multifamily_df.to_dict(orient="records"),
+            "retail_opportunities": [] if retail_opportunities_df.empty else retail_opportunities_df.to_dict(orient="records"),
+            "retail_lagging_zones": [] if retail_lagging_zones_df.empty else retail_lagging_zones_df.to_dict(orient="records"),
+            "downtown_retail_lag": [] if downtown_retail_lag_df.empty else downtown_retail_lag_df.to_dict(orient="records"),
+            "notes": self.report_data.get("notes", []) # Preserve existing notes
         }
-        logger.info("Populated report_data with real computed values.")
+        
+        # Add warnings for missing data files
+        if emerging_multifamily_df.empty:
+            self.report_data["notes"].append("Emerging multifamily areas data not found or empty.")
+            logger.warning("Emerging multifamily areas data not found or empty for report.")
+        if retail_opportunities_df.empty:
+            self.report_data["notes"].append("Retail development opportunities data not found or empty.")
+            logger.warning("Retail development opportunities data not found or empty for report.")
+        if retail_lagging_zones_df.empty:
+            self.report_data["notes"].append("Retail lagging zones data not found or empty.")
+            logger.warning("Retail lagging zones data not found or empty for report.")
+        if downtown_retail_lag_df.empty:
+            self.report_data["notes"].append("Downtown retail lag analysis data not found or empty.")
+            logger.warning("Downtown retail lag analysis data not found or empty for report.")
+
+        logger.info("Populated report_data for Ten Year Growth Report.")
         return self.report_data
+
+    def _analyze_current_conditions(self, merged_df: pd.DataFrame) -> dict:
+        """Helper to get various current condition metrics from the merged_df."""
+        if merged_df is None or merged_df.empty:
+            return {}
+        
+        latest_year_data = merged_df[merged_df["year"] == merged_df["year"].max()]
+        if latest_year_data.empty:
+            return {}
+
+        def safe_sum(df, col_name): return int(df[col_name].sum()) if col_name in df.columns and not df[col_name].empty else 0
+        def safe_mean(df, col_name): return float(df[col_name].mean()) if col_name in df.columns and not df[col_name].empty else 0.0
+        def safe_median(df, col_name): return float(df[col_name].median()) if col_name in df.columns and not df[col_name].empty else 0.0
+
+        return {
+            "year": int(latest_year_data["year"].iloc[0]),
+            "population": {"total": safe_sum(latest_year_data, "total_population"), "median_income": safe_median(latest_year_data, "median_household_income")},
+            "market": {"total_housing_units": safe_sum(latest_year_data, "total_housing_units"), "median_home_value": safe_median(latest_year_data, "median_home_value")},
+            "development": {"total_permits": safe_sum(latest_year_data, "total_permits"), "total_construction_cost": safe_sum(latest_year_data, "total_construction_cost")},
+            "economic": {"gdp": safe_mean(latest_year_data, "real_gdp"), "unemployment_rate": safe_mean(latest_year_data, "unemployment_rate")},
+            "retail": {
+                "total_space": safe_sum(latest_year_data, "retail_space"), "total_demand": safe_sum(latest_year_data, "retail_demand"),
+                "total_supply": safe_sum(latest_year_data, "retail_supply"), "total_gap": safe_sum(latest_year_data, "retail_gap")
+            }
+        }
 
     def generate_ten_year_growth_report(self, df, output_path):
         """
@@ -1928,15 +2056,26 @@ class TenYearGrowthReport:
         logger = logging.getLogger("src.reporting.ten_year_growth_report")
 
         # Identify ZIPs with missing metrics
-        missing_cols = [
-            "retail_space", "retail_supply", "retail_demand", "housing_units"
+        # Use correct column names and check for existence
+        expected_cols = [
+            "retail_space", "retail_supply", "retail_demand", "total_housing_units"
         ]
         missing_report = {}
-        for col in missing_cols:
-            missing_zips = df[df[col].isnull()]["zip_code"].tolist()
-            if missing_zips:
+        for col in expected_cols:
+            if col not in df.columns:
+                logger.warning(f"Column '{col}' missing from DataFrame. Skipping.")
+                continue
+            missing_zip_rows = df[df[col].isnull()]
+            if "zip_code" not in missing_zip_rows.columns:
+                logger.warning(f"'zip_code' column missing when checking for missing {col}.")
+                continue
+            if missing_zips := missing_zip_rows["zip_code"].tolist():
                 logger.warning(f"Missing {col} for ZIPs: {missing_zips}")
                 missing_report[col] = missing_zips
+            # Check for all-zero column
+            if (df[col] == 0).all():
+                logger.warning(f"All values in {col} are zero. Downstream metrics may be misleading.")
+                missing_report[f"all_zero_{col}"] = True
 
         # Write missing data section to report
         with open(output_path, "w") as f:
@@ -1949,8 +2088,79 @@ class TenYearGrowthReport:
             f.write("## Main Analysis\n")
             # (Insert main analysis code here)
             # For demonstration, show summary table
-            summary_cols = ["zip_code", "housing_units", "retail_space", "retail_supply", "retail_demand", "retail_gap"]
+            summary_cols = [
+                "zip_code", "total_housing_units", "retail_space", "retail_supply", "retail_demand", "retail_gap"
+            ]
+            summary_cols = [col for col in summary_cols if col in df.columns]
             summary = df[summary_cols].head(20).to_string(index=False)
             f.write("\n### Sample Data (first 20 rows):\n")
             f.write(summary)
             f.write("\n")
+
+    def generate_report(self, processed_data_dict: Optional[Dict[str, pd.DataFrame]] = None) -> bool:
+        """
+        Generates the main ten-year growth report and saves it.
+        """
+        try:
+            logger.info("TenYearGrowthReport: Starting generate_report...")
+            # Generate the data for the report
+            # self.generate_report_data populates self.report_data
+            self.generate_report_data(processed_data_dict=processed_data_dict)
+            
+            if not self.report_data or not self.report_data.get("current_analysis"): # Check if critical data is missing
+                logger.error("Failed to generate data for the report. Aborting report generation.")
+                return False # Return False for failure
+
+            required_template_structure = {
+                "generation_date": datetime.now().strftime("%Y-%m-%d"),
+                "current_analysis": {"population": {}, "market": {}, "development": {}, "economic": {}, "retail": {}},
+                "historical_trends": {"population": {}},
+                "projections": {"population": {}, "market": {}, "development": {}, "economic": {}, "retail": {}},
+                "growth_areas": { # Add this structure
+                    "primary_centers": [], 
+                    "emerging_markets": [], 
+                    "stabilization_zones": []
+                },
+                "recommendations": { # Add default structure for recommendations
+                    "strategic": [],
+                    "implementation": []
+                },
+                "impacts": {"housing": {}, "retail": {}, "economic": {}, "community": {}},
+                "emerging_multifamily_areas": [],
+                "retail_opportunities": [],
+                "retail_lagging_zones": [],
+                "downtown_retail_lag": [],
+                "notes": [],
+                "missing_or_defaulted": [] 
+            }
+            # Use self.report_data as the context
+            self._ensure_template_keys(self.report_data, required_template_structure)
+            
+            if not self.report_data.get("current_analysis", {}).get("population", {}).get("total"):
+                 self.report_data["notes"].append("Warning: Current total population data is missing or zero.")
+            # Adjust check for projections based on actual structure from generate_report_data
+            if not self.report_data.get("projections", {}).get("population", {}).get("total"):
+                 self.report_data["notes"].append("Warning: Population projection data is missing or zero.")
+
+            template = self.template_env.get_template(self.templates["main"])
+            rendered_report = template.render(self.report_data)
+
+            output_path = self.output_paths["main"]
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_path, "w") as f:
+                f.write(rendered_report)
+            
+            logger.info(f"TenYearGrowthReport: Report generated successfully at {output_path}")
+            return True # Return True for success
+
+        except Exception as e:
+            logger.error(f"TenYearGrowthReport: Failed to generate report: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            try:
+                output_path = self.output_paths["main"]
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(output_path, "w") as f:
+                    f.write(f"# Report Generation Failed\n\nError: {e}\n\nTraceback:\n{traceback.format_exc()}")
+            except Exception as e_write:
+                logger.error(f"Failed to write failure report: {e_write}")
+            return False # Return False for failure

@@ -38,6 +38,7 @@ from src.reporting.ten_year_growth_report import TenYearGrowthReport
 from src.reporting.retail_deficit_report import RetailDeficitReport
 from src.reporting.housing_retail_balance_report import HousingRetailBalanceReport
 from src.utils.helpers import ensure_output_structure, validate_outputs
+from src.pipeline.dynamic_runner import DynamicRunner
 
 # Set up logging
 logging.basicConfig(
@@ -374,6 +375,79 @@ def run_pipeline():
             logger.error("Failed to validate outputs")
             return False
 
+        # After merged_df is created and enriched
+        merged_df = pd.read_csv(settings.MERGED_DATA_PATH, dtype={'zip_code': str})
+        # --- Retail-Housing Opportunity Output ---
+        try:
+            opportunity_df = processor.identify_retail_housing_opportunity(merged_df)
+            out_path = Path(settings.PREDICTIONS_DIR) / "retail_housing_opportunity.csv"
+            opportunity_df.to_csv(out_path, index=False)
+            logger.info(f"Saved retail_housing_opportunity.csv to {out_path} ({len(opportunity_df)} rows)")
+        except Exception as e:
+            logger.error(f"Failed to generate retail_housing_opportunity.csv: {e}")
+        # --- Top Emerging Multifamily ZIPs ---
+        try:
+            # Load multifamily permits processed
+            mf_path = Path(settings.PROCESSED_DATA_DIR) / "multifamily_permits_processed.csv"
+            if mf_path.exists():
+                mf = pd.read_csv(mf_path, dtype={'zip_code': str})
+                mf["zip_code"] = mf["zip_code"].apply(lambda z: str(z).zfill(5))
+                min_year, max_year = mf["year"].min(), mf["year"].max()
+                mid_year = min_year + (max_year - min_year) // 2
+                hist = (
+                    mf[mf["year"] <= mid_year]
+                    .groupby("zip_code")["unit_count"]
+                    .sum()
+                    .reset_index(name="hist_units")
+                )
+                recent = (
+                    mf[mf["year"] > mid_year]
+                    .groupby("zip_code")["unit_count"]
+                    .sum()
+                    .reset_index(name="recent_units")
+                )
+                growth = pd.merge(hist, recent, on="zip_code", how="outer").fillna(0)
+                growth["growth_pct"] = growth.apply(lambda r: (r["recent_units"] - r["hist_units"]) / r["hist_units"] if r["hist_units"] > 0 else (1.0 if r["recent_units"] > 0 else 0), axis=1)
+                # Exclude downtown/Loop ZIPs and oversupplied
+                downtown_zips = ["60601", "60602", "60603", "60604", "60605", "60606", "60607", "60610", "60611"]
+                growth = growth[~growth["zip_code"].isin(downtown_zips)]
+                # Exclude oversupplied: top 20% by recent_units
+                oversupply_thresh = growth["recent_units"].quantile(0.8)
+                growth = growth[growth["recent_units"] < oversupply_thresh]
+                # Top 5 by growth_pct
+                top5 = growth.sort_values("growth_pct", ascending=False).head(5)
+                out_path = Path(settings.PREDICTIONS_DIR) / "top_emerging_multifamily_areas.csv"
+                top5.to_csv(out_path, index=False)
+                logger.info(f"Saved top_emerging_multifamily_areas.csv to {out_path} ({len(top5)} rows)")
+            else:
+                logger.warning(f"multifamily_permits_processed.csv not found at {mf_path}")
+        except Exception as e:
+            logger.error(f"Failed to generate top_emerging_multifamily_areas.csv: {e}")
+        # --- Retail Lagging Areas Output ---
+        try:
+            # Use the same logic as identify_retail_housing_opportunity, but output all qualifying ZIPs
+            lagging_df = processor.identify_retail_housing_opportunity(merged_df)
+            out_path = Path(settings.PREDICTIONS_DIR) / "retail_lagging_areas.csv"
+            lagging_df.to_csv(out_path, index=False)
+            logger.info(f"Saved retail_lagging_areas.csv to {out_path} ({len(lagging_df)} rows)")
+        except Exception as e:
+            logger.error(f"Failed to generate retail_lagging_areas.csv: {e}")
+        # --- Final Output Summary Log ---
+        try:
+            summary_files = [
+                ("retail_housing_opportunity.csv", Path(settings.PREDICTIONS_DIR) / "retail_housing_opportunity.csv"),
+                ("top_emerging_multifamily_areas.csv", Path(settings.PREDICTIONS_DIR) / "top_emerging_multifamily_areas.csv"),
+                ("retail_lagging_areas.csv", Path(settings.PREDICTIONS_DIR) / "retail_lagging_areas.csv"),
+            ]
+            for fname, fpath in summary_files:
+                if fpath.exists():
+                    df = pd.read_csv(fpath)
+                    logger.info(f"Output: {fname} ({len(df)} rows) at {fpath}")
+                else:
+                    logger.warning(f"Output: {fname} not found at {fpath}")
+        except Exception as e:
+            logger.error(f"Error in output summary log: {e}")
+
         logger.info("Pipeline completed successfully")
         return True
 
@@ -384,14 +458,26 @@ def run_pipeline():
 
 def load_processed_data():
     try:
-        return {
-            "census_data": pd.read_csv(settings.PROCESSED_DATA_DIR / "census_processed.csv"),
-            "permit_data": pd.read_csv(settings.PROCESSED_DATA_DIR / "permits_processed.csv"),
-            "economic_data": pd.read_csv(settings.PROCESSED_DATA_DIR / "economic_processed.csv"),
-            "zoning_data": pd.read_csv(settings.PROCESSED_DATA_DIR / "zoning_processed.csv"),
-            "retail_metrics": pd.read_csv(settings.PROCESSED_DATA_DIR / "retail_metrics.csv"),
-            "retail_deficit": pd.read_csv(settings.PROCESSED_DATA_DIR / "retail_deficit.csv"),
+        data_dict = {}
+        files_to_load = {
+            "census_data": "census_processed.csv",
+            "permit_data": "permits_processed.csv",
+            "economic_data": "economic_processed.csv",
+            "zoning_data": "zoning_processed.csv",
+            "retail_metrics": "retail_metrics.csv",
+            "retail_deficit": "retail_deficit.csv",
+            "merged_data": settings.MERGED_DATA_PATH.name, # Get filename from Path object
+            "multifamily_permits": "multifamily_permits_processed.csv", # Added
+            # Add other processed files if they are distinct and needed by reports/models
         }
+        for key, filename in files_to_load.items():
+            file_path = settings.PROCESSED_DATA_DIR / filename if key != "merged_data" else settings.MERGED_DATA_PATH
+            if file_path.exists():
+                data_dict[key] = pd.read_csv(file_path, dtype={'zip_code': str}) # Read zip_code as string
+            else:
+                logger.warning(f"File for '{key}' not found at {file_path}. It will be missing from processed_data_dict.")
+                data_dict[key] = pd.DataFrame() # Provide empty DataFrame if file not found
+        return data_dict
     except Exception as e:
         logger.error(f"Error loading processed data: {str(e)}")
         logger.error(f"Traceback: {traceback.format_exc()}")
@@ -415,7 +501,7 @@ def generate_all_reports():
                     "generation_time": datetime.now().strftime("%H:%M:%S"),
                     # Add more context keys as needed, or pass data directly
                 }
-                if report.generate_report(context):
+                if report.generate_report_from_context_dict(context): # Updated method name
                     logger.info(f"Generated {name} report")
                 else:
                     logger.warning(f"Failed to generate {name} report")
@@ -598,20 +684,27 @@ def main():
 
         # Process data
         logger.info("Processing data...")
-        if not processor.process_all_data(
-            census_data=census_data,
-            permit_data=permit_data,
-            economic_data=economic_data,
-            zoning_data=zoning_data,
-        ):
+        if not processor.process_all():
             logger.error("Failed to process data")
             return False
 
-        # Generate reports
-        logger.info("Generating reports...")
-        if not generate_reports():
-            logger.error("Failed to generate reports")
+        # Load processed data for model/report execution
+        processed_data = load_processed_data() # Use the local load_processed_data function
+        if processed_data is None:
+            logger.error("Failed to load processed data for model/report execution")
             return False
+
+        # Initialize and use DynamicRunner
+        runner = DynamicRunner(base_dir=Path(__file__).parent / "src")
+        runner.load_all()
+
+        # Run all discovered models
+        logger.info("Running all models via DynamicRunner...")
+        runner.run_all_models(processed_data)
+
+        # Run all discovered reports
+        logger.info("Running all reports via DynamicRunner...")
+        runner.run_all_reports(processed_data)
 
         logger.info("Pipeline completed successfully")
         return True
