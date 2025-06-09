@@ -21,7 +21,7 @@ export CHICAGO_DATA_TOKEN='your_chicago_token'
 python main.py
 ```
 
-## Latest Results (June 8, 2025)
+## Latest Results (June 8, 2025 - 22:27:56)
 
 ### Data Collection
 - **56** Chicago ZIP codes analyzed
@@ -36,16 +36,16 @@ python main.py
 #### 🏗️ Multifamily Growth (10 Emerging ZIP Codes)
 | ZIP Code | Growth Score | Permit Growth | Unit Growth |
 |----------|-------------|---------------|-------------|
-| 60602 | 0.82 | +200% | +39.4 units |
-| 60654 | 0.70 | +14% | +27.0 units |
-| 60661 | 0.62 | +20% | +10.8 units |
-| 60605 | 0.59 | +9% | +5.9 units |
-| 60607 | 0.57 | +55% | +2.5 units |
+| 60602 | 0.84 | +2.4% | +77.6% |
+| 60622 | 0.80 | +30.3% | +202.6% |
+| 60647 | 0.78 | -4.3% | +72.9% |
+| 60607 | 0.74 | +27.6% | +1031.7% |
+| 60654 | 0.70 | +72.2% | +72.2% |
 
 **Model Metrics:**
-- Average permit growth: 11.9%
-- Average unit growth: 1.42 units
-- Growth score range: 0.18 - 0.82
+- Average permit growth: 9.3%
+- Average unit growth: 1.37 units
+- Growth score range: 0.18 - 0.84
 
 #### 🛍️ Retail Gap Analysis (11 Opportunity Zones)
 Top ZIP codes with unmet retail demand:
@@ -78,10 +78,10 @@ Top ZIP codes with unmet retail demand:
 - `output/maps/development_map.geojson` - Interactive map of development zones
 
 #### Reports (4)
-- `output/reports/multifamily_growth_report_20250608_204847.md`
-- `output/reports/retail_gap_report_20250608_204847.md`  
-- `output/reports/retail_void_report_20250608_204847.md`
-- `output/reports/summary_report_20250608_204847.md`
+- `output/reports/multifamily_growth_report_20250608_222756.md`
+- `output/reports/retail_gap_report_20250608_222756.md`  
+- `output/reports/retail_void_report_20250608_222756.md`
+- `output/reports/summary_report_20250608_222756.md`
 
 #### Visualizations - Multifamily Growth (3)
 - `top_emerging_zips.png` - Bar chart of top 10 emerging ZIP codes
@@ -140,11 +140,11 @@ Get free API keys from:
 ### Top Multifamily ZIP Codes (top_multifamily_zips.csv)
 ```csv
 zip_code,growth_score,permit_growth,unit_growth,recent_permits,recent_units
-60602,0.818,+200%,+39.4,40,84
-60622,0.792,+27%,+200%,42,114
-60647,0.787,-2%,+77%,44,83
-60607,0.736,+29%,+1058%,36,463
-60654,0.731,+82%,+82%,31,31
+60602,0.843,0.024,0.776,43,87
+60622,0.797,0.303,2.026,43,115
+60647,0.779,-0.043,0.729,44,83
+60607,0.741,0.276,10.317,37,464
+60654,0.703,0.722,0.722,31,31
 ```
 
 ### Pipeline Summary

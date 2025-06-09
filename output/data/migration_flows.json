@@ -20,7 +20,7 @@
     },
     {
       "source_zip": 60602,
-      "destination_zip": 60613,
+      "destination_zip": 60644,
       "flow_count": 182,
       "year": 2024
     },
@@ -32,7 +32,7 @@
     },
     {
       "source_zip": 60622,
-      "destination_zip": 60610,
+      "destination_zip": 60639,
       "flow_count": 194,
       "year": 2024
     },
@@ -44,7 +44,7 @@
     },
     {
       "source_zip": 60647,
-      "destination_zip": 60613,
+      "destination_zip": 60644,
       "flow_count": 418,
       "year": 2024
     },
@@ -110,7 +110,7 @@
     },
     {
       "source_zip": 60608,
-      "destination_zip": 60610,
+      "destination_zip": 60639,
       "flow_count": 298,
       "year": 2024
     },
@@ -128,36 +128,36 @@
     },
     {
       "source_zip": 60609,
-      "destination_zip": 60610,
+      "destination_zip": 60639,
       "flow_count": 437,
       "year": 2024
     },
     {
-      "source_zip": 60613,
+      "source_zip": 60644,
       "destination_zip": 60647,
       "flow_count": 311,
       "year": 2024
     },
     {
-      "source_zip": 60613,
+      "source_zip": 60644,
       "destination_zip": 60608,
       "flow_count": 102,
       "year": 2024
     },
     {
-      "source_zip": 60613,
+      "source_zip": 60644,
       "destination_zip": 60641,
       "flow_count": 499,
       "year": 2024
     },
     {
-      "source_zip": 60610,
+      "source_zip": 60639,
       "destination_zip": 60622,
       "flow_count": 401,
       "year": 2024
     },
     {
-      "source_zip": 60610,
+      "source_zip": 60639,
       "destination_zip": 60641,
       "flow_count": 244,
       "year": 2024
