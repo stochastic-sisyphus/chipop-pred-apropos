@@ -1,0 +1,24 @@
+{
+  "model_metrics": {
+    "train_r2": 0.99999968700972,
+    "test_r2": 0.9999993594473315,
+    "feature_importance": {
+      "housing_density": 0.2101914641010657,
+      "housing_per_capita": 0.22036000714953768,
+      "new_construction_ratio": 5.149192438509043e-07,
+      "median_income": 0.0158387543714157,
+      "population": 0.5536092594587371,
+      "retail_businesses": 0.0
+    }
+  },
+  "predictions_path": "/home/ubuntu/chipop-pred-attempt-clean/output/models/housing/housing_predictions.csv",
+  "summary_stats": {
+    "mean_error": 0.06807503215740418,
+    "mean_abs_error": 0.38589674199528134,
+    "mean_error_pct": 0.0009069400630914827,
+    "mean_abs_error_pct": 0.002878548895899054,
+    "mean_growth_rate": 0.005827641955835962,
+    "max_growth_rate": 0.0751,
+    "min_growth_rate": -0.0098
+  }
+}

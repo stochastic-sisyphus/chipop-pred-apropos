@@ -1,0 +1,25 @@
+{
+  "model_metrics": {
+    "train_r2": 0.9999998325328913,
+    "test_r2": 0.999998899943368,
+    "feature_importance": {
+      "housing_density": 0.01554219388875367,
+      "business_density": 1.4484980279719157e-07,
+      "permit_density": 5.215864486179761e-05,
+      "new_construction_units": 0.9817536631280723,
+      "commercial_permits": 0.0,
+      "median_income": 0.0008136807224780531,
+      "employment_rate": 0.0018381587660314836
+    }
+  },
+  "predictions_path": "/home/ubuntu/chipop-pred-attempt-clean/output/models/population/population_predictions.csv",
+  "summary_stats": {
+    "mean_error": 0.20283911671924176,
+    "mean_abs_error": 0.20820189274448067,
+    "mean_error_pct": 0.015378548895899053,
+    "mean_abs_error_pct": 0.015378548895899053,
+    "mean_growth_rate": 0.016617547318611987,
+    "max_growth_rate": 0.0398,
+    "min_growth_rate": 0.0
+  }
+}

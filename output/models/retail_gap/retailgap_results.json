@@ -1,0 +1,11 @@
+{
+  "retail_gap_zips": [],
+  "retail_gap_count": 0,
+  "total_zips_analyzed": 59,
+  "south_west_gap_count": 0,
+  "visualizations": {
+    "retail_gap_priority_score": null,
+    "retail_deficit_by_zip": null,
+    "housing_vs_retail_growth": "/home/ubuntu/chicago_pipeline_fixed/output/models/retail_gap/visualizations/retailgap/housing_vs_retail_growth.png"
+  }
+}

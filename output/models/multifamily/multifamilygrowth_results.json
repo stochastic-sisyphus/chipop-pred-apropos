@@ -1,0 +1,90 @@
+{
+  "top_emerging_zips": [
+    {
+      "zip_code": "60601",
+      "historical_permit_count": 0,
+      "historical_unit_count": 0,
+      "historical_avg_units_per_year": 0,
+      "historical_low_activity": true,
+      "recent_permit_count": 1,
+      "recent_unit_count": 45.0,
+      "recent_avg_units_per_year": 45.0,
+      "recent_high_activity": true,
+      "unit_growth_ratio": 10.0,
+      "growth_score": 12.795790545596741,
+      "emerging_area_score": 8.0
+    },
+    {
+      "zip_code": "60602",
+      "historical_permit_count": 0,
+      "historical_unit_count": 0,
+      "historical_avg_units_per_year": 0,
+      "historical_low_activity": true,
+      "recent_permit_count": 1,
+      "recent_unit_count": 1.0,
+      "recent_avg_units_per_year": 1.0,
+      "recent_high_activity": true,
+      "unit_growth_ratio": 10.0,
+      "growth_score": 12.795790545596741,
+      "emerging_area_score": 8.0
+    },
+    {
+      "zip_code": "60603",
+      "historical_permit_count": 0,
+      "historical_unit_count": 0,
+      "historical_avg_units_per_year": 0,
+      "historical_low_activity": true,
+      "recent_permit_count": 1,
+      "recent_unit_count": 1.0,
+      "recent_avg_units_per_year": 1.0,
+      "recent_high_activity": true,
+      "unit_growth_ratio": 10.0,
+      "growth_score": 12.795790545596741,
+      "emerging_area_score": 8.0
+    },
+    {
+      "zip_code": "60607",
+      "historical_permit_count": 0,
+      "historical_unit_count": 0,
+      "historical_avg_units_per_year": 0,
+      "historical_low_activity": true,
+      "recent_permit_count": 1,
+      "recent_unit_count": 65.0,
+      "recent_avg_units_per_year": 65.0,
+      "recent_high_activity": true,
+      "unit_growth_ratio": 10.0,
+      "growth_score": 12.795790545596741,
+      "emerging_area_score": 8.0
+    },
+    {
+      "zip_code": "60606",
+      "historical_permit_count": 0,
+      "historical_unit_count": 0,
+      "historical_avg_units_per_year": 0,
+      "historical_low_activity": true,
+      "recent_permit_count": 1,
+      "recent_unit_count": 60.0,
+      "recent_avg_units_per_year": 60.0,
+      "recent_high_activity": true,
+      "unit_growth_ratio": 10.0,
+      "growth_score": 12.795790545596741,
+      "emerging_area_score": 8.0
+    }
+  ],
+  "emerging_areas_count": 5,
+  "total_zips_analyzed": 59,
+  "historical_period": {
+    "start_year": 2008,
+    "end_year": 2013
+  },
+  "recent_period": {
+    "start_year": 2023,
+    "end_year": 2023
+  },
+  "visualizations": {
+    "top_emerging_zips_growth_score": "/home/ubuntu/chicago_pipeline_fixed/output/models/multifamily/visualizations/multifamilygrowth/top_emerging_zips_growth_score.png",
+    "top_emerging_zips_recent_units": "/home/ubuntu/chicago_pipeline_fixed/output/models/multifamily/visualizations/multifamilygrowth/top_emerging_zips_recent_units.png",
+    "top_emerging_zips_growth_ratio": "/home/ubuntu/chicago_pipeline_fixed/output/models/multifamily/visualizations/multifamilygrowth/top_emerging_zips_growth_ratio.png",
+    "historical_vs_recent_units": "/home/ubuntu/chicago_pipeline_fixed/output/models/multifamily/visualizations/multifamilygrowth/historical_vs_recent_units.png"
+  }
+}
