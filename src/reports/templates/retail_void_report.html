@@ -1,0 +1,204 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        .report-header {
+            margin-bottom: 30px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 20px;
+        }
+        .report-section {
+            margin-bottom: 40px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        .visualization {
+            margin: 20px 0;
+            text-align: center;
+        }
+        .visualization img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+        }
+        .summary-box {
+            background-color: #f8f9fa;
+            border-left: 4px solid #2c3e50;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .highlight {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            font-size: 0.9em;
+            color: #777;
+        }
+        .money {
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="report-header">
+            <h1>{{ title }}</h1>
+            <p>Generated on: {{ generation_date }}</p>
+        </div>
+        
+        <div class="report-section">
+            <h2>Executive Summary</h2>
+            <div class="summary-box">
+                <p>This report identifies {{ void_count }} retail voids across {{ retail_categories|length }} retail categories in Chicago.</p>
+                <p>The total annual revenue potential for these retail voids is estimated at <span class="highlight money">${{ '{:,}'.format(total_annual_revenue_potential) }}</span>.</p>
+            </div>
+        </div>
+        
+        <div class="report-section">
+            <h2>Top Retail Voids</h2>
+            {% if retail_voids %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>ZIP Code</th>
+                        <th>Retail Category</th>
+                        <th>Void Score</th>
+                        <th>Business Count</th>
+                        <th>Leakage Ratio</th>
+                        <th>Annual Revenue Potential</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for void in retail_voids %}
+                    <tr>
+                        <td>{{ void.zip_code }}</td>
+                        <td>{{ void.retail_category }}</td>
+                        <td>{{ void.void_score|round(1) if void.void_score else 'N/A' }}</td>
+                        <td>{{ void.business_count|int }}</td>
+                        <td>{{ (void.leakage_ratio * 100)|round(1) }}%</td>
+                        <td class="money">${{ '{:,}'.format(void.annual_revenue_potential|int) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p>No retail voids identified.</p>
+            {% endif %}
+        </div>
+        
+        <div class="report-section">
+            <h2>Top Void Categories</h2>
+            {% if top_void_categories %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Retail Category</th>
+                        <th>Void Count</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for category in top_void_categories %}
+                    <tr>
+                        <td>{{ category.retail_category }}</td>
+                        <td>{{ category.void_count }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p>No void categories identified.</p>
+            {% endif %}
+        </div>
+        
+        <div class="report-section">
+            <h2>Visualizations</h2>
+            {% if visualizations %}
+                {% if visualizations.top_retail_voids_score %}
+                <div class="visualization">
+                    <h3>Top Retail Voids by Void Score</h3>
+                    <img src="{{ visualizations.top_retail_voids_score }}" alt="Top Retail Voids by Void Score">
+                </div>
+                {% endif %}
+                
+                {% if visualizations.top_retail_voids_revenue %}
+                <div class="visualization">
+                    <h3>Top Retail Voids by Annual Revenue Potential</h3>
+                    <img src="{{ visualizations.top_retail_voids_revenue }}" alt="Top Retail Voids by Annual Revenue Potential">
+                </div>
+                {% endif %}
+                
+                {% if visualizations.void_count_by_category %}
+                <div class="visualization">
+                    <h3>Retail Void Count by Category</h3>
+                    <img src="{{ visualizations.void_count_by_category }}" alt="Retail Void Count by Category">
+                </div>
+                {% endif %}
+                
+                {% if visualizations.leakage_vs_potential %}
+                <div class="visualization">
+                    <h3>Spending Leakage vs. Potential</h3>
+                    <img src="{{ visualizations.leakage_vs_potential }}" alt="Spending Leakage vs. Potential">
+                </div>
+                {% endif %}
+            {% else %}
+            <p>No visualizations available.</p>
+            {% endif %}
+        </div>
+        
+        <div class="report-section">
+            <h2>Analysis Methodology</h2>
+            <p>This analysis identifies retail voids by analyzing spending leakage and business counts. Areas with high spending potential but few businesses are flagged as having retail voids.</p>
+            <p>The void score is calculated based on:</p>
+            <ul>
+                <li>Leakage dollars (weight: 50%)</li>
+                <li>Spending potential (weight: 30%)</li>
+                <li>Inverse business count (weight: 20%)</li>
+            </ul>
+            <p>Annual revenue potential is estimated as 30% of current spending leakage.</p>
+        </div>
+        
+        <div class="footer">
+            <p>Chicago Housing Pipeline & Population Shift Project</p>
+            <p>© {{ generation_date.split('-')[0] }} All Rights Reserved</p>
+        </div>
+    </div>
+</body>
+</html>
+        

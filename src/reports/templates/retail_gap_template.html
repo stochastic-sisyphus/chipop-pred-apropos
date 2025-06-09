@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        h1 {
+            border-bottom: 2px solid #e74c3c;
+            padding-bottom: 10px;
+        }
+        h2 {
+            border-bottom: 1px solid #bdc3c7;
+            padding-bottom: 5px;
+            margin-top: 30px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .date {
+            color: #7f8c8d;
+            font-style: italic;
+        }
+        .summary {
+            background-color: #f8f9fa;
+            border-left: 4px solid #e74c3c;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .visualization {
+            margin: 30px 0;
+            text-align: center;
+        }
+        .visualization img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 5px;
+        }
+        .visualization-caption {
+            font-style: italic;
+            color: #7f8c8d;
+            margin-top: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        .methodology {
+            background-color: #f8f9fa;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #bdc3c7;
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{{ title }}</h1>
+        <div class="date">Generated on: {{ generation_date }}</div>
+    </div>
+    
+    <div class="summary">
+        <h2>Executive Summary</h2>
+        <p>{{ summary }}</p>
+    </div>
+    
+    <h2>Retail Gap Analysis Overview</h2>
+    
+    {% if gap_stats %}
+    <table>
+        <tr>
+            <th>Metric</th>
+            <th>Value</th>
+        </tr>
+        <tr>
+            <td>Mean Gap Score</td>
+            <td>{{ "%.3f"|format(gap_stats.mean_gap) }}</td>
+        </tr>
+        <tr>
+            <td>Median Gap Score</td>
+            <td>{{ "%.3f"|format(gap_stats.median_gap) }}</td>
+        </tr>
+        <tr>
+            <td>Minimum Gap Score</td>
+            <td>{{ "%.3f"|format(gap_stats.min_gap) }}</td>
+        </tr>
+        <tr>
+            <td>Maximum Gap Score</td>
+            <td>{{ "%.3f"|format(gap_stats.max_gap) }}</td>
+        </tr>
+        <tr>
+            <td>Standard Deviation</td>
+            <td>{{ "%.3f"|format(gap_stats.std_gap) }}</td>
+        </tr>
+        <tr>
+            <td>Opportunity Zones Count</td>
+            <td>{{ gap_stats.opportunity_count }}</td>
+        </tr>
+        <tr>
+            <td>Saturated Markets Count</td>
+            <td>{{ gap_stats.saturated_count }}</td>
+        </tr>
+    </table>
+    {% endif %}
+    
+    {% if visualizations.gap_distribution %}
+    <div class="visualization">
+        <h3>Retail Gap Score Distribution</h3>
+        <img src="{{ visualizations.gap_distribution }}" alt="Retail Gap Distribution">
+        <div class="visualization-caption">Figure 1: Distribution of retail gap scores across Chicago ZIP codes.</div>
+    </div>
+    {% endif %}
+    
+    <h2>Retail Opportunity Zones</h2>
+    
+    {% if opportunity_zones %}
+    <table>
+        <tr>
+            <th>ZIP Code</th>
+            <th>Gap Score</th>
+            <th>Retail per Capita</th>
+            <th>Predicted Retail per Capita</th>
+        </tr>
+        {% for zone in opportunity_zones %}
+        <tr>
+            <td>{{ zone.zip_code }}</td>
+            <td>{{ "%.3f"|format(zone.retail_gap_score) }}</td>
+            <td>{{ "%.4f"|format(zone.retail_per_capita) }}</td>
+            <td>{{ "%.4f"|format(zone.predicted_retail_per_capita) }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p>No retail opportunity zones identified.</p>
+    {% endif %}
+    
+    {% if visualizations.opportunity_zones %}
+    <div class="visualization">
+        <h3>Top Retail Opportunity Zones</h3>
+        <img src="{{ visualizations.opportunity_zones }}" alt="Retail Opportunity Zones">
+        <div class="visualization-caption">Figure 2: ZIP codes with the highest retail development potential.</div>
+    </div>
+    {% endif %}
+    
+    <h2>Retail Cluster Analysis</h2>
+    
+    {% if retail_clusters %}
+    <table>
+        <tr>
+            <th>Cluster</th>
+            <th>ZIP Codes</th>
+            <th>Avg. Retail per Capita</th>
+            <th>Avg. Population</th>
+        </tr>
+        {% for cluster in retail_clusters %}
+        <tr>
+            <td>{{ cluster.retail_cluster }}</td>
+            <td>{{ cluster.zip_count }}</td>
+            <td>{{ "%.4f"|format(cluster.retail_per_capita) }}</td>
+            <td>{{ "{:,}".format(cluster.population|int) }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p>No retail clusters available.</p>
+    {% endif %}
+    
+    {% if visualizations.retail_clusters %}
+    <div class="visualization">
+        <h3>Retail Cluster Analysis</h3>
+        <img src="{{ visualizations.retail_clusters }}" alt="Retail Clusters">
+        <div class="visualization-caption">Figure 3: Analysis of retail clusters across Chicago.</div>
+    </div>
+    {% endif %}
+    
+    <h2>Category Gap Analysis</h2>
+    
+    {% if category_gaps %}
+    <table>
+        <tr>
+            <th>Category</th>
+            <th>ZIP Codes with Gaps</th>
+            <th>Average Gap Size</th>
+        </tr>
+        {% for category, gaps in category_gaps.items() %}
+        <tr>
+            <td>{{ category }}</td>
+            <td>{{ gaps|length }}</td>
+            <td>{{ "%.3f"|format(gaps|map(attribute='gap_size')|sum / gaps|length if gaps else 0) }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p>No category gaps available.</p>
+    {% endif %}
+    
+    {% if visualizations.category_gaps %}
+    <div class="visualization">
+        <h3>Retail Category Gaps</h3>
+        <img src="{{ visualizations.category_gaps }}" alt="Category Gaps">
+        <div class="visualization-caption">Figure 4: Analysis of retail category gaps by type.</div>
+    </div>
+    {% endif %}
+    
+    <div class="methodology">
+        <h2>Methodology</h2>
+        <p>{{ methodology }}</p>
+    </div>
+    
+    {% if visualizations.interactive_dashboard %}
+    <h2>Interactive Dashboard</h2>
+    <p>An interactive dashboard is available at: <a href="{{ visualizations.interactive_dashboard }}">Retail Gap Dashboard</a></p>
+    {% endif %}
+    
+    <div class="footer">
+        <p>Chicago Housing Pipeline & Population Shift Project</p>
+        <p>© {{ generation_date.split('-')[0] }} All Rights Reserved</p>
+    </div>
+</body>
+</html>

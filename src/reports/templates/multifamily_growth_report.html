@@ -1,0 +1,170 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        .report-header {
+            margin-bottom: 30px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 20px;
+        }
+        .report-section {
+            margin-bottom: 40px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        .visualization {
+            margin: 20px 0;
+            text-align: center;
+        }
+        .visualization img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+        }
+        .summary-box {
+            background-color: #f8f9fa;
+            border-left: 4px solid #2c3e50;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            font-size: 0.9em;
+            color: #777;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="report-header">
+            <h1>{{ title }}</h1>
+            <p>Generated on: {{ generation_date }}</p>
+        </div>
+        
+        <div class="report-section">
+            <h2>Executive Summary</h2>
+            <div class="summary-box">
+                <p>This report identifies {{ emerging_areas_count }} emerging multifamily development areas in Chicago, out of {{ total_zips_analyzed }} ZIP codes analyzed.</p>
+                <p>The analysis compares historical multifamily development activity ({{ historical_period.start_year }}-{{ historical_period.end_year }}) with recent activity ({{ recent_period.start_year }}-{{ recent_period.end_year }}).</p>
+            </div>
+        </div>
+        
+        <div class="report-section">
+            <h2>Top Emerging ZIP Codes</h2>
+            {% if top_emerging_zips %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>ZIP Code</th>
+                        <th>Growth Score</th>
+                        <th>Recent Unit Count</th>
+                        <th>Historical Unit Count</th>
+                        <th>Unit Growth Ratio</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for zip in top_emerging_zips %}
+                    <tr>
+                        <td>{{ zip.zip_code }}</td>
+                        <td>{{ zip.growth_score|round(1) }}</td>
+                        <td>{{ zip.recent_unit_count|int }}</td>
+                        <td>{{ zip.historical_unit_count|int }}</td>
+                        <td>{{ zip.unit_growth_ratio|round(1) }}x</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p>No emerging ZIP codes identified.</p>
+            {% endif %}
+        </div>
+        
+        <div class="report-section">
+            <h2>Visualizations</h2>
+            {% if visualizations %}
+                {% if visualizations.top_emerging_zips_growth_score %}
+                <div class="visualization">
+                    <h3>Top Emerging ZIP Codes by Growth Score</h3>
+                    <img src="{{ visualizations.top_emerging_zips_growth_score }}" alt="Top Emerging ZIP Codes by Growth Score">
+                </div>
+                {% endif %}
+                
+                {% if visualizations.top_emerging_zips_recent_units %}
+                <div class="visualization">
+                    <h3>Top Emerging ZIP Codes by Recent Unit Count</h3>
+                    <img src="{{ visualizations.top_emerging_zips_recent_units }}" alt="Top Emerging ZIP Codes by Recent Unit Count">
+                </div>
+                {% endif %}
+                
+                {% if visualizations.top_emerging_zips_growth_ratio %}
+                <div class="visualization">
+                    <h3>Top Emerging ZIP Codes by Unit Growth Ratio</h3>
+                    <img src="{{ visualizations.top_emerging_zips_growth_ratio }}" alt="Top Emerging ZIP Codes by Unit Growth Ratio">
+                </div>
+                {% endif %}
+                
+                {% if visualizations.historical_vs_recent_units %}
+                <div class="visualization">
+                    <h3>Historical vs. Recent Multifamily Unit Counts</h3>
+                    <img src="{{ visualizations.historical_vs_recent_units }}" alt="Historical vs. Recent Multifamily Unit Counts">
+                </div>
+                {% endif %}
+            {% else %}
+            <p>No visualizations available.</p>
+            {% endif %}
+        </div>
+        
+        <div class="report-section">
+            <h2>Analysis Methodology</h2>
+            <p>This analysis identifies emerging multifamily development areas by comparing historical and recent development activity. Areas with historically low activity but recent high activity are flagged as emerging areas.</p>
+            <p>The growth score is calculated based on:</p>
+            <ul>
+                <li>Historical low activity (weight: 3)</li>
+                <li>Recent high activity (weight: 5)</li>
+                <li>Unit growth ratio (weight: 2)</li>
+            </ul>
+        </div>
+        
+        <div class="footer">
+            <p>Chicago Housing Pipeline & Population Shift Project</p>
+            <p>© {{ generation_date.split('-')[0] }} All Rights Reserved</p>
+        </div>
+    </div>
+</body>
+</html>
+        

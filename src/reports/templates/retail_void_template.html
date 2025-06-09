@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        h1 {
+            border-bottom: 2px solid #9b59b6;
+            padding-bottom: 10px;
+        }
+        h2 {
+            border-bottom: 1px solid #bdc3c7;
+            padding-bottom: 5px;
+            margin-top: 30px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .date {
+            color: #7f8c8d;
+            font-style: italic;
+        }
+        .summary {
+            background-color: #f8f9fa;
+            border-left: 4px solid #9b59b6;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .visualization {
+            margin: 30px 0;
+            text-align: center;
+        }
+        .visualization img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 5px;
+        }
+        .visualization-caption {
+            font-style: italic;
+            color: #7f8c8d;
+            margin-top: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        .methodology {
+            background-color: #f8f9fa;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #bdc3c7;
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{{ title }}</h1>
+        <div class="date">Generated on: {{ generation_date }}</div>
+    </div>
+    
+    <div class="summary">
+        <h2>Executive Summary</h2>
+        <p>{{ summary }}</p>
+    </div>
+    
+    <h2>Retail Void Analysis Overview</h2>
+    
+    {% if void_stats %}
+    <table>
+        <tr>
+            <th>Metric</th>
+            <th>Value</th>
+        </tr>
+        {% if void_stats.mean_leakage is defined %}
+        <tr>
+            <td>Mean Leakage Ratio</td>
+            <td>{{ "%.3f"|format(void_stats.mean_leakage) }}</td>
+        </tr>
+        <tr>
+            <td>Median Leakage Ratio</td>
+            <td>{{ "%.3f"|format(void_stats.median_leakage) }}</td>
+        </tr>
+        <tr>
+            <td>Minimum Leakage Ratio</td>
+            <td>{{ "%.3f"|format(void_stats.min_leakage) }}</td>
+        </tr>
+        <tr>
+            <td>Maximum Leakage Ratio</td>
+            <td>{{ "%.3f"|format(void_stats.max_leakage) }}</td>
+        </tr>
+        <tr>
+            <td>Standard Deviation</td>
+            <td>{{ "%.3f"|format(void_stats.std_leakage) }}</td>
+        </tr>
+        {% endif %}
+        {% if void_stats.void_count is defined %}
+        <tr>
+            <td>Void Zones Count</td>
+            <td>{{ void_stats.void_count }}</td>
+        </tr>
+        <tr>
+            <td>Total ZIP Codes</td>
+            <td>{{ void_stats.total_zips }}</td>
+        </tr>
+        <tr>
+            <td>Void Percentage</td>
+            <td>{{ "%.1f"|format(void_stats.void_percentage) }}%</td>
+        </tr>
+        {% endif %}
+    </table>
+    {% endif %}
+    
+    {% if visualizations.leakage_distribution %}
+    <div class="visualization">
+        <h3>Spending Leakage Distribution</h3>
+        <img src="{{ visualizations.leakage_distribution }}" alt="Leakage Distribution">
+        <div class="visualization-caption">Figure 1: Distribution of spending leakage across Chicago ZIP codes.</div>
+    </div>
+    {% endif %}
+    
+    <h2>Retail Void Zones</h2>
+    
+    {% if void_zones %}
+    <table>
+        <tr>
+            <th>ZIP Code</th>
+            <th>Leakage Ratio</th>
+            <th>Retail per Capita</th>
+            <th>Population</th>
+        </tr>
+        {% for zone in void_zones %}
+        <tr>
+            <td>{{ zone.zip_code }}</td>
+            <td>{{ "%.3f"|format(zone.leakage_ratio) if zone.leakage_ratio is defined else "N/A" }}</td>
+            <td>{{ "%.4f"|format(zone.retail_per_capita) if zone.retail_per_capita is defined else "N/A" }}</td>
+            <td>{{ "{:,}".format(zone.population|int) if zone.population is defined else "N/A" }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p>No retail void zones identified.</p>
+    {% endif %}
+    
+    {% if visualizations.void_zones %}
+    <div class="visualization">
+        <h3>Retail Void Zones</h3>
+        <img src="{{ visualizations.void_zones }}" alt="Retail Void Zones">
+        <div class="visualization-caption">Figure 2: ZIP codes identified as retail void zones.</div>
+    </div>
+    {% endif %}
+    
+    <h2>Category Void Analysis</h2>
+    
+    {% if category_voids %}
+    <table>
+        <tr>
+            <th>Category</th>
+            <th>ZIP Codes with Voids</th>
+            <th>Average Void Size</th>
+        </tr>
+        {% for category, voids in category_voids.items() %}
+        <tr>
+            <td>{{ category }}</td>
+            <td>{{ voids|length }}</td>
+            <td>{{ "%.3f"|format(voids|map(attribute='void_size')|sum / voids|length if voids else 0) }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p>No category voids available.</p>
+    {% endif %}
+    
+    {% if visualizations.category_voids %}
+    <div class="visualization">
+        <h3>Retail Category Voids</h3>
+        <img src="{{ visualizations.category_voids }}" alt="Category Voids">
+        <div class="visualization-caption">Figure 3: Analysis of retail category voids by type.</div>
+    </div>
+    {% endif %}
+    
+    <h2>Spending Leakage Patterns</h2>
+    
+    {% if leakage_patterns %}
+    <table>
+        <tr>
+            <th>Metric</th>
+            <th>Value</th>
+        </tr>
+        {% for key, value in leakage_patterns.items() if key not in ['high_leakage_zips', 'low_leakage_zips'] %}
+        <tr>
+            <td>{{ key }}</td>
+            <td>{{ "%.3f"|format(value) if value is number else value }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    
+    {% if leakage_patterns.high_leakage_zips %}
+    <h3>High Leakage ZIP Codes</h3>
+    <p>{{ leakage_patterns.high_leakage_zips|join(', ') }}</p>
+    {% endif %}
+    
+    {% if leakage_patterns.low_leakage_zips %}
+    <h3>Low Leakage ZIP Codes (Attraction)</h3>
+    <p>{{ leakage_patterns.low_leakage_zips|join(', ') }}</p>
+    {% endif %}
+    {% else %}
+    <p>No leakage patterns available.</p>
+    {% endif %}
+    
+    {% if visualizations.leakage_flow %}
+    <div class="visualization">
+        <h3>Spending Leakage Flow</h3>
+        <img src="{{ visualizations.leakage_flow }}" alt="Leakage Flow">
+        <div class="visualization-caption">Figure 4: Analysis of spending leakage flow patterns.</div>
+    </div>
+    {% endif %}
+    
+    <div class="methodology">
+        <h2>Methodology</h2>
+        <p>{{ methodology }}</p>
+    </div>
+    
+    {% if visualizations.interactive_dashboard %}
+    <h2>Interactive Dashboard</h2>
+    <p>An interactive dashboard is available at: <a href="{{ visualizations.interactive_dashboard }}">Retail Void Dashboard</a></p>
+    {% endif %}
+    
+    <div class="footer">
+        <p>Chicago Housing Pipeline & Population Shift Project</p>
+        <p>© {{ generation_date.split('-')[0] }} All Rights Reserved</p>
+    </div>
+</body>
+</html>

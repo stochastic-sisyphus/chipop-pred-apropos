@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2, h3, h4 {
+            color: #2c3e50;
+        }
+        h1 {
+            border-bottom: 2px solid #2980b9;
+            padding-bottom: 10px;
+        }
+        h2 {
+            border-bottom: 1px solid #bdc3c7;
+            padding-bottom: 5px;
+            margin-top: 30px;
+            color: #2980b9;
+        }
+        h3 {
+            margin-top: 25px;
+            color: #3498db;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .date {
+            color: #7f8c8d;
+            font-style: italic;
+        }
+        .executive-summary {
+            background-color: #f8f9fa;
+            border-left: 4px solid #2980b9;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .section {
+            margin: 40px 0;
+            padding-top: 10px;
+            border-top: 1px solid #ecf0f1;
+        }
+        .population-section {
+            border-left: 4px solid #3498db;
+            padding-left: 15px;
+        }
+        .retail-gap-section {
+            border-left: 4px solid #e74c3c;
+            padding-left: 15px;
+        }
+        .retail-void-section {
+            border-left: 4px solid #9b59b6;
+            padding-left: 15px;
+        }
+        .recommendations-section {
+            border-left: 4px solid #27ae60;
+            padding-left: 15px;
+        }
+        .visualization {
+            margin: 30px 0;
+            text-align: center;
+        }
+        .visualization img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 5px;
+        }
+        .visualization-caption {
+            font-style: italic;
+            color: #7f8c8d;
+            margin-top: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        .recommendation-item {
+            background-color: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border-left: 3px solid #27ae60;
+        }
+        .methodology {
+            background-color: #f8f9fa;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #bdc3c7;
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{{ title }}</h1>
+        <div class="date">Generated on: {{ generation_date }}</div>
+    </div>
+    
+    <div class="executive-summary">
+        <h2>Executive Summary</h2>
+        <p>{{ executive_summary }}</p>
+    </div>
+    
+    <div class="section population-section">
+        <h2>Population Forecast Analysis</h2>
+        <p>{{ population_forecast.summary }}</p>
+        
+        {% if population_forecast.population_stats %}
+        <h3>Population Statistics</h3>
+        <table>
+            <tr>
+                <th>Metric</th>
+                <th>Value</th>
+            </tr>
+            {% for key, value in population_forecast.population_stats.items() %}
+            <tr>
+                <td>{{ key }}</td>
+                <td>{{ "%.2f"|format(value) if value is number and key == 'growth_rate' else ("{:,}".format(value|int) if value is number else value) }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% endif %}
+        
+        {% if population_forecast.top_emerging_zips %}
+        <h3>Top Emerging ZIP Codes</h3>
+        <table>
+            <tr>
+                <th>ZIP Code</th>
+                <th>Growth Rate (%)</th>
+            </tr>
+            {% for zip_info in population_forecast.top_emerging_zips %}
+            <tr>
+                <td>{{ zip_info.zip_code }}</td>
+                <td>{{ "%.2f"|format(zip_info.population_growth_rate) }}%</td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% endif %}
+        
+        {% if visualizations.population_forecast %}
+        <div class="visualization">
+            <h3>Population Forecast Visualization</h3>
+            <img src="{{ visualizations.population_forecast }}" alt="Population Forecast">
+            <div class="visualization-caption">Figure 1: Population forecast trends for Chicago.</div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <div class="section retail-gap-section">
+        <h2>Retail Gap Analysis</h2>
+        <p>{{ retail_gap.summary }}</p>
+        
+        {% if retail_gap.gap_stats %}
+        <h3>Retail Gap Statistics</h3>
+        <table>
+            <tr>
+                <th>Metric</th>
+                <th>Value</th>
+            </tr>
+            {% for key, value in retail_gap.gap_stats.items() %}
+            <tr>
+                <td>{{ key }}</td>
+                <td>{{ "%.3f"|format(value) if value is number and 'gap' in key else value }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% endif %}
+        
+        {% if retail_gap.opportunity_zones %}
+        <h3>Retail Opportunity Zones</h3>
+        <table>
+            <tr>
+                <th>ZIP Code</th>
+                <th>Gap Score</th>
+            </tr>
+            {% for zone in retail_gap.opportunity_zones %}
+            <tr>
+                <td>{{ zone.zip_code }}</td>
+                <td>{{ "%.3f"|format(zone.retail_gap_score) }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% endif %}
+        
+        {% if visualizations.retail_gap %}
+        <div class="visualization">
+            <h3>Retail Gap Visualization</h3>
+            <img src="{{ visualizations.retail_gap }}" alt="Retail Gap">
+            <div class="visualization-caption">Figure 2: Retail gap analysis for Chicago ZIP codes.</div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <div class="section retail-void-section">
+        <h2>Retail Void Analysis</h2>
+        <p>{{ retail_void.summary }}</p>
+        
+        {% if retail_void.void_stats %}
+        <h3>Retail Void Statistics</h3>
+        <table>
+            <tr>
+                <th>Metric</th>
+                <th>Value</th>
+            </tr>
+            {% for key, value in retail_void.void_stats.items() %}
+            <tr>
+                <td>{{ key }}</td>
+                <td>{{ "%.3f"|format(value) if value is number and 'leakage' in key else ("%.1f"|format(value) + '%' if value is number and 'percentage' in key else value) }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% endif %}
+        
+        {% if retail_void.void_zones %}
+        <h3>Retail Void Zones</h3>
+        <table>
+            <tr>
+                <th>ZIP Code</th>
+                <th>Leakage Ratio</th>
+            </tr>
+            {% for zone in retail_void.void_zones %}
+            <tr>
+                <td>{{ zone.zip_code }}</td>
+                <td>{{ "%.3f"|format(zone.leakage_ratio) if zone.leakage_ratio is defined else "N/A" }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% endif %}
+        
+        {% if visualizations.retail_void %}
+        <div class="visualization">
+            <h3>Retail Void Visualization</h3>
+            <img src="{{ visualizations.retail_void }}" alt="Retail Void">
+            <div class="visualization-caption">Figure 3: Retail void analysis for Chicago ZIP codes.</div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <div class="section recommendations-section">
+        <h2>Recommendations</h2>
+        
+        {% if recommendations %}
+        {% for recommendation in recommendations %}
+        <div class="recommendation-item">
+            <p>{{ recommendation }}</p>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p>No recommendations available.</p>
+        {% endif %}
+    </div>
+    
+    {% if visualizations.combined_dashboard %}
+    <div class="section">
+        <h2>Interactive Dashboard</h2>
+        <p>A comprehensive interactive dashboard is available at: <a href="{{ visualizations.combined_dashboard }}">Chicago Housing Pipeline Dashboard</a></p>
+    </div>
+    {% endif %}
+    
+    <div class="methodology">
+        <h2>Methodology</h2>
+        <p>{{ methodology }}</p>
+    </div>
+    
+    <div class="footer">
+        <p>Chicago Housing Pipeline & Population Shift Project</p>
+        <p>© {{ generation_date.split('-')[0] }} All Rights Reserved</p>
+    </div>
+</body>
+</html>

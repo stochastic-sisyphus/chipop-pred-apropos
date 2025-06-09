@@ -1,0 +1,169 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        .report-header {
+            margin-bottom: 30px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 20px;
+        }
+        .report-section {
+            margin-bottom: 40px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        .visualization {
+            margin: 20px 0;
+            text-align: center;
+        }
+        .visualization img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+        }
+        .summary-box {
+            background-color: #f8f9fa;
+            border-left: 4px solid #2c3e50;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .highlight {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            font-size: 0.9em;
+            color: #777;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="report-header">
+            <h1>{{ title }}</h1>
+            <p>Generated on: {{ generation_date }}</p>
+        </div>
+        
+        <div class="report-section">
+            <h2>Executive Summary</h2>
+            <div class="summary-box">
+                <p>This report identifies {{ retail_gap_count }} ZIP codes with significant retail gaps in Chicago, out of {{ total_zips_analyzed }} ZIP codes analyzed.</p>
+                <p>Of these, <span class="highlight">{{ south_west_gap_count }} ({{ south_west_gap_percentage }}%)</span> are located in South and West side neighborhoods, indicating potential opportunities for targeted retail development in these areas.</p>
+            </div>
+        </div>
+        
+        <div class="report-section">
+            <h2>Retail Gap Areas</h2>
+            {% if retail_gap_zips %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>ZIP Code</th>
+                        <th>Priority Score</th>
+                        <th>Retail Deficit</th>
+                        <th>Housing Growth (%)</th>
+                        <th>Retail Growth (%)</th>
+                        <th>South/West Side</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for zip in retail_gap_zips %}
+                    <tr>
+                        <td>{{ zip.zip_code }}</td>
+                        <td>{{ zip.priority_score|round(1) if zip.priority_score else 'N/A' }}</td>
+                        <td>{{ zip.retail_deficit|int }}</td>
+                        <td>{{ zip.housing_growth_pct|round(1) }}%</td>
+                        <td>{{ zip.retail_growth_pct|round(1) }}%</td>
+                        <td>{{ 'Yes' if zip.south_west_side else 'No' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p>No retail gap areas identified.</p>
+            {% endif %}
+        </div>
+        
+        <div class="report-section">
+            <h2>Visualizations</h2>
+            {% if visualizations %}
+                {% if visualizations.retail_gap_priority_score %}
+                <div class="visualization">
+                    <h3>Retail Gap ZIP Codes by Priority Score</h3>
+                    <img src="{{ visualizations.retail_gap_priority_score }}" alt="Retail Gap ZIP Codes by Priority Score">
+                </div>
+                {% endif %}
+                
+                {% if visualizations.retail_deficit_by_zip %}
+                <div class="visualization">
+                    <h3>Retail Deficit by ZIP Code</h3>
+                    <img src="{{ visualizations.retail_deficit_by_zip }}" alt="Retail Deficit by ZIP Code">
+                </div>
+                {% endif %}
+                
+                {% if visualizations.housing_vs_retail_growth %}
+                <div class="visualization">
+                    <h3>Housing Growth vs. Retail Growth</h3>
+                    <img src="{{ visualizations.housing_vs_retail_growth }}" alt="Housing Growth vs. Retail Growth">
+                </div>
+                {% endif %}
+            {% else %}
+            <p>No visualizations available.</p>
+            {% endif %}
+        </div>
+        
+        <div class="report-section">
+            <h2>Analysis Methodology</h2>
+            <p>This analysis identifies retail gaps by comparing housing growth and retail business growth. Areas with high housing growth but low retail growth are flagged as having retail gaps.</p>
+            <p>The priority score is calculated based on:</p>
+            <ul>
+                <li>Retail deficit (weight: 50%)</li>
+                <li>Gap ratio (weight: 30%)</li>
+                <li>South/West side location (weight: 20%)</li>
+            </ul>
+        </div>
+        
+        <div class="footer">
+            <p>Chicago Housing Pipeline & Population Shift Project</p>
+            <p>© {{ generation_date.split('-')[0] }} All Rights Reserved</p>
+        </div>
+    </div>
+</body>
+</html>
+        
