@@ -1,0 +1,11 @@
+zip_code,permits_issued,permits_completed,permits_pending,is_loop,loop_adjustment,adjusted_permits
+60602,75,14,61,False,1.0,61
+60622,65,34,31,False,1.0,31
+60647,14,11,3,False,1.0,3
+60607,42,5,37,False,1.0,37
+60654,27,19,8,False,1.0,8
+60641,58,15,43,False,1.0,43
+60608,94,30,64,False,1.0,64
+60609,72,63,9,False,1.0,9
+60613,36,21,15,False,1.0,15
+60610,86,37,49,False,1.0,49

@@ -1,0 +1,166 @@
+{
+  "metadata": {
+    "description": "Migration flows between Chicago ZIP codes",
+    "year": 2024,
+    "source": "Chicago Housing Pipeline & Population Shift Project",
+    "generated_date": "2025-06-08"
+  },
+  "flows": [
+    {
+      "source_zip": 60602,
+      "destination_zip": 60608,
+      "flow_count": 246,
+      "year": 2024
+    },
+    {
+      "source_zip": 60602,
+      "destination_zip": 60647,
+      "flow_count": 400,
+      "year": 2024
+    },
+    {
+      "source_zip": 60602,
+      "destination_zip": 60613,
+      "flow_count": 182,
+      "year": 2024
+    },
+    {
+      "source_zip": 60622,
+      "destination_zip": 60654,
+      "flow_count": 132,
+      "year": 2024
+    },
+    {
+      "source_zip": 60622,
+      "destination_zip": 60610,
+      "flow_count": 194,
+      "year": 2024
+    },
+    {
+      "source_zip": 60622,
+      "destination_zip": 60647,
+      "flow_count": 134,
+      "year": 2024
+    },
+    {
+      "source_zip": 60647,
+      "destination_zip": 60613,
+      "flow_count": 418,
+      "year": 2024
+    },
+    {
+      "source_zip": 60647,
+      "destination_zip": 60654,
+      "flow_count": 337,
+      "year": 2024
+    },
+    {
+      "source_zip": 60647,
+      "destination_zip": 60622,
+      "flow_count": 83,
+      "year": 2024
+    },
+    {
+      "source_zip": 60607,
+      "destination_zip": 60647,
+      "flow_count": 428,
+      "year": 2024
+    },
+    {
+      "source_zip": 60607,
+      "destination_zip": 60602,
+      "flow_count": 355,
+      "year": 2024
+    },
+    {
+      "source_zip": 60607,
+      "destination_zip": 60654,
+      "flow_count": 317,
+      "year": 2024
+    },
+    {
+      "source_zip": 60654,
+      "destination_zip": 60609,
+      "flow_count": 304,
+      "year": 2024
+    },
+    {
+      "source_zip": 60654,
+      "destination_zip": 60622,
+      "flow_count": 352,
+      "year": 2024
+    },
+    {
+      "source_zip": 60641,
+      "destination_zip": 60602,
+      "flow_count": 241,
+      "year": 2024
+    },
+    {
+      "source_zip": 60641,
+      "destination_zip": 60609,
+      "flow_count": 301,
+      "year": 2024
+    },
+    {
+      "source_zip": 60608,
+      "destination_zip": 60602,
+      "flow_count": 357,
+      "year": 2024
+    },
+    {
+      "source_zip": 60608,
+      "destination_zip": 60610,
+      "flow_count": 298,
+      "year": 2024
+    },
+    {
+      "source_zip": 60608,
+      "destination_zip": 60607,
+      "flow_count": 215,
+      "year": 2024
+    },
+    {
+      "source_zip": 60609,
+      "destination_zip": 60654,
+      "flow_count": 334,
+      "year": 2024
+    },
+    {
+      "source_zip": 60609,
+      "destination_zip": 60610,
+      "flow_count": 437,
+      "year": 2024
+    },
+    {
+      "source_zip": 60613,
+      "destination_zip": 60647,
+      "flow_count": 311,
+      "year": 2024
+    },
+    {
+      "source_zip": 60613,
+      "destination_zip": 60608,
+      "flow_count": 102,
+      "year": 2024
+    },
+    {
+      "source_zip": 60613,
+      "destination_zip": 60641,
+      "flow_count": 499,
+      "year": 2024
+    },
+    {
+      "source_zip": 60610,
+      "destination_zip": 60622,
+      "flow_count": 401,
+      "year": 2024
+    },
+    {
+      "source_zip": 60610,
+      "destination_zip": 60641,
+      "flow_count": 244,
+      "year": 2024
+    }
+  ]
+}
