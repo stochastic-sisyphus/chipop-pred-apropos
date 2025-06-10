@@ -5,7 +5,7 @@ scikit-learn==1.6.1  # Machine learning
 matplotlib==3.10.1  # Plotting
 seaborn==0.13.2  # Statistical visualization
 geopandas==1.0.1  # Geospatial analysis
-requests==2.32.3  # HTTP requests
+requests==2.32.4  # HTTP requests
 python-dotenv==1.1.0  # Environment variable management
 loguru==0.7.2  # Logging
 jupyterlab==4.4.1  # Notebooks (optional)
