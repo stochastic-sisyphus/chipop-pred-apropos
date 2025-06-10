@@ -1,0 +1,154 @@
+{
+  "forecast_horizon": "10 years",
+  "confidence_level": "95.0%",
+  "total_zip_codes": 57,
+  "focus_neighborhoods": [
+    "Bronzeville",
+    "Woodlawn",
+    "West Loop",
+    "River North",
+    "Loop",
+    "Loop",
+    "Loop",
+    "South Loop",
+    "South Loop"
+  ],
+  "population_growth": {
+    "mean_annual_rate": "0.00%",
+    "median_annual_rate": "0.00%",
+    "top_growth_zips": [
+      {
+        "zip_code": "60601",
+        "neighborhood_name": "Loop",
+        "population_rate": 0.0
+      },
+      {
+        "zip_code": "60602",
+        "neighborhood_name": "Loop",
+        "population_rate": 0.0
+      },
+      {
+        "zip_code": "60603",
+        "neighborhood_name": "Loop",
+        "population_rate": 0.0
+      },
+      {
+        "zip_code": "60604",
+        "neighborhood_name": "South Loop",
+        "population_rate": 0.0
+      },
+      {
+        "zip_code": "60605",
+        "neighborhood_name": "South Loop",
+        "population_rate": 0.0
+      }
+    ],
+    "total_population_2025": 2691226,
+    "total_population_2035": 2691226,
+    "net_population_change": 0
+  },
+  "income_changes": {
+    "mean_annual_change": "0.00%",
+    "gentrification_risk_zips": []
+  },
+  "housing_growth": {
+    "mean_annual_rate": "0.00%",
+    "total_units_2025": 1261319,
+    "total_units_2035": 1261319,
+    "net_new_units": 0
+  },
+  "model_performance": {
+    "employment_stability": 0.0,
+    "employment_trend": 0.0,
+    "housing_acceleration": 0.0,
+    "housing_growth_rate": 0.0,
+    "income_growth": 0.0,
+    "income_inequality": 0.0,
+    "income_tier": 0.0,
+    "is_downtown": 0.0,
+    "is_focus_neighborhood": 0.0,
+    "is_north_side": 0.0,
+    "is_south_side": 0.0,
+    "multifamily_ratio": 0.0,
+    "permit_momentum": 0.0,
+    "persons_per_unit": 0.0,
+    "pop_growth_rate": 0.0,
+    "pop_volatility": 0.0,
+    "recent_units": 0.0,
+    "retail_growth": 0.0
+  },
+  "neighborhood_analysis": {
+    "Loop": {
+      "zip_code": "60603",
+      "current_population": 1126,
+      "projected_population_10yr": 1126,
+      "population_change": 0,
+      "population_change_pct": "0.0%",
+      "confidence_interval": "[1126, 1126]",
+      "annual_growth_rate": "0.00%",
+      "housing_units_added": 0,
+      "income_tier_change": 0.0,
+      "gentrification_risk": "Low"
+    },
+    "South Loop": {
+      "zip_code": "60605",
+      "current_population": 34256,
+      "projected_population_10yr": 34256,
+      "population_change": 0,
+      "population_change_pct": "0.0%",
+      "confidence_interval": "[34256, 34256]",
+      "annual_growth_rate": "0.00%",
+      "housing_units_added": 0,
+      "income_tier_change": 0.0,
+      "gentrification_risk": "Low"
+    },
+    "West Loop": {
+      "zip_code": "60607",
+      "current_population": 30197,
+      "projected_population_10yr": 30197,
+      "population_change": 0,
+      "population_change_pct": "0.0%",
+      "confidence_interval": "[30197, 30197]",
+      "annual_growth_rate": "0.00%",
+      "housing_units_added": 0,
+      "income_tier_change": 0.0,
+      "gentrification_risk": "Low"
+    },
+    "Bronzeville": {
+      "zip_code": "60615",
+      "current_population": 42752,
+      "projected_population_10yr": 42752,
+      "population_change": 0,
+      "population_change_pct": "0.0%",
+      "confidence_interval": "[42752, 42752]",
+      "annual_growth_rate": "0.00%",
+      "housing_units_added": 0,
+      "income_tier_change": 0.0,
+      "gentrification_risk": "Low"
+    },
+    "Woodlawn": {
+      "zip_code": "60637",
+      "current_population": 52418,
+      "projected_population_10yr": 52418,
+      "population_change": 0,
+      "population_change_pct": "0.0%",
+      "confidence_interval": "[52418, 52418]",
+      "annual_growth_rate": "0.00%",
+      "housing_units_added": 0,
+      "income_tier_change": 0.0,
+      "gentrification_risk": "Low"
+    },
+    "River North": {
+      "zip_code": "60654",
+      "current_population": 24303,
+      "projected_population_10yr": 24303,
+      "population_change": 0,
+      "population_change_pct": "0.0%",
+      "confidence_interval": "[24303, 24303]",
+      "annual_growth_rate": "0.00%",
+      "housing_units_added": 0,
+      "income_tier_change": 0.0,
+      "gentrification_risk": "Low"
+    }
+  }
+}
