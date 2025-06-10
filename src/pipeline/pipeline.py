@@ -23,6 +23,9 @@ from src.data_processing.data_cleaner import DataCleaner
 from src.models.multifamily_growth_model import MultifamilyGrowthModel
 from src.models.retail_gap_model import RetailGapModel
 from src.models.retail_void_model import RetailVoidModel
+from src.models.population_prediction_model import PopulationPredictionModel
+from src.models.income_distribution_model import IncomeDistributionModel
+from src.models.zoning_impact_model import ZoningImpactModel
 from src.reports.report_generator import ReportGenerator
 from src.pipeline.output_generator import OutputGenerator
 from src.data_validation.real_data_validator import RealDataValidator
@@ -102,6 +105,19 @@ class Pipeline:
         self.retail_void_model = RetailVoidModel(
             output_dir=self.models_dir / 'retail_void',
             visualization_dir=self.visualizations_dir / 'retail_void'
+        )
+        
+        # Initialize new models for meeting requirements
+        self.population_prediction_model = PopulationPredictionModel(
+            output_dir=self.models_dir / 'population_prediction'
+        )
+        
+        self.income_distribution_model = IncomeDistributionModel(
+            output_dir=self.models_dir / 'income_distribution'
+        )
+        
+        self.zoning_impact_model = ZoningImpactModel(
+            output_dir=self.models_dir / 'zoning_impact'
         )
         
         # Initialize report generator
@@ -200,10 +216,13 @@ class Pipeline:
                 logger.error("Failed to run models")
                 return self._handle_pipeline_error(PipelineError("Model execution failed"))
             
-            # Extract model results
+            # Extract model results with defaults for safety
             multifamily_results = model_results.get('multifamily_growth', {})
             retail_gap_results = model_results.get('retail_gap', {})
             retail_void_results = model_results.get('retail_void', {})
+            population_prediction_results = model_results.get('population_prediction', {})
+            income_distribution_results = model_results.get('income_distribution', {})
+            zoning_impact_results = model_results.get('zoning_impact', {})
             
             # Generate output files
             logger.info("Generating all required output files...")
@@ -222,7 +241,10 @@ class Pipeline:
             reports = self._generate_reports(
                 multifamily_results,
                 retail_gap_results,
-                retail_void_results
+                retail_void_results,
+                population_prediction_results,
+                income_distribution_results,
+                zoning_impact_results
             )
             
             if not reports:
@@ -611,23 +633,28 @@ class Pipeline:
                 logger.error("No data to run models on")
                 return None
             
-            # Run multifamily growth model
+            # Run existing models
             multifamily_results = self._run_multifamily_growth_model(data)
-            
-            # Run retail gap model
             retail_gap_results = self._run_retail_gap_model(data)
-            
-            # Run retail void model
             retail_void_results = self._run_retail_void_model(data)
+            
+            # Run new models for meeting requirements
+            logger.info("Running enhanced models for 10-year predictions...")
+            population_prediction_results = self._run_population_prediction_model(data)
+            income_distribution_results = self._run_income_distribution_model(data)
+            zoning_impact_results = self._run_zoning_impact_model(data)
             
             # Combine results
             model_results = {
                 'multifamily_growth': multifamily_results,
                 'retail_gap': retail_gap_results,
-                'retail_void': retail_void_results
+                'retail_void': retail_void_results,
+                'population_prediction': population_prediction_results,
+                'income_distribution': income_distribution_results,
+                'zoning_impact': zoning_impact_results
             }
             
-            logger.info("Models completed successfully")
+            logger.info("All models completed successfully")
             return model_results
             
         except Exception as e:
@@ -1101,7 +1128,9 @@ class Pipeline:
             logger.error(traceback.format_exc())
             return {}
     
-    def _generate_reports(self, multifamily_results, retail_gap_results, retail_void_results):
+    def _generate_reports(self, multifamily_results, retail_gap_results, retail_void_results,
+                         population_prediction_results=None, income_distribution_results=None, 
+                         zoning_impact_results=None):
         """
         Generate reports.
         
@@ -1109,6 +1138,9 @@ class Pipeline:
             multifamily_results (dict): Results from MultifamilyGrowthModel
             retail_gap_results (dict): Results from RetailGapModel
             retail_void_results (dict): Results from RetailVoidModel
+            population_prediction_results (dict): Results from PopulationPredictionModel
+            income_distribution_results (dict): Results from IncomeDistributionModel
+            zoning_impact_results (dict): Results from ZoningImpactModel
             
         Returns:
             dict: Dictionary of generated report paths
@@ -1231,6 +1263,272 @@ class Pipeline:
             
         except Exception as e:
             logger.error(f"Enhanced permit data collection failed: {e}")
+            return None
+
+    def _run_population_prediction_model(self, data):
+        """
+        Run population prediction model for 10-year forecasts with 95% confidence intervals.
+        
+        Args:
+            data (dict): Processed data
+            
+        Returns:
+            dict: Model results
+        """
+        try:
+            logger.info("Running population prediction model (10-year forecast)...")
+            
+            # Prepare data combining all sources
+            model_data = self._prepare_population_model_data(data)
+            
+            if model_data is None or len(model_data) == 0:
+                logger.error("No data available for population prediction model")
+                return {}
+            
+            # Run the model analysis
+            success = self.population_prediction_model.run_analysis(model_data)
+            
+            if not success:
+                logger.error("Population prediction model failed")
+                return {}
+            
+            # Get results
+            results = self.population_prediction_model.results
+            
+            logger.info("Population prediction model completed successfully")
+            logger.info(f"- Generated 10-year forecasts for {len(results.get('predictions', []))} ZIP codes")
+            logger.info(f"- Confidence level: 95%")
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"Error running population prediction model: {str(e)}")
+            logger.error(traceback.format_exc())
+            return {}
+    
+    def _run_income_distribution_model(self, data):
+        """
+        Run income distribution model for gentrification and displacement analysis.
+        
+        Args:
+            data (dict): Processed data
+            
+        Returns:
+            dict: Model results
+        """
+        try:
+            logger.info("Running income distribution model...")
+            
+            # Prepare data
+            model_data = self._prepare_income_model_data(data)
+            
+            if model_data is None or len(model_data) == 0:
+                logger.error("No data available for income distribution model")
+                return {}
+            
+            # Run the model analysis
+            success = self.income_distribution_model.run_analysis(model_data)
+            
+            if not success:
+                logger.error("Income distribution model failed")
+                return {}
+            
+            # Get results
+            results = self.income_distribution_model.results
+            
+            logger.info("Income distribution model completed successfully")
+            logger.info(f"- Analyzed {len(results.get('income_analysis', []))} ZIP codes")
+            logger.info(f"- Identified {len(results.get('gentrification_zones', []))} gentrification zones")
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"Error running income distribution model: {str(e)}")
+            logger.error(traceback.format_exc())
+            return {}
+    
+    def _run_zoning_impact_model(self, data):
+        """
+        Run zoning impact model to analyze housing development constraints.
+        
+        Args:
+            data (dict): Processed data
+            
+        Returns:
+            dict: Model results
+        """
+        try:
+            logger.info("Running zoning impact model...")
+            
+            # Prepare data
+            model_data = self._prepare_zoning_model_data(data)
+            
+            if model_data is None or len(model_data) == 0:
+                logger.error("No data available for zoning impact model")
+                return {}
+            
+            # Run the model analysis
+            success = self.zoning_impact_model.run_analysis(model_data)
+            
+            if not success:
+                logger.error("Zoning impact model failed")
+                return {}
+            
+            # Get results
+            results = self.zoning_impact_model.results
+            
+            logger.info("Zoning impact model completed successfully")
+            logger.info(f"- Analyzed {len(results.get('zoning_analysis', []))} ZIP codes")
+            logger.info(f"- Identified {len(results.get('opportunity_zones', []))} opportunity zones")
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"Error running zoning impact model: {str(e)}")
+            logger.error(traceback.format_exc())
+            return {}
+    
+    def _prepare_population_model_data(self, data):
+        """Prepare data for population prediction model."""
+        try:
+            # Combine all relevant data sources
+            combined_data = []
+            
+            # Add Census data (primary source)
+            if 'census' in data and isinstance(data['census'], pd.DataFrame):
+                census_df = data['census'].copy()
+                combined_data.append(census_df)
+            
+            # Add permit data for housing development trends
+            if 'permits' in data and isinstance(data['permits'], pd.DataFrame):
+                permits_df = data['permits'].copy()
+                # Rename columns to match expected format
+                if 'issue_date' in permits_df.columns:
+                    permits_df['permit_year'] = pd.to_datetime(permits_df['issue_date']).dt.year
+                if 'permit_type' not in permits_df.columns and 'permit_' in permits_df.columns:
+                    permits_df['permit_type'] = 'multifamily'
+                combined_data.append(permits_df)
+            
+            # Add economic data for external factors
+            if 'economic' in data and isinstance(data['economic'], pd.DataFrame):
+                econ_df = data['economic'].copy()
+                combined_data.append(econ_df)
+            
+            # Add retail/business data for development indicators
+            if 'retail' in data and isinstance(data['retail'], pd.DataFrame):
+                retail_df = data['retail'].copy()
+                # Aggregate to ZIP code level
+                if 'zip_code' in retail_df.columns:
+                    retail_agg = retail_df.groupby('zip_code').agg({
+                        'zip_code': 'count'
+                    }).rename(columns={'zip_code': 'retail_businesses'}).reset_index()
+                    combined_data.append(retail_agg)
+            
+            # Combine all data
+            if not combined_data:
+                return None
+            
+            # Start with the first dataframe
+            model_data = combined_data[0]
+            
+            # Merge other dataframes
+            for df in combined_data[1:]:
+                if 'zip_code' in df.columns and 'zip_code' in model_data.columns:
+                    # Get common columns to avoid duplicates
+                    merge_cols = [col for col in df.columns if col not in model_data.columns or col == 'zip_code']
+                    model_data = model_data.merge(df[merge_cols], on='zip_code', how='outer')
+            
+            return model_data
+            
+        except Exception as e:
+            logger.error(f"Error preparing population model data: {str(e)}")
+            return None
+    
+    def _prepare_income_model_data(self, data):
+        """Prepare data for income distribution model."""
+        try:
+            # Similar to population model, combine relevant data
+            combined_data = []
+            
+            # Census data is primary for income analysis
+            if 'census' in data and isinstance(data['census'], pd.DataFrame):
+                census_df = data['census'].copy()
+                combined_data.append(census_df)
+            
+            # Economic data for income trends
+            if 'economic' in data and isinstance(data['economic'], pd.DataFrame):
+                econ_df = data['economic'].copy()
+                combined_data.append(econ_df)
+            
+            # Housing data for gentrification indicators
+            if 'permits' in data and isinstance(data['permits'], pd.DataFrame):
+                permits_df = data['permits'].copy()
+                # Aggregate housing development by ZIP
+                if 'zip_code' in permits_df.columns:
+                    housing_agg = permits_df.groupby('zip_code').agg({
+                        'zip_code': 'count',
+                        'unit_count': 'sum' if 'unit_count' in permits_df.columns else 'count'
+                    }).rename(columns={'zip_code': 'permit_count'}).reset_index()
+                    combined_data.append(housing_agg)
+            
+            if not combined_data:
+                return None
+            
+            # Combine data
+            model_data = combined_data[0]
+            for df in combined_data[1:]:
+                if 'zip_code' in df.columns and 'zip_code' in model_data.columns:
+                    merge_cols = [col for col in df.columns if col not in model_data.columns or col == 'zip_code']
+                    model_data = model_data.merge(df[merge_cols], on='zip_code', how='outer')
+            
+            return model_data
+            
+        except Exception as e:
+            logger.error(f"Error preparing income model data: {str(e)}")
+            return None
+    
+    def _prepare_zoning_model_data(self, data):
+        """Prepare data for zoning impact model."""
+        try:
+            # Combine housing, permit, and zoning data
+            combined_data = []
+            
+            # Permit data is primary for zoning analysis
+            if 'permits' in data and isinstance(data['permits'], pd.DataFrame):
+                permits_df = data['permits'].copy()
+                combined_data.append(permits_df)
+            
+            # Census data for housing units
+            if 'census' in data and isinstance(data['census'], pd.DataFrame):
+                census_df = data['census'].copy()
+                # Keep only relevant columns
+                housing_cols = ['zip_code', 'housing_units', 'population', 'year']
+                housing_cols = [col for col in housing_cols if col in census_df.columns]
+                combined_data.append(census_df[housing_cols])
+            
+            # Zoning data if available
+            if 'zoning' in data and isinstance(data['zoning'], pd.DataFrame):
+                zoning_df = data['zoning'].copy()
+                combined_data.append(zoning_df)
+            
+            if not combined_data:
+                return None
+            
+            # Combine data
+            model_data = combined_data[0]
+            for df in combined_data[1:]:
+                if 'zip_code' in df.columns and 'zip_code' in model_data.columns:
+                    merge_cols = [col for col in df.columns if col not in model_data.columns or col == 'zip_code']
+                    model_data = model_data.merge(df[merge_cols], on='zip_code', how='outer')
+            
+            # Add permit_year if missing but issue_date exists
+            if 'permit_year' not in model_data.columns and 'issue_date' in model_data.columns:
+                model_data['permit_year'] = pd.to_datetime(model_data['issue_date'], errors='coerce').dt.year
+            
+            return model_data
+            
+        except Exception as e:
+            logger.error(f"Error preparing zoning model data: {str(e)}")
             return None
 
 
