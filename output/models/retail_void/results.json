@@ -1,0 +1,76 @@
+{
+  "void_zones": [
+    {
+      "zip_code": "60601",
+      "void_count": 2,
+      "categories": "grocery, clothing",
+      "void_score": 0.4,
+      "leakage_ratio": 0.999999736535938,
+      "retail_per_capita": 15.5,
+      "population": 25000
+    },
+    {
+      "zip_code": "60602",
+      "void_count": 1,
+      "categories": "furniture",
+      "void_score": 0.2,
+      "leakage_ratio": 0.999999736535938,
+      "retail_per_capita": 15.5,
+      "population": 25000
+    },
+    {
+      "zip_code": "60603",
+      "void_count": 1,
+      "categories": "electronics",
+      "void_score": 0.2,
+      "leakage_ratio": 0.999999736535938,
+      "retail_per_capita": 15.5,
+      "population": 25000
+    }
+  ],
+  "category_voids": {},
+  "cluster_metrics": [],
+  "high_leakage_count": 10,
+  "low_leakage_count": 0,
+  "void_analysis": {
+    "total_voids": 3,
+    "avg_void_score": 0.26666666666666666,
+    "top_void_zip": "60601",
+    "top_categories": [
+      "grocery",
+      "clothing"
+    ]
+  },
+  "leakage_zones": {
+    "high_leakage_zips": [
+      "60601",
+      "60602",
+      "60603",
+      "60604",
+      "60605",
+      "60606",
+      "60607",
+      "60608",
+      "60609",
+      "60610"
+    ],
+    "low_leakage_zips": [],
+    "avg_leakage": 0.17857138152427465,
+    "max_leakage": 0.999999736535938,
+    "min_leakage": 0.0
+  },
+  "visualizations": {
+    "paths": {
+      "void_count": "/Users/vanessa/Library/CloudStorage/Dropbox/chi/output/visualizations/retail_void/void_count.png",
+      "leakage_distribution": "/Users/vanessa/Library/CloudStorage/Dropbox/chi/output/visualizations/retail_void/leakage_distribution.png"
+    },
+    "count": 2,
+    "types": [
+      "void_count",
+      "leakage_distribution"
+    ]
+  },
+  "output_files": {
+    "migration_flows": "/Users/vanessa/Library/CloudStorage/Dropbox/chi/output/data/migration_flows.json"
+  }
+}

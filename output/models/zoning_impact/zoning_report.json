@@ -1,0 +1,204 @@
+{
+  "summary": {
+    "total_zip_codes": 56,
+    "constrained_zip_codes": 56,
+    "severely_constrained": 3,
+    "average_constraint_score": 0.49779705475188873,
+    "average_efficiency": 0.5022029452481113,
+    "total_development_gap": 4272.91890625
+  },
+  "constraint_distribution": {
+    "Moderately Constrained": 44,
+    "Significantly Constrained": 9,
+    "Severely Constrained": 3
+  },
+  "top_constrained_areas": [
+    {
+      "zip_code": "60604",
+      "neighborhood": "Other",
+      "constraint_score": 0.8798007812499999,
+      "constraint_level": "Severely Constrained",
+      "development_gap": 199.9203125,
+      "special_factors": [
+        "Recent Up-zoning Activity"
+      ]
+    },
+    {
+      "zip_code": "60603",
+      "neighborhood": "Other",
+      "constraint_score": 0.779615625,
+      "constraint_level": "Severely Constrained",
+      "development_gap": 199.84625,
+      "special_factors": [
+        "Transit-Oriented Development Zone"
+      ]
+    },
+    {
+      "zip_code": "60633",
+      "neighborhood": "Other",
+      "constraint_score": 0.7681334134615385,
+      "constraint_level": "Severely Constrained",
+      "development_gap": 64.10734375,
+      "special_factors": []
+    },
+    {
+      "zip_code": "60660",
+      "neighborhood": "Other",
+      "constraint_score": 0.5967451923076923,
+      "constraint_level": "Significantly Constrained",
+      "development_gap": 61.326875,
+      "special_factors": []
+    },
+    {
+      "zip_code": "60659",
+      "neighborhood": "Other",
+      "constraint_score": 0.5822740384615385,
+      "constraint_level": "Significantly Constrained",
+      "development_gap": 62.695625,
+      "special_factors": []
+    },
+    {
+      "zip_code": "60621",
+      "neighborhood": "Other",
+      "constraint_score": 0.5815528846153846,
+      "constraint_level": "Significantly Constrained",
+      "development_gap": 62.601875,
+      "special_factors": []
+    },
+    {
+      "zip_code": "60605",
+      "neighborhood": "Other",
+      "constraint_score": 0.5720007812500001,
+      "constraint_level": "Significantly Constrained",
+      "development_gap": 196.8003125,
+      "special_factors": []
+    },
+    {
+      "zip_code": "60607",
+      "neighborhood": "West Loop",
+      "constraint_score": 0.5535390625000001,
+      "constraint_level": "Significantly Constrained",
+      "development_gap": 197.415625,
+      "special_factors": [
+        "Up-zoned for High-Rise Development",
+        "Transit-Oriented Development Zone",
+        "Recent Up-zoning Activity"
+      ]
+    },
+    {
+      "zip_code": "60656",
+      "neighborhood": "Other",
+      "constraint_score": 0.5345673076923076,
+      "constraint_level": "Significantly Constrained",
+      "development_gap": 62.99375,
+      "special_factors": []
+    },
+    {
+      "zip_code": "60624",
+      "neighborhood": "Other",
+      "constraint_score": 0.53046875,
+      "constraint_level": "Significantly Constrained",
+      "development_gap": 62.4609375,
+      "special_factors": []
+    }
+  ],
+  "reform_opportunities": [
+    {
+      "zip_code": "60604",
+      "neighborhood": "Other",
+      "opportunity_score": 1.0,
+      "development_gap": 199.9203125,
+      "permit_utilization": 0.24
+    },
+    {
+      "zip_code": "60603",
+      "neighborhood": "Other",
+      "opportunity_score": 0.998512547230401,
+      "development_gap": 199.84625,
+      "permit_utilization": 0.44
+    },
+    {
+      "zip_code": "60602",
+      "neighborhood": "Other",
+      "opportunity_score": 0.9943006844034775,
+      "development_gap": 199.91390625,
+      "permit_utilization": 1.38
+    },
+    {
+      "zip_code": "60601",
+      "neighborhood": "Other",
+      "opportunity_score": 0.9862321786409114,
+      "development_gap": 198.32390625,
+      "permit_utilization": 1.42
+    },
+    {
+      "zip_code": "60607",
+      "neighborhood": "West Loop",
+      "opportunity_score": 0.9839454080497922,
+      "development_gap": 197.415625,
+      "permit_utilization": 0.88
+    },
+    {
+      "zip_code": "60605",
+      "neighborhood": "Other",
+      "opportunity_score": 0.9811044150216466,
+      "development_gap": 196.8003125,
+      "permit_utilization": 0.84
+    },
+    {
+      "zip_code": "60654",
+      "neighborhood": "River North",
+      "opportunity_score": 0.9785897523590495,
+      "development_gap": 197.19375,
+      "permit_utilization": 1.96
+    },
+    {
+      "zip_code": "60633",
+      "neighborhood": "Other",
+      "opportunity_score": 0.32361864793659245,
+      "development_gap": 64.10734375,
+      "permit_utilization": 0.45
+    },
+    {
+      "zip_code": "60655",
+      "neighborhood": "Other",
+      "opportunity_score": 0.31647527503071954,
+      "development_gap": 63.23796875,
+      "permit_utilization": 0.95
+    },
+    {
+      "zip_code": "60656",
+      "neighborhood": "Other",
+      "opportunity_score": 0.3155338007538828,
+      "development_gap": 62.99375,
+      "permit_utilization": 0.9
+    }
+  ],
+  "special_considerations": {
+    "woodlawn_impact": "Affordable housing ordinance limiting development",
+    "downtown_upzoning": "West Loop and River North successfully up-zoned",
+    "transit_oriented": "5 ZIP codes near transit"
+  },
+  "recommendations": [
+    {
+      "category": "High Priority Reform",
+      "description": "Consider zoning reform in 12 severely constrained ZIP codes",
+      "impact": "Could add 1294 units per acre",
+      "areas": [
+        "60603",
+        "60604",
+        "60605",
+        "60607",
+        "60621"
+      ]
+    },
+    {
+      "category": "Permit Process Reform",
+      "description": "Streamline permit process in 1 ZIP codes with low utilization",
+      "impact": "Could increase annual permit issuance by 70%",
+      "areas": [
+        "60604"
+      ]
+    }
+  ]
+}

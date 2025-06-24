@@ -1,0 +1,1753 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retail Void Analysis Report</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        .report-header {
+            margin-bottom: 30px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 20px;
+        }
+        .report-section {
+            margin-bottom: 40px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        .visualization {
+            margin: 20px 0;
+            text-align: center;
+        }
+        .visualization img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+        }
+        .summary-box {
+            background-color: #f8f9fa;
+            border-left: 4px solid #2c3e50;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .highlight {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            font-size: 0.9em;
+            color: #777;
+        }
+        .money {
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="report-header">
+            <h1>Retail Void Analysis Report</h1>
+            <p>Generated on: 2025-05-28</p>
+        </div>
+        
+        <div class="report-section">
+            <h2>Executive Summary</h2>
+            <div class="summary-box">
+                <p>This report identifies 171 retail voids across 6 retail categories in Chicago.</p>
+                <p>The total annual revenue potential for these retail voids is estimated at <span class="highlight money">$11,963,196,721</span>.</p>
+            </div>
+        </div>
+        
+        <div class="report-section">
+            <h2>Top Retail Voids</h2>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>ZIP Code</th>
+                        <th>Retail Category</th>
+                        <th>Void Score</th>
+                        <th>Business Count</th>
+                        <th>Leakage Ratio</th>
+                        <th>Annual Revenue Potential</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td>60601</td>
+                        <td>grocery</td>
+                        <td>3.7</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$46,758,027</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60605</td>
+                        <td>grocery</td>
+                        <td>4.8</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$77,162,617</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60605</td>
+                        <td>restaurant</td>
+                        <td>3.7</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$46,297,570</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60607</td>
+                        <td>grocery</td>
+                        <td>3.9</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$54,156,571</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60608</td>
+                        <td>general</td>
+                        <td>1.3</td>
+                        <td>1</td>
+                        <td>75.0%</td>
+                        <td class="money">$33,624,033</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60608</td>
+                        <td>grocery</td>
+                        <td>4.9</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$80,697,678</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60608</td>
+                        <td>restaurant</td>
+                        <td>3.7</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$48,418,607</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60609</td>
+                        <td>general</td>
+                        <td>3.5</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$43,094,343</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60609</td>
+                        <td>grocery</td>
+                        <td>5.1</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$86,188,686</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60609</td>
+                        <td>restaurant</td>
+                        <td>3.9</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$51,713,212</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60610</td>
+                        <td>clothing</td>
+                        <td>3.4</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$38,207,804</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60610</td>
+                        <td>grocery</td>
+                        <td>5.4</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$95,519,510</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60610</td>
+                        <td>restaurant</td>
+                        <td>4.1</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$57,311,706</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60611</td>
+                        <td>clothing</td>
+                        <td>3.6</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$44,053,256</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60611</td>
+                        <td>grocery</td>
+                        <td>6.0</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$110,133,140</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60611</td>
+                        <td>restaurant</td>
+                        <td>4.4</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$66,079,884</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60612</td>
+                        <td>grocery</td>
+                        <td>4.0</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$56,316,987</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60613</td>
+                        <td>clothing</td>
+                        <td>3.8</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$49,988,971</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60613</td>
+                        <td>electronics</td>
+                        <td>3.3</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$37,491,728</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60613</td>
+                        <td>general</td>
+                        <td>4.2</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$62,486,214</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60613</td>
+                        <td>grocery</td>
+                        <td>6.5</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$124,972,428</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60613</td>
+                        <td>restaurant</td>
+                        <td>4.7</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$74,983,457</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60614</td>
+                        <td>clothing</td>
+                        <td>5.2</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$88,994,232</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60614</td>
+                        <td>electronics</td>
+                        <td>4.4</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$66,745,674</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60614</td>
+                        <td>furniture</td>
+                        <td>3.6</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$44,497,116</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60614</td>
+                        <td>grocery</td>
+                        <td>10.0</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$222,485,580</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60614</td>
+                        <td>restaurant</td>
+                        <td>6.8</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$133,491,348</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60615</td>
+                        <td>general</td>
+                        <td>1.3</td>
+                        <td>1</td>
+                        <td>75.0%</td>
+                        <td class="money">$32,655,357</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60615</td>
+                        <td>grocery</td>
+                        <td>4.8</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$78,372,858</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60615</td>
+                        <td>restaurant</td>
+                        <td>3.7</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$47,023,715</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60616</td>
+                        <td>clothing</td>
+                        <td>3.5</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$40,342,143</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60616</td>
+                        <td>general</td>
+                        <td>1.6</td>
+                        <td>1</td>
+                        <td>75.0%</td>
+                        <td class="money">$42,023,065</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60616</td>
+                        <td>grocery</td>
+                        <td>5.6</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$100,855,356</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60616</td>
+                        <td>restaurant</td>
+                        <td>4.2</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$60,513,214</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60617</td>
+                        <td>clothing</td>
+                        <td>3.4</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$39,568,002</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60617</td>
+                        <td>general</td>
+                        <td>3.8</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$49,460,003</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60617</td>
+                        <td>grocery</td>
+                        <td>5.6</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$98,920,006</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60617</td>
+                        <td>restaurant</td>
+                        <td>4.1</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$59,352,004</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60618</td>
+                        <td>clothing</td>
+                        <td>4.9</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$80,648,818</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60618</td>
+                        <td>electronics</td>
+                        <td>4.2</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$60,486,614</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60618</td>
+                        <td>furniture</td>
+                        <td>3.4</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$40,324,409</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60618</td>
+                        <td>general</td>
+                        <td>5.6</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$100,811,023</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60618</td>
+                        <td>grocery</td>
+                        <td>9.2</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$201,622,045</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60618</td>
+                        <td>restaurant</td>
+                        <td>6.3</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$120,973,227</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60619</td>
+                        <td>general</td>
+                        <td>3.4</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$38,386,342</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60619</td>
+                        <td>grocery</td>
+                        <td>4.8</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$76,772,684</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60619</td>
+                        <td>restaurant</td>
+                        <td>3.7</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$46,063,610</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60620</td>
+                        <td>clothing</td>
+                        <td>3.4</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$38,874,642</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60620</td>
+                        <td>general</td>
+                        <td>3.7</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$48,593,303</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60620</td>
+                        <td>grocery</td>
+                        <td>5.5</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$97,186,606</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60620</td>
+                        <td>restaurant</td>
+                        <td>4.1</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$58,311,964</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60621</td>
+                        <td>grocery</td>
+                        <td>3.5</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$40,791,193</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60622</td>
+                        <td>clothing</td>
+                        <td>3.7</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$48,309,078</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60622</td>
+                        <td>grocery</td>
+                        <td>6.3</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$120,772,694</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60622</td>
+                        <td>restaurant</td>
+                        <td>4.6</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$72,463,616</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60623</td>
+                        <td>clothing</td>
+                        <td>3.6</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$44,538,225</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60623</td>
+                        <td>general</td>
+                        <td>4.0</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$55,672,782</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60623</td>
+                        <td>grocery</td>
+                        <td>6.0</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$111,345,563</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60623</td>
+                        <td>restaurant</td>
+                        <td>4.4</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$66,807,338</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60624</td>
+                        <td>grocery</td>
+                        <td>3.4</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$40,028,180</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60625</td>
+                        <td>clothing</td>
+                        <td>4.2</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$61,697,408</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60625</td>
+                        <td>electronics</td>
+                        <td>3.7</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$46,273,056</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60625</td>
+                        <td>general</td>
+                        <td>2.5</td>
+                        <td>1</td>
+                        <td>75.0%</td>
+                        <td class="money">$64,268,133</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60625</td>
+                        <td>grocery</td>
+                        <td>7.5</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$154,243,519</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60625</td>
+                        <td>restaurant</td>
+                        <td>5.3</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$92,546,111</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60626</td>
+                        <td>clothing</td>
+                        <td>3.3</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$36,575,742</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60626</td>
+                        <td>general</td>
+                        <td>3.6</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$45,719,677</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60626</td>
+                        <td>grocery</td>
+                        <td>5.3</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$91,439,354</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60626</td>
+                        <td>restaurant</td>
+                        <td>4.0</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$54,863,612</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60628</td>
+                        <td>general</td>
+                        <td>3.6</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$44,634,139</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60628</td>
+                        <td>grocery</td>
+                        <td>5.2</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$89,268,277</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60628</td>
+                        <td>restaurant</td>
+                        <td>3.9</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$53,560,966</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60629</td>
+                        <td>clothing</td>
+                        <td>4.1</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$58,681,346</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60629</td>
+                        <td>electronics</td>
+                        <td>3.6</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$44,011,009</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60629</td>
+                        <td>general</td>
+                        <td>4.6</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$73,351,682</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60629</td>
+                        <td>grocery</td>
+                        <td>7.3</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$146,703,364</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60629</td>
+                        <td>restaurant</td>
+                        <td>5.2</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$88,022,019</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60630</td>
+                        <td>clothing</td>
+                        <td>3.7</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$46,326,144</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60630</td>
+                        <td>general</td>
+                        <td>4.1</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$57,907,680</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60630</td>
+                        <td>grocery</td>
+                        <td>6.2</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$115,815,360</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60630</td>
+                        <td>restaurant</td>
+                        <td>4.5</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$69,489,216</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60631</td>
+                        <td>grocery</td>
+                        <td>4.6</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$71,720,206</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60631</td>
+                        <td>restaurant</td>
+                        <td>3.5</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$43,032,124</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60632</td>
+                        <td>clothing</td>
+                        <td>3.9</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$52,662,145</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60632</td>
+                        <td>electronics</td>
+                        <td>3.4</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$39,496,609</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60632</td>
+                        <td>general</td>
+                        <td>4.4</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$65,827,682</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60632</td>
+                        <td>grocery</td>
+                        <td>6.7</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$131,655,363</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60632</td>
+                        <td>restaurant</td>
+                        <td>4.8</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$78,993,218</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60634</td>
+                        <td>clothing</td>
+                        <td>4.2</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$61,697,408</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60634</td>
+                        <td>electronics</td>
+                        <td>3.7</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$46,273,056</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60634</td>
+                        <td>general</td>
+                        <td>4.8</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$77,121,759</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60634</td>
+                        <td>grocery</td>
+                        <td>7.5</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$154,243,519</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60634</td>
+                        <td>restaurant</td>
+                        <td>5.3</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$92,546,111</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60636</td>
+                        <td>grocery</td>
+                        <td>3.9</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$52,224,343</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60637</td>
+                        <td>grocery</td>
+                        <td>4.5</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$68,920,306</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60637</td>
+                        <td>restaurant</td>
+                        <td>3.5</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$41,352,184</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60638</td>
+                        <td>clothing</td>
+                        <td>3.6</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$43,642,532</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60638</td>
+                        <td>general</td>
+                        <td>4.0</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$54,553,166</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60638</td>
+                        <td>grocery</td>
+                        <td>5.9</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$109,106,331</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60638</td>
+                        <td>restaurant</td>
+                        <td>4.4</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$65,463,799</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60639</td>
+                        <td>clothing</td>
+                        <td>3.9</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$51,866,734</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60639</td>
+                        <td>electronics</td>
+                        <td>3.4</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$38,900,050</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60639</td>
+                        <td>general</td>
+                        <td>4.3</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$64,833,417</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60639</td>
+                        <td>grocery</td>
+                        <td>6.7</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$129,666,835</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60639</td>
+                        <td>restaurant</td>
+                        <td>4.8</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$77,800,101</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60640</td>
+                        <td>clothing</td>
+                        <td>3.9</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$53,727,882</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60640</td>
+                        <td>electronics</td>
+                        <td>3.4</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$40,295,912</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60640</td>
+                        <td>grocery</td>
+                        <td>6.8</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$134,319,706</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60640</td>
+                        <td>restaurant</td>
+                        <td>4.9</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$80,591,824</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60641</td>
+                        <td>clothing</td>
+                        <td>4.2</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$61,154,502</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60641</td>
+                        <td>electronics</td>
+                        <td>3.6</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$45,865,877</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60641</td>
+                        <td>general</td>
+                        <td>4.7</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$76,443,128</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60641</td>
+                        <td>grocery</td>
+                        <td>7.5</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$152,886,256</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60641</td>
+                        <td>restaurant</td>
+                        <td>5.3</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$91,731,754</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60642</td>
+                        <td>grocery</td>
+                        <td>3.8</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$50,039,781</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60643</td>
+                        <td>clothing</td>
+                        <td>3.5</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$42,442,410</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60643</td>
+                        <td>general</td>
+                        <td>3.9</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$53,053,012</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60643</td>
+                        <td>grocery</td>
+                        <td>5.8</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$106,106,024</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60643</td>
+                        <td>restaurant</td>
+                        <td>4.3</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$63,663,614</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60644</td>
+                        <td>grocery</td>
+                        <td>4.3</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$64,206,681</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60644</td>
+                        <td>restaurant</td>
+                        <td>3.4</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$38,524,009</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60645</td>
+                        <td>clothing</td>
+                        <td>3.5</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$42,175,032</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60645</td>
+                        <td>general</td>
+                        <td>3.9</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$52,718,790</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60645</td>
+                        <td>grocery</td>
+                        <td>5.8</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$105,437,581</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60645</td>
+                        <td>restaurant</td>
+                        <td>4.3</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$63,262,548</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60646</td>
+                        <td>general</td>
+                        <td>3.5</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$40,461,516</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60646</td>
+                        <td>grocery</td>
+                        <td>4.9</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$80,923,032</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60646</td>
+                        <td>restaurant</td>
+                        <td>3.7</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$48,553,819</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60647</td>
+                        <td>clothing</td>
+                        <td>4.7</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$74,753,260</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60647</td>
+                        <td>electronics</td>
+                        <td>4.0</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$56,064,945</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60647</td>
+                        <td>furniture</td>
+                        <td>3.3</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$37,376,630</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60647</td>
+                        <td>general</td>
+                        <td>3.0</td>
+                        <td>1</td>
+                        <td>75.0%</td>
+                        <td class="money">$77,867,979</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60647</td>
+                        <td>grocery</td>
+                        <td>8.7</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$186,883,149</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60647</td>
+                        <td>restaurant</td>
+                        <td>6.0</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$112,129,889</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60649</td>
+                        <td>grocery</td>
+                        <td>4.6</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$71,522,016</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60649</td>
+                        <td>restaurant</td>
+                        <td>3.5</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$42,913,210</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60651</td>
+                        <td>clothing</td>
+                        <td>3.4</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$38,874,642</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60651</td>
+                        <td>general</td>
+                        <td>3.7</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$48,593,303</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60651</td>
+                        <td>grocery</td>
+                        <td>5.5</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$97,186,606</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60651</td>
+                        <td>restaurant</td>
+                        <td>4.1</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$58,311,964</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60652</td>
+                        <td>general</td>
+                        <td>3.4</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$38,445,231</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60652</td>
+                        <td>grocery</td>
+                        <td>4.8</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$76,890,463</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60652</td>
+                        <td>restaurant</td>
+                        <td>3.7</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$46,134,278</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60653</td>
+                        <td>grocery</td>
+                        <td>3.7</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$48,438,421</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60654</td>
+                        <td>grocery</td>
+                        <td>4.5</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$68,446,051</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60654</td>
+                        <td>restaurant</td>
+                        <td>3.5</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$41,067,631</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60655</td>
+                        <td>grocery</td>
+                        <td>4.3</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$63,953,656</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60655</td>
+                        <td>restaurant</td>
+                        <td>3.4</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$38,372,194</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60656</td>
+                        <td>general</td>
+                        <td>3.6</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$45,140,934</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60656</td>
+                        <td>grocery</td>
+                        <td>5.2</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$90,281,869</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60656</td>
+                        <td>restaurant</td>
+                        <td>3.9</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$54,169,121</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60657</td>
+                        <td>clothing</td>
+                        <td>4.8</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$78,736,792</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60657</td>
+                        <td>electronics</td>
+                        <td>4.1</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$59,052,594</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60657</td>
+                        <td>furniture</td>
+                        <td>3.4</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$39,368,396</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60657</td>
+                        <td>general</td>
+                        <td>3.2</td>
+                        <td>1</td>
+                        <td>75.0%</td>
+                        <td class="money">$82,017,492</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60657</td>
+                        <td>grocery</td>
+                        <td>9.1</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$196,841,981</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60657</td>
+                        <td>restaurant</td>
+                        <td>6.2</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$118,105,188</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60659</td>
+                        <td>clothing</td>
+                        <td>3.5</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$42,175,032</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60659</td>
+                        <td>general</td>
+                        <td>3.9</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$52,718,790</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60659</td>
+                        <td>grocery</td>
+                        <td>5.8</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$105,437,581</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60659</td>
+                        <td>restaurant</td>
+                        <td>4.3</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$63,262,548</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60660</td>
+                        <td>clothing</td>
+                        <td>3.5</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$42,442,410</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60660</td>
+                        <td>general</td>
+                        <td>3.9</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$53,053,012</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60660</td>
+                        <td>grocery</td>
+                        <td>5.8</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$106,106,024</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60660</td>
+                        <td>restaurant</td>
+                        <td>4.3</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$63,663,614</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60661</td>
+                        <td>grocery</td>
+                        <td>3.3</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$36,253,006</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60706</td>
+                        <td>grocery</td>
+                        <td>4.2</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$61,328,562</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60706</td>
+                        <td>restaurant</td>
+                        <td>3.3</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$36,797,137</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60707</td>
+                        <td>general</td>
+                        <td>3.5</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$41,356,562</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60707</td>
+                        <td>grocery</td>
+                        <td>5.0</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$82,713,124</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>60707</td>
+                        <td>restaurant</td>
+                        <td>3.8</td>
+                        <td>0</td>
+                        <td>90.0%</td>
+                        <td class="money">$49,627,874</td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+            
+        </div>
+        
+        <div class="report-section">
+            <h2>Top Void Categories</h2>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Retail Category</th>
+                        <th>Void Count</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td>grocery</td>
+                        <td>53</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>restaurant</td>
+                        <td>44</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>general</td>
+                        <td>31</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>clothing</td>
+                        <td>27</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>electronics</td>
+                        <td>12</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>furniture</td>
+                        <td>4</td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+            
+        </div>
+        
+        <div class="report-section">
+            <h2>Visualizations</h2>
+            
+                
+                <div class="visualization">
+                    <h3>Top Retail Voids by Void Score</h3>
+                    <img src="top_retail_voids_score.png" alt="Top Retail Voids by Void Score">
+                </div>
+                
+                
+                
+                <div class="visualization">
+                    <h3>Top Retail Voids by Annual Revenue Potential</h3>
+                    <img src="top_retail_voids_revenue.png" alt="Top Retail Voids by Annual Revenue Potential">
+                </div>
+                
+                
+                
+                <div class="visualization">
+                    <h3>Retail Void Count by Category</h3>
+                    <img src="void_count_by_category.png" alt="Retail Void Count by Category">
+                </div>
+                
+                
+                
+                <div class="visualization">
+                    <h3>Spending Leakage vs. Potential</h3>
+                    <img src="leakage_vs_potential.png" alt="Spending Leakage vs. Potential">
+                </div>
+                
+            
+        </div>
+        
+        <div class="report-section">
+            <h2>Analysis Methodology</h2>
+            <p>This analysis identifies retail voids by analyzing spending leakage and business counts. Areas with high spending potential but few businesses are flagged as having retail voids.</p>
+            <p>The void score is calculated based on:</p>
+            <ul>
+                <li>Leakage dollars (weight: 50%)</li>
+                <li>Spending potential (weight: 30%)</li>
+                <li>Inverse business count (weight: 20%)</li>
+            </ul>
+            <p>Annual revenue potential is estimated as 30% of current spending leakage.</p>
+        </div>
+        
+        <div class="footer">
+            <p>Chicago Housing Pipeline & Population Shift Project</p>
+            <p>© 2025 All Rights Reserved</p>
+        </div>
+    </div>
+</body>
+</html>
+        

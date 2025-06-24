@@ -1,0 +1,76 @@
+{
+  "summary": {
+    "total_zip_codes": 57,
+    "average_income": "$81,569",
+    "income_range": "$0 - $144,831",
+    "average_growth_rate": "0.00%"
+  },
+  "gentrification": {
+    "high_gentrification_zones": 0,
+    "high_displacement_risk": 0,
+    "top_gentrifying": [
+      {
+        "zip_code": "60601",
+        "gentrification_score": 0.0,
+        "displacement_risk": "Low"
+      },
+      {
+        "zip_code": "60602",
+        "gentrification_score": 0.0,
+        "displacement_risk": "Low"
+      },
+      {
+        "zip_code": "60603",
+        "gentrification_score": 0.0,
+        "displacement_risk": "Low"
+      },
+      {
+        "zip_code": "60604",
+        "gentrification_score": 0.0,
+        "displacement_risk": "Low"
+      },
+      {
+        "zip_code": "60605",
+        "gentrification_score": 0.0,
+        "displacement_risk": "Low"
+      }
+    ]
+  },
+  "income_mobility": {
+    "upward_mobility": 0,
+    "downward_mobility": 0,
+    "stable": 57,
+    "largest_improvements": [
+      {
+        "zip_code": "60601",
+        "initial_bracket": "Upper Middle",
+        "current_bracket": "Upper Middle"
+      },
+      {
+        "zip_code": "60602",
+        "initial_bracket": "Upper Middle",
+        "current_bracket": "Upper Middle"
+      },
+      {
+        "zip_code": "60603",
+        "initial_bracket": "Upper Middle",
+        "current_bracket": "Upper Middle"
+      },
+      {
+        "zip_code": "60604",
+        "initial_bracket": "Middle",
+        "current_bracket": "Middle"
+      },
+      {
+        "zip_code": "60605",
+        "initial_bracket": "Upper Middle",
+        "current_bracket": "Upper Middle"
+      }
+    ]
+  },
+  "inequality": {
+    "average_inequality_index": 0.5479758596491228,
+    "high_inequality_zones": 11,
+    "inequality_correlation": "income_level: -0.886"
+  }
+}

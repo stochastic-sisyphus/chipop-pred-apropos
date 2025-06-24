@@ -1,0 +1,23 @@
+{
+  "model_metrics": {
+    "train_r2": 0.9998628992359188,
+    "test_r2": 0.9982129321201181,
+    "feature_importance": {
+      "retail_density": 0.6838673174859478,
+      "retail_per_capita": 0.23015758818493792,
+      "median_income": 0.00655786805749454,
+      "population": 0.06355523891843796,
+      "housing_units": 0.015861987353181815
+    }
+  },
+  "predictions_path": "/home/ubuntu/chipop-pred-attempt-clean/output/models/retail/retail_predictions.csv",
+  "summary_stats": {
+    "mean_error": -0.001890224091061074,
+    "mean_abs_error": 0.002476858582040717,
+    "mean_error_pct": -0.045059101654846334,
+    "mean_abs_error_pct": 0.07796690307328605,
+    "mean_growth_rate": 0.0018523877068557918,
+    "max_growth_rate": 0.0307,
+    "min_growth_rate": -0.0252
+  }
+}

@@ -1,0 +1,58 @@
+zip_code,current_median_income,income_growth_rate,income_volatility,initial_bracket,current_bracket,bracket_change,gentrification_score,displacement_risk,inequality_index,gentrification_cluster,gentrification_type
+60601,127323.0,0,,Upper Middle,Upper Middle,0,0.0,Low,0.4,0,Established High Income
+60602,123047.0,0,,Upper Middle,Upper Middle,0,0.0,Low,0.4,0,Established High Income
+60603,128107.0,0,,Upper Middle,Upper Middle,0,0.0,Low,0.4,0,Established High Income
+60604,77806.0,0,,Middle,Middle,0,0.0,Low,0.533164,3,Established High Income
+60605,118403.0,0,,Upper Middle,Upper Middle,0,0.0,Low,0.4,0,Established High Income
+60606,139148.0,0,,Upper Middle,Upper Middle,0,0.0,Low,0.4,0,Established High Income
+60607,126307.0,0,,Upper Middle,Upper Middle,0,0.0,Low,0.4,0,Established High Income
+60608,70704.0,0,,Moderate,Moderate,0,0.0,Low,0.5757760000000001,2,Stable/Low Change
+60609,54142.0,0,,Moderate,Moderate,0,0.0,Low,0.6751480000000001,2,Stable/Low Change
+60610,105649.0,0,,Upper Middle,Upper Middle,0,0.0,Low,0.4,0,Established High Income
+60611,124621.0,0,,Upper Middle,Upper Middle,0,0.0,Low,0.4,0,Established High Income
+60612,60457.0,0,,Moderate,Moderate,0,0.0,Low,0.637258,2,Stable/Low Change
+60613,91351.0,0,,Middle,Middle,0,0.0,Low,0.451894,3,Established High Income
+60614,139561.0,0,,Upper Middle,Upper Middle,0,0.0,Low,0.4,0,Established High Income
+60615,62105.0,0,,Moderate,Moderate,0,0.0,Low,0.62737,2,Stable/Low Change
+60616,77841.0,0,,Middle,Middle,0,0.0,Low,0.5329539999999999,3,Established High Income
+60617,51237.0,0,,Moderate,Moderate,0,0.0,Low,0.692578,1,Stable/Low Change
+60618,101558.0,0,,Upper Middle,Upper Middle,0,0.0,Low,0.4,0,Established High Income
+60619,43403.0,0,,Low,Low,0,0.0,Low,0.739582,1,Stable/Low Change
+60620,48805.0,0,,Low,Low,0,0.0,Low,0.7071700000000001,1,Stable/Low Change
+60621,33235.0,0,,Low,Low,0,0.0,Low,0.80059,1,Stable/Low Change
+60622,124852.0,0,,Upper Middle,Upper Middle,0,0.0,Low,0.4,0,Established High Income
+60623,44040.0,0,,Low,Low,0,0.0,Low,0.73576,1,Stable/Low Change
+60624,32607.0,0,,Low,Low,0,0.0,Low,0.804358,1,Stable/Low Change
+60625,85299.0,0,,Middle,Middle,0,0.0,Low,0.48820600000000003,3,Established High Income
+60626,57452.0,0,,Moderate,Moderate,0,0.0,Low,0.655288,2,Stable/Low Change
+60628,49719.0,0,,Low,Low,0,0.0,Low,0.701686,1,Stable/Low Change
+60629,58813.0,0,,Moderate,Moderate,0,0.0,Low,0.647122,2,Stable/Low Change
+60630,97134.0,0,,Middle,Middle,0,0.0,Low,0.417196,3,Established High Income
+60631,117688.0,0,,Upper Middle,Upper Middle,0,0.0,Low,0.4,0,Established High Income
+60632,60576.0,0,,Moderate,Moderate,0,0.0,Low,0.636544,2,Stable/Low Change
+60633,56875.0,0,,Moderate,Moderate,0,0.0,Low,0.65875,2,Stable/Low Change
+60634,84997.0,0,,Middle,Middle,0,0.0,Low,0.49001800000000006,3,Established High Income
+60636,35077.0,0,,Low,Low,0,0.0,Low,0.789538,1,Stable/Low Change
+60637,42080.0,0,,Low,Low,0,0.0,Low,0.74752,1,Stable/Low Change
+60638,89191.0,0,,Middle,Middle,0,0.0,Low,0.464854,3,Established High Income
+60639,59710.0,0,,Moderate,Moderate,0,0.0,Low,0.64174,2,Stable/Low Change
+60640,71030.0,0,,Moderate,Moderate,0,0.0,Low,0.57382,2,Stable/Low Change
+60641,81649.0,0,,Middle,Middle,0,0.0,Low,0.510106,3,Established High Income
+60642,141179.0,0,,Upper Middle,Upper Middle,0,0.0,Low,0.4,0,Established High Income
+60643,83015.0,0,,Middle,Middle,0,0.0,Low,0.50191,3,Established High Income
+60644,37952.0,0,,Low,Low,0,0.0,Low,0.772288,1,Stable/Low Change
+60645,77126.0,0,,Middle,Middle,0,0.0,Low,0.537244,3,Established High Income
+60646,111115.0,0,,Upper Middle,Upper Middle,0,0.0,Low,0.4,0,Established High Income
+60647,102851.0,0,,Upper Middle,Upper Middle,0,0.0,Low,0.4,0,Established High Income
+60649,40142.0,0,,Low,Low,0,0.0,Low,0.759148,1,Stable/Low Change
+60651,52963.0,0,,Moderate,Moderate,0,0.0,Low,0.682222,2,Stable/Low Change
+60652,78559.0,0,,Middle,Middle,0,0.0,Low,0.528646,3,Established High Income
+60653,39565.0,0,,Low,Low,0,0.0,Low,0.76261,1,Stable/Low Change
+60654,144831.0,0,,Upper Middle,Upper Middle,0,0.0,Low,0.4,0,Established High Income
+60655,114443.0,0,,Upper Middle,Upper Middle,0,0.0,Low,0.4,0,Established High Income
+60656,88000.0,0,,Middle,Middle,0,0.0,Low,0.472,3,Established High Income
+60657,109025.0,0,,Upper Middle,Upper Middle,0,0.0,Low,0.4,0,Established High Income
+60659,70033.0,0,,Moderate,Moderate,0,0.0,Low,0.5798019999999999,2,Stable/Low Change
+60660,66206.0,0,,Moderate,Moderate,0,0.0,Low,0.6027640000000001,2,Stable/Low Change
+60661,138831.0,0,,Upper Middle,Upper Middle,0,0.0,Low,0.4,0,Established High Income
+99999,0.0,0,0.0,Very Low,Very Low,0,,Low,0.5,4,Stable/Low Change

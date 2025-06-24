@@ -1,0 +1,138 @@
+{
+  "opportunity_zones": [
+    "60640",
+    "60608",
+    "60643",
+    "60609",
+    "60625",
+    "60629",
+    "60632",
+    "60654",
+    "60645",
+    "60620",
+    "60614"
+  ],
+  "opportunity_scores": {
+    "60640": 1.0,
+    "60608": 0.9989038064996638,
+    "60643": 0.9974424472413447,
+    "60609": 0.9961245654641633,
+    "60625": 0.991299092305547,
+    "60629": 0.9815784801548415,
+    "60632": 0.971706186063198,
+    "60654": 0.9710190788417076,
+    "60645": 0.9396127391344604,
+    "60620": 0.925874391426539,
+    "60614": 0.9185958548470399
+  },
+  "cluster_insights": [
+    {
+      "cluster_id": 0,
+      "zip_count": 24,
+      "avg_gap": 22.92053019327496,
+      "avg_score": 0.5073460099622058,
+      "zip_codes": [
+        "60601",
+        "60605",
+        "60606",
+        "60607",
+        "60612",
+        "60621",
+        "60624",
+        "60630",
+        "60631",
+        "60633",
+        "60636",
+        "60638",
+        "60642",
+        "60643",
+        "60644",
+        "60645",
+        "60646",
+        "60652",
+        "60653",
+        "60654",
+        "60655",
+        "60656",
+        "60659",
+        "60661"
+      ]
+    },
+    {
+      "cluster_id": 2,
+      "zip_count": 3,
+      "avg_gap": -544.4781112219575,
+      "avg_score": -12.052024752955697,
+      "zip_codes": [
+        "60602",
+        "60603",
+        "60604"
+      ]
+    },
+    {
+      "cluster_id": 1,
+      "zip_count": 9,
+      "avg_gap": 42.07931482278126,
+      "avg_score": 0.9314257697034185,
+      "zip_codes": [
+        "60608",
+        "60609",
+        "60611",
+        "60614",
+        "60625",
+        "60629",
+        "60632",
+        "60640",
+        "60657"
+      ]
+    },
+    {
+      "cluster_id": 3,
+      "zip_count": 20,
+      "avg_gap": 35.2313887811121,
+      "avg_score": 0.7798469046221692,
+      "zip_codes": [
+        "60610",
+        "60613",
+        "60615",
+        "60616",
+        "60617",
+        "60618",
+        "60619",
+        "60620",
+        "60622",
+        "60623",
+        "60626",
+        "60628",
+        "60634",
+        "60637",
+        "60639",
+        "60641",
+        "60647",
+        "60649",
+        "60651",
+        "60660"
+      ]
+    }
+  ],
+  "analysis_summary": "# Retail Gap Analysis Summary\n\n## Overview\n- Analyzed 56 ZIP codes in Chicago\n- Identified 11 opportunity zones with significant retail gaps\n- Average retail space per capita: 45.54 sq ft\n- Average retail space per housing unit: 71.53 sq ft\n\n## Top Opportunity Zones\nThe following ZIP codes show the highest retail development potential:\n1. ZIP 60640 - Gap Score: 1.00\n2. ZIP 60608 - Gap Score: 1.00\n3. ZIP 60643 - Gap Score: 1.00\n4. ZIP 60609 - Gap Score: 1.00\n5. ZIP 60625 - Gap Score: 0.99\n\n## Recommendations\n1. Focus retail development efforts on the identified opportunity zones\n2. Consider mixed-use developments in areas with high housing growth\n3. Target specific retail categories based on local demographics\n",
+  "retail_per_capita": 45.53593527937562,
+  "retail_per_housing": 71.52652908383115,
+  "gap_threshold": 0.5,
+  "visualizations": {
+    "paths": {
+      "retail_gap_score": "/Users/vanessa/Library/CloudStorage/Dropbox/chi/output/visualizations/retail_gap/retail_gap_score.png",
+      "retail_housing_comparison": "/Users/vanessa/Library/CloudStorage/Dropbox/chi/output/visualizations/retail_gap/retail_housing_comparison.png",
+      "cluster_analysis": "/Users/vanessa/Library/CloudStorage/Dropbox/chi/output/visualizations/retail_gap/cluster_analysis.png"
+    },
+    "count": 3,
+    "types": [
+      "retail_gap_score",
+      "retail_housing_comparison",
+      "cluster_analysis"
+    ]
+  },
+  "output_files": {
+    "retail_lag_zips": "/Users/vanessa/Library/CloudStorage/Dropbox/chi/output/data/retail_lag_zips.csv"
+  }
+}

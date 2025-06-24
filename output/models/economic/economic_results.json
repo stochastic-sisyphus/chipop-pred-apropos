@@ -1,0 +1,30 @@
+{
+  "model_metrics": {
+    "train_r2": 0.9999313417870531,
+    "test_r2": 0.9996173462887948,
+    "feature_importance": {
+      "median_income": 0.7207158634860107,
+      "employment_rate": 0.0046666986837943705,
+      "business_growth_indicator": 0.1860253445276957,
+      "housing_value_indicator": 0.08310248918057796,
+      "population": 0.0054896041219213015
+    }
+  },
+  "predictions_path": "/home/ubuntu/chipop-pred-attempt-clean/output/models/economic/economic_predictions.csv",
+  "summary_stats": {
+    "mean_economic_index": 1.02,
+    "median_economic_index": 1.01,
+    "max_economic_index": 1.75,
+    "min_economic_index": 0.35,
+    "mean_growth_rate": 0.0088,
+    "max_growth_rate": 0.0453,
+    "min_growth_rate": -0.0078,
+    "category_counts": {
+      "Thriving": 898,
+      "Struggling": 448,
+      "Average": 436,
+      "Above Average": 407,
+      "Below Average": 347
+    }
+  }
+}

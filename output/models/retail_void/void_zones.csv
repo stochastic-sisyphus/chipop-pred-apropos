@@ -1,0 +1,4 @@
+zip_code,void_count,categories,void_score
+60601,2,"grocery, clothing",0.4
+60602,1,furniture,0.2
+60603,1,electronics,0.2
