@@ -456,6 +456,21 @@ class MultifamilyGrowthModel(BaseModel):
             logger.error(f"Error running multifamily growth model: {str(e)}")
             logger.error(traceback.format_exc())
             return self.results
+
+    def run_analysis(self, data):
+        """Convenience wrapper used in tests.
+
+        Executes :py:meth:`run` and returns ``True`` if results were
+        generated successfully.
+
+        Args:
+            data (pd.DataFrame): Input data for the analysis.
+
+        Returns:
+            bool: ``True`` if the analysis finished without errors.
+        """
+        results = self.run(data)
+        return bool(results)
     
     def analyze_results(self):
         """
