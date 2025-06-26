@@ -28,11 +28,26 @@ def load_data(mtimes):
 def main():
     st.title("Chicago Housing Dashboard")
 
-    data_files = {
-        "multifamily": settings.MULTIFAMILY_ZIPS_PATH,
-        "retail_gap": settings.RETAIL_GAP_ZIPS_PATH,
-        "forecast": settings.POPULATION_FORECAST_PATH,
-    }
+DATA_FILES = {
+    "multifamily": settings.MULTIFAMILY_ZIPS_PATH,
+    "retail_gap": settings.RETAIL_GAP_ZIPS_PATH,
+    "forecast": settings.POPULATION_FORECAST_PATH,
+}
+
+def load_data(mtimes):
+    """Load pipeline output data for the dashboard."""
+    loaded = {}
+    for key, path in DATA_FILES.items():
+        if path.exists():
+            loaded[key] = pd.read_csv(path)
+    return loaded
+
+def main():
+    st.title("Chicago Housing Dashboard")
+
+    mtimes = tuple(
+        path.stat().st_mtime for path in DATA_FILES.values() if path.exists()
+    )
     mtimes = tuple(
         path.stat().st_mtime for path in data_files.values() if path.exists()
     )
