@@ -4,8 +4,10 @@ from src.config import settings
 
 try:
     import streamlit as st
-except ImportError:  # pragma: no cover - optional dependency
-    raise SystemExit("Streamlit is required to run the dashboard. Install with 'pip install streamlit'.")
+except ImportError as e:  # pragma: no cover - optional dependency
+    raise SystemExit(
+        "Streamlit is required to run the dashboard. Install with 'pip install streamlit'."
+    ) from e
 
 OUTPUT_DIR = settings.OUTPUT_DIR
 
