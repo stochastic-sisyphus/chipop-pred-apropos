@@ -16,11 +16,11 @@ def load_data():
         "retail_gap": OUTPUT_DIR / "data" / "retail_lag_zips.csv",
         "forecast": OUTPUT_DIR / "forecasts" / "population_forecast.csv",
     }
-    loaded = {}
-    for key, path in data_files.items():
-        if path.exists():
-            loaded[key] = pd.read_csv(path)
-    return loaded
+    return {
+        key: pd.read_csv(path)
+        for key, path in data_files.items()
+        if path.exists()
+    }
 
 def main():
     st.title("Chicago Housing Dashboard")
