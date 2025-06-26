@@ -1688,7 +1688,7 @@ class Pipeline:
 
         except Exception as e:
             logger.error(f"Data validation failed: {str(e)}")
-            raise DataQualityError(f"Data validation failed: {str(e)}")
+            raise DataQualityError(f"Data validation failed: {str(e)}") from e
 
     def _collect_enhanced_permit_data(self):
         """Collect enhanced permit data with complete fields."""
