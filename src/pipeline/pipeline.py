@@ -578,13 +578,13 @@ class Pipeline:
 
             # **FIXED: Add missing data_source fields to prevent validation failures**
             if (
-                fred_data is not None
-                and isinstance(fred_data, pd.DataFrame)
-                and not fred_data.empty
-            ):
-                if "data_source" not in fred_data.columns:
-                    fred_data["data_source"] = "FRED"
-                    logger.info("✅ Added data_source field to FRED dataset")
+                            fred_data is not None
+                            and isinstance(fred_data, pd.DataFrame)
+                            and not fred_data.empty
+                        ) and "data_source" not in fred_data.columns:
+                fred_data["data_source"] = "FRED"
+                logger.info("✅ Added data_source field to FRED dataset")
+
 
             # Add pre-collected retail data if available
             if retail_sales_data is not None:
