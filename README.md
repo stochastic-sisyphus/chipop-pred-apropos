@@ -165,8 +165,8 @@ the CSV files in the `output/` directory and display them as tables, bar charts
 and maps. Both libraries support running locally or deploying to a cloud
 platform. For a lightweight setup, start with Streamlit:
 
-```bash
 pip install streamlit
+echo "Your streamlit dashboard code here" > dashboard.py
 streamlit run dashboard.py
 ```
 
