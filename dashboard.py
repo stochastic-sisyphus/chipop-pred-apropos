@@ -19,11 +19,11 @@ def load_data(mtimes):
         "retail_gap": settings.RETAIL_GAP_ZIPS_PATH,
         "forecast": settings.POPULATION_FORECAST_PATH,
     }
-    loaded = {}
-    for key, path in data_files.items():
-        if path.exists():
-            loaded[key] = pd.read_csv(path)
-    return loaded
+    return {
+        key: pd.read_csv(path)
+        for key, path in data_files.items()
+        if path.exists()
+    }
 
 def main():
     st.title("Chicago Housing Dashboard")
