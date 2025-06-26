@@ -105,17 +105,9 @@ class RetailVoidModel(BaseModel):
             basic_required = ['zip_code', 'retail_sales', 'consumer_spending', 'population']
             for col in basic_required:
                 if col not in df.columns:
-                    logger.warning(
-                        f"Missing required column '{col}' - adding placeholder values for testing"
-                    )
-                    if col == "zip_code":
-                        df[col] = (
-                            data["zip_code"] if "zip_code" in data.columns else "00000"
-                        )
-                    elif col == "population":
-                        df[col] = np.random.randint(10000, 50000, size=len(df))
-                    else:
-                        df[col] = np.random.randint(100000, 5000000, size=len(df))
+                    # **FIXED: No longer add missing columns with defaults - require real data**
+                    logger.error(f"❌ CRITICAL: Required column '{col}' missing from real data")
+                    raise ValueError(f"❌ CRITICAL: Required column '{col}' missing from real data")
                     
             # **ENHANCED: Smart retail category handling with real data fallbacks**
             retail_categories = ['grocery_sales', 'clothing_sales', 'electronics_sales', 
