@@ -147,6 +147,7 @@ zip_code,growth_score,permit_growth,unit_growth,recent_permits,recent_units
 60654,0.703,0.722,0.722,31,31
 ```
 
+
 ### Pipeline Summary
 - **Exit Code**: 0 (Success)
 - **Execution Time**: ~20 seconds
@@ -154,6 +155,25 @@ zip_code,growth_score,permit_growth,unit_growth,recent_permits,recent_units
 - **Models Run**: 3 (all successful)
 - **Files Generated**: 7 data files + 4 reports + 21 visualizations
 
+## Building an Interactive Dashboard
+
+The processed data and model outputs can be visualized using a small web
+dashboard built with [Streamlit](https://streamlit.io) or
+[Plotly Dash](https://plotly.com/dash/). These frameworks let you create
+interactive charts in just a few lines of code. A simple approach is to load
+the CSV files in the `output/` directory and display them as tables, bar charts
+and maps. Both libraries support running locally or deploying to a cloud
+platform. For a lightweight setup, start with Streamlit:
+
+```bash
+pip install streamlit
+streamlit run dashboard.py
+```
+
+The `dashboard.py` script should import the pipeline outputs and render key
+metrics such as multifamily growth, retail gaps and population forecasts. Use
+widgets to let users filter by ZIP code or year for an interactive experience.
+
 ## License
 
-MIT 
+MIT
