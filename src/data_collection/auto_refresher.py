@@ -4,13 +4,15 @@ Automatic data refresh system for the Chicago Housing Pipeline project.
 
 import os
 import time
-import threading
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 import schedule
 import json
 from typing import Dict, List, Optional
+import daemon
+from daemon import pidfile
+import signal
 
 from .cache_manager import CacheManager
 from .census_collector import CensusCollector
@@ -31,9 +33,7 @@ class AutoRefresher:
             cache_dir (str): Directory for cache files
         """
         self.cache_manager = CacheManager(cache_dir)
-        self.is_running = False
-        self.refresh_thread = None
-        self.stop_event = threading.Event()
+        self.pid_file_path = Path(cache_dir) / "auto_refresher.pid"
         
         # Default refresh intervals (hours)
         self.refresh_intervals = {
@@ -267,76 +267,93 @@ class AutoRefresher:
                 logger.debug(f"{data_source} data is fresh, no refresh needed")
     
     def _refresh_worker(self):
-        """Background worker thread for automatic refresh."""
-        logger.info("Auto-refresh worker thread started")
+        """Background worker loop for the daemon."""
+        logger.info("Auto-refresh daemon worker started")
         
-        while not self.stop_event.is_set():
-            try:
-                # Run scheduled jobs
-                schedule.run_pending()
-                
-                # Check for immediate refresh needs
-                self.check_and_refresh_all()
-                
-                # Sleep for 5 minutes before next check
-                if not self.stop_event.wait(300):  # 5 minutes
-                    continue
-                else:
-                    break
-                    
-            except Exception as e:
-                logger.error(f"Error in refresh worker: {e}")
-                # Sleep before retrying
-                if not self.stop_event.wait(60):  # 1 minute
-                    continue
-                else:
-                    break
-        
-        logger.info("Auto-refresh worker thread stopped")
-    
-    def start(self):
-        """Start the automatic refresh system."""
-        if self.is_running:
-            logger.warning("Auto-refresh system is already running")
-            return
-        
-        logger.info("Starting automatic data refresh system")
-        
-        # Schedule regular checks
+        # Schedule jobs
         schedule.every(30).minutes.do(self.check_and_refresh_all)
         schedule.every().day.at("06:00").do(lambda: self.refresh_data_source('fred'))
         schedule.every().day.at("18:00").do(lambda: self.refresh_data_source('chicago'))
         schedule.every().sunday.at("02:00").do(lambda: self.refresh_data_source('census'))
+
+        while True:
+            try:
+                schedule.run_pending()
+                time.sleep(60)  # Check every minute
+            except Exception as e:
+                logger.error(f"Error in refresh worker: {e}")
+                time.sleep(300) # Wait 5 minutes on error
         
-        # Start background thread
-        self.stop_event.clear()
-        self.refresh_thread = threading.Thread(target=self._refresh_worker, daemon=True)
-        self.refresh_thread.start()
-        
-        self.is_running = True
-        logger.info("Auto-refresh system started successfully")
+        logger.info("Auto-refresh daemon worker stopped")
     
-    def stop(self):
-        """Stop the automatic refresh system."""
-        if not self.is_running:
-            logger.warning("Auto-refresh system is not running")
+    def start(self):
+        """Start the automatic refresh system as a daemon."""
+        if self.is_running():
+            logger.warning("Auto-refresh daemon is already running")
             return
         
-        logger.info("Stopping automatic data refresh system")
+        logger.info("Starting automatic data refresh daemon")
         
-        # Signal stop
-        self.stop_event.set()
+        # Create a daemon context
+        daemon_context = daemon.DaemonContext(
+            working_directory=os.getcwd(),
+            umask=0o002,
+            pidfile=pidfile.TimeoutPIDLockFile(self.pid_file_path),
+        )
         
-        # Wait for thread to finish
-        if self.refresh_thread and self.refresh_thread.is_alive():
-            self.refresh_thread.join(timeout=10)
+        try:
+            with daemon_context:
+                self._refresh_worker()
+        except Exception as e:
+            logger.error(f"Error starting daemon: {e}")
+
+    def stop(self):
+        """Stop the automatic refresh daemon."""
+        if not self.is_running():
+            logger.warning("Auto-refresh daemon is not running")
+            return
         
-        # Clear scheduled jobs
-        schedule.clear()
+        logger.info("Stopping automatic data refresh daemon")
         
-        self.is_running = False
-        logger.info("Auto-refresh system stopped")
+        try:
+            with open(self.pid_file_path, 'r') as f:
+                pid = int(f.read().strip())
+
+            # Send termination signal
+            os.kill(pid, signal.SIGTERM)
+            logger.info(f"Sent SIGTERM to process {pid}")
+
+            # Wait for process to terminate
+            time.sleep(2)
+
+            # Clean up pid file
+            if os.path.exists(self.pid_file_path):
+                os.remove(self.pid_file_path)
+
+        except FileNotFoundError:
+            logger.warning("PID file not found. Daemon may not be running.")
+        except ProcessLookupError:
+            logger.warning(f"Process with PID {pid} not found. May have already stopped.")
+            if os.path.exists(self.pid_file_path):
+                os.remove(self.pid_file_path)
+        except Exception as e:
+            logger.error(f"Error stopping daemon: {e}")
     
+    def is_running(self) -> bool:
+        """Check if the daemon is currently running."""
+        if not os.path.exists(self.pid_file_path):
+            return False
+
+        try:
+            with open(self.pid_file_path, 'r') as f:
+                pid = int(f.read().strip())
+
+            # Check if process exists
+            os.kill(pid, 0)
+            return True
+        except (IOError, ValueError, ProcessLookupError):
+            return False
+
     def get_status(self) -> Dict:
         """
         Get current status of the auto-refresh system.
@@ -345,7 +362,8 @@ class AutoRefresher:
             dict: Status information
         """
         status = {
-            'is_running': self.is_running,
+            'is_running': self.is_running(),
+            'pid': None,
             'collectors': list(self.collectors.keys()),
             'refresh_intervals': self.refresh_intervals,
             'staleness_thresholds': self.staleness_thresholds,
@@ -353,6 +371,13 @@ class AutoRefresher:
             'data_staleness': {}
         }
         
+        if status['is_running']:
+            try:
+                with open(self.pid_file_path, 'r') as f:
+                    status['pid'] = int(f.read().strip())
+            except (IOError, ValueError):
+                pass
+
         # Check staleness for each data source
         for data_source in self.collectors.keys():
             status['data_staleness'][data_source] = self.is_data_stale(data_source)

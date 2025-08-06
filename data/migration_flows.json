@@ -1,0 +1,52 @@
+{
+  "flows": [
+    {
+      "source_zip": "60601",
+      "target_zip": "60602",
+      "flow_count": 490,
+      "flow_percentage": 6.612500120327085,
+      "year": 2024
+    },
+    {
+      "source_zip": "60601",
+      "target_zip": "60603",
+      "flow_count": 335,
+      "flow_percentage": 9.689027630449528,
+      "year": 2024
+    },
+    {
+      "source_zip": "60602",
+      "target_zip": "60601",
+      "flow_count": 278,
+      "flow_percentage": 7.724339025631861,
+      "year": 2024
+    },
+    {
+      "source_zip": "60602",
+      "target_zip": "60603",
+      "flow_count": 148,
+      "flow_percentage": 7.8109864717418205,
+      "year": 2024
+    },
+    {
+      "source_zip": "60603",
+      "target_zip": "60601",
+      "flow_count": 261,
+      "flow_percentage": 5.198226805923248,
+      "year": 2024
+    },
+    {
+      "source_zip": "60603",
+      "target_zip": "60602",
+      "flow_count": 369,
+      "flow_percentage": 2.8902156459032184,
+      "year": 2024
+    }
+  ],
+  "metadata": {
+    "total_flows": 6,
+    "year": 2024,
+    "source": "Chicago Housing Pipeline Analysis",
+    "generated_date": "2025-08-04T05:32:57.427414"
+  }
+}

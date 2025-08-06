@@ -189,23 +189,23 @@ def main():
         if args.start_auto_refresh:
             logger.info("Starting automatic data refresh daemon...")
             auto_refresher.start()
-            print("✓ Automatic data refresh daemon started")
-            print("  - FRED data: Daily at 6:00 AM")
-            print("  - Chicago data: Daily at 6:00 PM") 
-            print("  - Census data: Weekly on Sunday at 2:00 AM")
-            print("  - Staleness checks: Every 30 minutes")
+            # The start method now daemonizes, so the script will exit here.
+            # The daemon will run in the background.
+            print("✓ Automatic data refresh daemon started in the background.")
             return 0
 
         if args.stop_auto_refresh:
             logger.info("Stopping automatic data refresh daemon...")
             auto_refresher.stop()
-            print("✓ Automatic data refresh daemon stopped")
+            print("✓ Automatic data refresh daemon stopped.")
             return 0
 
         if args.refresh_status:
             status = auto_refresher.get_status()
             print("\n=== Auto-Refresh Status ===")
             print(f"Status: {'RUNNING' if status['is_running'] else 'STOPPED'}")
+            if status['is_running']:
+                print(f"PID: {status['pid']}")
             print(f"Available collectors: {', '.join(status['collectors'])}")
             print(f"\nRefresh intervals (hours):")
             for source, interval in status['refresh_intervals'].items():

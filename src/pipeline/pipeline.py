@@ -183,7 +183,7 @@ class Pipeline:
             logger.info("Starting Chicago Housing Pipeline & Population Shift Project pipeline")
             
             # Collect data
-            if use_sample_data:
+            if use_sample_data or self.use_sample_data:
                 logger.info("Using sample data for pipeline execution")
                 data = self._load_sample_data()
             else:
@@ -195,9 +195,12 @@ class Pipeline:
                 return self._handle_data_quality_error(DataQualityError("Data collection failed"))
             
             # Validate collected data for real data integrity
-            logger.info("🔍 Validating data for real data integrity...")
-            validated_data = self._validate_real_data(data)
-            
+            if not (use_sample_data or self.use_sample_data):
+                logger.info("🔍 Validating data for real data integrity...")
+                validated_data = self._validate_real_data(data)
+            else:
+                validated_data = data
+
             if not validated_data:
                 logger.error("Failed to validate data")
                 return self._handle_data_quality_error(DataQualityError("Data validation failed"))

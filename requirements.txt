@@ -1,28 +1,29 @@
 # Core dependencies
-pandas==2.2.3  # Data manipulation
-numpy==1.24.4  # Numerical operations
-scikit-learn==1.6.1  # Machine learning
-matplotlib==3.10.1  # Plotting
-seaborn==0.13.2  # Statistical visualization
-geopandas==1.0.1  # Geospatial analysis
-requests==2.32.3  # HTTP requests
-python-dotenv==1.1.0  # Environment variable management
-loguru==0.7.2  # Logging
-jupyterlab==4.4.1  # Notebooks (optional)
-tqdm==4.66.4  # Progress bars
-sodapy==2.2.0  # Socrata Open Data API
-uszipcode==0.2.6  # ZIP code geocoding
-fredapi==0.5.2  # FRED economic data
-openpyxl==3.1.5  # Excel file support
-pyarrow==19.0.1  # Parquet/Arrow support
-census==0.8.19  # US Census Bureau API
+pandas
+numpy>=1.26.4
+scikit-learn>=1.4.2
+matplotlib
+seaborn
+geopandas
+requests
+python-dotenv
+loguru
+jupyterlab
+tqdm
+sodapy
+uszipcode
+fredapi
+openpyxl
+pyarrow
+census
 # Optional/advanced
-cmdstanpy==1.2.5  # Bayesian modeling (optional)
-lightgbm==4.6.0  # Gradient boosting (optional)
-joblib==1.4.2  # Model serialization
+cmdstanpy
+lightgbm
+joblib
 # Visualization
-plotly==6.0.1  # Interactive plots
+plotly
 # Testing
-pytest==8.3.5  # Testing framework
+pytest
 # Task scheduling
-schedule==1.2.2  # Job scheduling
+schedule
+python-daemon
