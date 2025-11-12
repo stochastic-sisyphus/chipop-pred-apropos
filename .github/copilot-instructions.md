@@ -76,7 +76,7 @@ python main.py
 
 ### Running Tests
 ```bash
-# Run all tests
+# Run all tests with pytest (recommended - can run unittest tests)
 pytest tests/
 
 # Run specific test file
@@ -84,6 +84,9 @@ pytest tests/test_pipeline.py
 
 # Run with verbose output
 pytest -v tests/
+
+# Or run with unittest directly
+python -m unittest tests.test_pipeline
 ```
 
 ## Code Style and Conventions
@@ -179,7 +182,7 @@ class MyModel(BaseModel):
 
 ### Test Structure
 - Tests are in `tests/` directory
-- Use `unittest` framework (existing pattern)
+- Use `unittest` framework (existing tests) or `pytest` (can run both)
 - Create synthetic test data in `setUpClass` method
 - Clean up test outputs in `tearDownClass` method
 
