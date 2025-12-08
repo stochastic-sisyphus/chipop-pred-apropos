@@ -75,6 +75,57 @@ def clear_cache():
     else:
         logger.info("No cache directory found")
 
+def run_cag_enhancement(pipeline_results, output_dir):
+    """
+    Run Context Augmented Generation (CAG) enhancement on pipeline results.
+
+    Args:
+        pipeline_results: Results from the pipeline run
+        output_dir: Output directory for CAG results
+
+    Returns:
+        dict: Enhanced results with CAG analysis
+    """
+    try:
+        from src.cag import CAGPipeline
+
+        logger.info("Initializing CAG pipeline...")
+        cag_pipeline = CAGPipeline(
+            output_dir=Path(output_dir) / 'cag',
+            enable_context_building=True,
+            enable_reality_interpretation=True,
+            enable_pattern_discovery=True,
+            enable_blueprint_generation=True,
+        )
+
+        logger.info("Running CAG enhancement...")
+        enhanced = cag_pipeline.enhance_pipeline_results(
+            pipeline_results,
+            time_period="2020-2024",
+        )
+
+        # Generate and save CAG report
+        cag_report = cag_pipeline.generate_cag_report()
+        cag_report_path = Path(output_dir) / 'cag' / 'cag_analysis_report.md'
+        cag_report_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(cag_report_path, 'w') as f:
+            f.write(cag_report)
+
+        logger.info(f"CAG report saved to: {cag_report_path}")
+        logger.info("CAG enhancement completed successfully")
+
+        return enhanced
+
+    except ImportError as e:
+        logger.error(f"CAG module not available: {e}")
+        logger.error("Make sure the CAG module is properly installed")
+        return pipeline_results
+    except Exception as e:
+        logger.error(f"CAG enhancement failed: {e}")
+        logger.error(traceback.format_exc())
+        return pipeline_results
+
+
 def check_api_configuration():
     """
     Check and display API configuration status.
@@ -157,9 +208,13 @@ def main():
                           help='Stop automatic data refresh daemon')
         parser.add_argument('--refresh-status', action='store_true',
                           help='Show automatic refresh status and exit')
-        parser.add_argument('--refresh-now', nargs='*', 
+        parser.add_argument('--refresh-now', nargs='*',
                           choices=['census', 'fred', 'chicago'],
                           help='Immediately refresh specific datasets (all if none specified)')
+        parser.add_argument('--enable-cag', action='store_true',
+                          help='Enable Context Augmented Generation (CAG) enhancement for pipeline results')
+        parser.add_argument('--cag-only', action='store_true',
+                          help='Run CAG analysis on existing pipeline results (requires previous run)')
         args = parser.parse_args()
 
         # Check API keys if requested
@@ -258,27 +313,43 @@ def main():
         else:
             logger.info("Starting pipeline execution with production data from APIs")
         results = pipeline.run(use_sample_data=use_sample_data)
-        
+
+        # Check pipeline execution status
+        pipeline_success = False
         if isinstance(results, bool):
-            if results:
-                logger.info("Pipeline execution completed successfully")
-                return 0
-            else:
-                logger.error("Pipeline execution failed")
-                return 1
+            pipeline_success = results
         elif isinstance(results, dict):
-            if results.get("status") == "completed":
-                logger.info("Pipeline execution completed successfully")
-                return 0
-            else:
+            pipeline_success = results.get("status") == "completed"
+
+        if not pipeline_success:
+            if isinstance(results, dict):
                 error_msg = results.get("error", "Unknown error")
                 logger.error(f"Pipeline execution failed: {error_msg}")
                 if "traceback" in results:
                     logger.error(results["traceback"])
-                return 1
-        else:
-            logger.error(f"Unexpected results type: {type(results)}")
+            else:
+                logger.error("Pipeline execution failed")
             return 1
+
+        logger.info("Pipeline execution completed successfully")
+
+        # Run CAG enhancement if enabled
+        if args.enable_cag or args.cag_only:
+            logger.info("CAG enhancement enabled - running contextual analysis...")
+            if isinstance(results, dict):
+                enhanced_results = run_cag_enhancement(results, output_dir)
+                if 'cag' in enhanced_results:
+                    logger.info("CAG enhancement added contextual interpretation to results")
+                    if enhanced_results['cag'].get('patterns', {}).get('discovered'):
+                        pattern_count = len(enhanced_results['cag']['patterns']['discovered'])
+                        logger.info(f"  - Discovered {pattern_count} patterns")
+                    if enhanced_results['cag'].get('interpretation', {}).get('anomalies'):
+                        anomaly_count = len(enhanced_results['cag']['interpretation']['anomalies'])
+                        logger.info(f"  - Identified {anomaly_count} anomalies")
+            else:
+                logger.warning("CAG enhancement requires dict results from pipeline")
+
+        return 0
 
     except Exception as e:
         logger.error(f"Unhandled exception in main: {str(e)}")
