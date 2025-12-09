@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Reality Gap: Chicago's Hidden Urban Story</title>
+
+    <!-- MapLibre GL -->
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+
+    <!-- Scrollama -->
+    <script src="https://unpkg.com/scrollama@3.2.0/build/scrollama.min.js"></script>
+
+    <!-- D3 -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+
+    <!-- Intersection Observer polyfill -->
+    <script src="https://unpkg.com/intersection-observer@0.12.2/intersection-observer.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Source+Sans+Pro:wght@300;400;600&family=JetBrains+Mono:wght@400&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-dark: #0a0a0f;
+            --bg-card: rgba(15, 15, 25, 0.9);
+            --text-primary: #f5f5f7;
+            --text-secondary: #a1a1aa;
+            --text-muted: #71717a;
+            --accent: #60a5fa;
+            --accent-warm: #fbbf24;
+            --accent-danger: #f87171;
+            --accent-success: #34d399;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Source Sans Pro', -apple-system, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            line-height: 1.7;
+            overflow-x: hidden;
+        }
+
+        /* Typography */
+        h1, h2, h3 {
+            font-family: 'Playfair Display', Georgia, serif;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Hero Section */
+        .hero {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse at center, transparent 0%, var(--bg-dark) 70%);
+            z-index: 1;
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 2;
+            max-width: 800px;
+            padding: 0 2rem;
+        }
+
+        .hero h1 {
+            font-size: clamp(3rem, 8vw, 6rem);
+            font-weight: 900;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero .subtitle {
+            font-size: clamp(1.25rem, 3vw, 1.75rem);
+            color: var(--text-secondary);
+            font-weight: 300;
+            margin-bottom: 3rem;
+        }
+
+        .scroll-indicator {
+            position: absolute;
+            bottom: 3rem;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .scroll-indicator svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; transform: translateX(-50%) translateY(0); }
+            50% { opacity: 1; transform: translateX(-50%) translateY(5px); }
+        }
+
+        /* Scrolly Section */
+        .scrolly {
+            position: relative;
+        }
+
+        .scrolly__graphic {
+            position: sticky;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            z-index: 1;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        .scrolly__text {
+            position: relative;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        .step {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 2rem;
+        }
+
+        .step__content {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 1rem;
+            padding: 2.5rem;
+            max-width: 480px;
+            margin-left: 5%;
+            pointer-events: auto;
+            opacity: 0.15;
+            transform: translateY(20px);
+            transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .step.is-active .step__content {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .step__content h2 {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        .step__content p {
+            color: var(--text-secondary);
+            font-size: 1.125rem;
+            margin-bottom: 1rem;
+        }
+
+        .step__content .highlight {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .step__content .warning {
+            color: var(--accent-warm);
+        }
+
+        .step__content .danger {
+            color: var(--accent-danger);
+        }
+
+        .step__content .success {
+            color: var(--accent-success);
+        }
+
+        /* Stats callout */
+        .stat-callout {
+            display: flex;
+            gap: 2rem;
+            margin: 1.5rem 0;
+            padding: 1.5rem;
+            background: rgba(255,255,255,0.03);
+            border-radius: 0.75rem;
+            border-left: 3px solid var(--accent);
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-family: 'Playfair Display', serif;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+        }
+
+        /* Quote */
+        .quote {
+            font-style: italic;
+            font-size: 1.25rem;
+            color: var(--text-primary);
+            border-left: 2px solid var(--accent-warm);
+            padding-left: 1.5rem;
+            margin: 1.5rem 0;
+        }
+
+        /* Interactive Section */
+        .explore-section {
+            min-height: 100vh;
+            padding: 4rem 2rem;
+            background: linear-gradient(180deg, var(--bg-dark) 0%, #0f0f1a 100%);
+        }
+
+        .explore-header {
+            text-align: center;
+            max-width: 700px;
+            margin: 0 auto 4rem;
+        }
+
+        .explore-header h2 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .explore-header p {
+            color: var(--text-secondary);
+            font-size: 1.25rem;
+        }
+
+        .explore-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .explore-card {
+            background: var(--bg-card);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 1rem;
+            padding: 2rem;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .explore-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+
+        .explore-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .explore-card .neighborhood {
+            color: var(--accent);
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .explore-card p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+
+        .explore-card .metric-row {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .explore-card .metric {
+            text-align: center;
+        }
+
+        .explore-card .metric-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .explore-card .metric-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+
+        /* Chart Section */
+        .chart-section {
+            padding: 4rem 2rem;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .chart-container {
+            background: var(--bg-card);
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .chart-title {
+            font-size: 1.25rem;
+            margin-bottom: 1.5rem;
+            color: var(--text-primary);
+        }
+
+        #growth-chart, #constraint-chart {
+            width: 100%;
+            height: 300px;
+        }
+
+        /* Footer */
+        footer {
+            padding: 4rem 2rem;
+            text-align: center;
+            border-top: 1px solid rgba(255,255,255,0.05);
+        }
+
+        footer p {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        /* Map overlays */
+        .map-overlay {
+            position: absolute;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 0.75rem;
+            padding: 1rem 1.5rem;
+            z-index: 10;
+            font-size: 0.875rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin: 0.5rem 0;
+        }
+
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .step__content {
+                margin-left: 0;
+                margin: 0 auto;
+                max-width: 100%;
+            }
+
+            .stat-callout {
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+        }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-in {
+            animation: fadeInUp 0.8s ease-out forwards;
+        }
+
+        /* Map markers */
+        .maplibregl-popup-content {
+            background: var(--bg-card) !important;
+            color: var(--text-primary) !important;
+            border-radius: 0.5rem !important;
+            padding: 1rem !important;
+            font-family: 'Source Sans Pro', sans-serif !important;
+        }
+
+        .maplibregl-popup-close-button {
+            color: var(--text-secondary) !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- Hero -->
+    <section class="hero" id="hero">
+        <div class="hero-content">
+            <h1>The Reality Gap</h1>
+            <p class="subtitle">Where Chicago's data diverges from lived experience</p>
+        </div>
+        <div class="scroll-indicator">
+            <span>Scroll to explore</span>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+            </svg>
+        </div>
+    </section>
+
+    <!-- Scrollytelling Section -->
+    <section class="scrolly">
+        <div class="scrolly__graphic">
+            <div id="map"></div>
+            <div class="map-overlay" id="legend" style="display: none;">
+                <div class="legend-item">
+                    <span class="legend-dot" style="background: #34d399;"></span>
+                    <span>High Growth</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-dot" style="background: #fbbf24;"></span>
+                    <span>Transitioning</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-dot" style="background: #f87171;"></span>
+                    <span>Constrained</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="scrolly__text">
+            <!-- Step 1: Opening -->
+            <div class="step" data-step="intro">
+                <div class="step__content">
+                    <h2>Chicago is changing.</h2>
+                    <p>56 ZIP codes. 2.7 million people. Thousands of permits, billions in investment.</p>
+                    <p>The data tells a story of <span class="highlight">growth</span>.</p>
+                    <p>But numbers don't capture what residents actually feel.</p>
+                </div>
+            </div>
+
+            <!-- Step 2: The Growth Illusion -->
+            <div class="step" data-step="growth">
+                <div class="step__content">
+                    <h2>The Growth Illusion</h2>
+                    <div class="stat-callout">
+                        <div class="stat-item">
+                            <div class="stat-value">85%</div>
+                            <div class="stat-label">Top Growth Score</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">+1,031%</div>
+                            <div class="stat-label">Unit Growth (West Loop)</div>
+                        </div>
+                    </div>
+                    <p>The Loop and West Loop are booming. Permits are up. Units are multiplying.</p>
+                    <p>But zoom out, and the picture fragments.</p>
+                </div>
+            </div>
+
+            <!-- Step 3: West Loop Focus -->
+            <div class="step" data-step="westloop">
+                <div class="step__content">
+                    <h2>West Loop</h2>
+                    <p class="mono" style="color: var(--accent); font-size: 0.875rem;">ZIP 60607</p>
+                    <p>464 new units. Transit-oriented development. Up-zoned for high-rises.</p>
+                    <p>On paper: <span class="success">success story</span>.</p>
+                    <p>In practice: rising rents rippling outward, pushing long-time residents to adjacent neighborhoods.</p>
+                </div>
+            </div>
+
+            <!-- Step 4: Spillover -->
+            <div class="step" data-step="spillover">
+                <div class="step__content">
+                    <h2>The Spillover Effect</h2>
+                    <p>Development doesn't stay contained. It <span class="warning">spreads</span>.</p>
+                    <p>When West Loop booms, Pilsen feels the pressure. When Lincoln Park prices out families, Logan Square absorbs the overflow.</p>
+                    <div class="quote">
+                        "Development pressure often spreads along transit corridors and displaces population to adjacent neighborhoods."
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 5: Bronzeville -->
+            <div class="step" data-step="bronzeville">
+                <div class="step__content">
+                    <h2>Bronzeville</h2>
+                    <p class="mono" style="color: var(--accent); font-size: 0.875rem;">ZIP 60615 / Hyde Park Adjacent</p>
+                    <p>Historic Black Metropolis. Cultural anchor. Now: <span class="warning">demographic transition</span>.</p>
+                    <p>The numbers show stable population. But the composition is shifting. Income diversity is narrowing.</p>
+                    <p>This is what we call a <span class="danger">hidden transition</span>.</p>
+                </div>
+            </div>
+
+            <!-- Step 6: The Constraint Paradox -->
+            <div class="step" data-step="constraints">
+                <div class="step__content">
+                    <h2>The Constraint Paradox</h2>
+                    <div class="stat-callout">
+                        <div class="stat-item">
+                            <div class="stat-value">56</div>
+                            <div class="stat-label">Constrained ZIPs</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">3</div>
+                            <div class="stat-label">Severely Blocked</div>
+                        </div>
+                    </div>
+                    <p>Zoning intended to protect communities often <span class="danger">blocks</span> what they need most.</p>
+                    <p>Englewood needs grocery stores. The zoning says no. The residents wait.</p>
+                </div>
+            </div>
+
+            <!-- Step 7: Englewood -->
+            <div class="step" data-step="englewood">
+                <div class="step__content">
+                    <h2>Englewood</h2>
+                    <p class="mono" style="color: var(--accent); font-size: 0.875rem;">ZIP 60621 / South Side</p>
+                    <p>Significantly constrained. Low permit utilization. High need.</p>
+                    <p>The data shows <span class="highlight">opportunity</span> - reform could unlock development here.</p>
+                    <p>But opportunity for whom? That's the question the numbers can't answer.</p>
+                </div>
+            </div>
+
+            <!-- Step 8: The Reality Gap -->
+            <div class="step" data-step="reality">
+                <div class="step__content">
+                    <h2>The Reality Gap</h2>
+                    <p>This is what we mean by <span class="highlight">Context Augmented Generation</span>.</p>
+                    <p>Statistics tell you <em>what</em>. Context tells you <em>so what</em>.</p>
+                    <p>A 15% income increase in Bronzeville means something different than in Lincoln Park. The same "growth score" can mean prosperity or displacement.</p>
+                    <p>The gap between data and reality is where policy fails - or succeeds.</p>
+                </div>
+            </div>
+
+            <!-- Step 9: Call to Action -->
+            <div class="step" data-step="explore">
+                <div class="step__content">
+                    <h2>Explore the Data</h2>
+                    <p>This is just the surface. Every ZIP code has a story.</p>
+                    <p>Scroll down to explore individual neighborhoods, compare growth patterns, and dig into the numbers behind the narrative.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Interactive Explorer -->
+    <section class="explore-section" id="explore">
+        <div class="explore-header">
+            <h2>Neighborhood Profiles</h2>
+            <p>Click any card to see the full story behind the statistics</p>
+        </div>
+
+        <div class="explore-grid" id="explore-grid">
+            <!-- Cards generated by JS -->
+        </div>
+    </section>
+
+    <!-- Charts Section -->
+    <section class="chart-section">
+        <div class="chart-container">
+            <h3 class="chart-title">Development Growth by Neighborhood</h3>
+            <div id="growth-chart"></div>
+        </div>
+        <div class="chart-container">
+            <h3 class="chart-title">Zoning Constraints vs Opportunity</h3>
+            <div id="constraint-chart"></div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <p>Built with the <a href="https://github.com/stochastic-sisyphus/chipop-pred-apropos">CAG Framework</a></p>
+        <p style="margin-top: 0.5rem;">Data: Chicago Open Data Portal, Census Bureau ACS, FRED</p>
+    </footer>
+
+    <script>
+        // ============================================
+        // DATA
+        // ============================================
+        const neighborhoodData = [
+            { zip: "60607", name: "West Loop", growth: 0.746, units: 504, permits: 65, constraint: 0.55, story: "Tech hub transformation. Once meatpacking, now luxury lofts. Development pressure spreading to Pilsen." },
+            { zip: "60602", name: "Loop", growth: 0.852, units: 135, permits: 84, constraint: 0.45, story: "Downtown core revival. Office-to-residential conversions accelerating post-pandemic." },
+            { zip: "60622", name: "Wicker Park", growth: 0.801, units: 153, permits: 76, constraint: 0.42, story: "Artist enclave turned boutique destination. Longtime residents priced out to Humboldt Park." },
+            { zip: "60647", name: "Logan Square", growth: 0.787, units: 130, permits: 89, constraint: 0.48, story: "606 trail effect. Gentrification accelerating along the Bloomingdale corridor." },
+            { zip: "60615", name: "Bronzeville", growth: 0.203, units: 32, permits: 27, constraint: 0.52, story: "Historic Black Metropolis. Cultural anchor facing demographic transition pressures." },
+            { zip: "60621", name: "Englewood", growth: 0.443, units: 7, permits: 7, constraint: 0.58, story: "Significantly constrained. Community needs vs zoning restrictions. High reform opportunity." },
+            { zip: "60654", name: "River North", growth: 0.731, units: 48, permits: 48, constraint: 0.40, story: "Gallery district evolved into nightlife hub. High permit activity, high turnover." },
+            { zip: "60614", name: "Lincoln Park", growth: 0.537, units: 867, permits: 49, constraint: 0.38, story: "Established affluent neighborhood. Development slowing as area reaches capacity." },
+            { zip: "60637", name: "Woodlawn", growth: 0.429, units: 27, permits: 19, constraint: 0.55, story: "Obama Center incoming. Bracing for change. Affordable housing ordinance in effect." },
+            { zip: "60644", name: "Austin", growth: 0.632, units: 18, permits: 14, constraint: 0.60, story: "West side anchor. Emerging development despite historical disinvestment." },
+            { zip: "60619", name: "Chatham", growth: 0.386, units: 41, permits: 23, constraint: 0.50, story: "Middle-class Black neighborhood. Stable but watching neighboring transitions." },
+            { zip: "60640", name: "Uptown", growth: 0.620, units: 326, permits: 30, constraint: 0.45, story: "Historic entertainment district. Large developments changing neighborhood character." },
+        ];
+
+        const mapSteps = {
+            intro: { center: [-87.6298, 41.8781], zoom: 10, pitch: 0 },
+            growth: { center: [-87.6298, 41.8781], zoom: 11, pitch: 30 },
+            westloop: { center: [-87.6516, 41.8726], zoom: 14, pitch: 45 },
+            spillover: { center: [-87.68, 41.87], zoom: 12, pitch: 30 },
+            bronzeville: { center: [-87.5981, 41.8019], zoom: 14, pitch: 45 },
+            constraints: { center: [-87.6298, 41.8781], zoom: 10.5, pitch: 20 },
+            englewood: { center: [-87.6394, 41.7756], zoom: 14, pitch: 45 },
+            reality: { center: [-87.6298, 41.8481], zoom: 11, pitch: 30 },
+            explore: { center: [-87.6298, 41.8781], zoom: 10.5, pitch: 0 },
+        };
+
+        // ============================================
+        // MAP INITIALIZATION
+        // ============================================
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: {
+                version: 8,
+                sources: {
+                    'carto-dark': {
+                        type: 'raster',
+                        tiles: [
+                            'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+                            'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+                            'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png'
+                        ],
+                        tileSize: 256,
+                        attribution: '&copy; <a href="https://carto.com/">CARTO</a>'
+                    }
+                },
+                layers: [{
+                    id: 'carto-dark-layer',
+                    type: 'raster',
+                    source: 'carto-dark',
+                    minzoom: 0,
+                    maxzoom: 20
+                }]
+            },
+            center: [-87.6298, 41.8781],
+            zoom: 10,
+            pitch: 0,
+            bearing: 0,
+            interactive: true
+        });
+
+        // Add navigation controls
+        map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+        // ZIP coordinates
+        const zipCoords = {
+            "60601": [-87.6186, 41.8862], "60602": [-87.6297, 41.8832],
+            "60607": [-87.6516, 41.8726], "60614": [-87.6513, 41.9214],
+            "60615": [-87.5981, 41.8019], "60619": [-87.6061, 41.7456],
+            "60621": [-87.6394, 41.7756], "60622": [-87.6779, 41.9006],
+            "60637": [-87.5961, 41.7794], "60640": [-87.6600, 41.9722],
+            "60644": [-87.7556, 41.8856], "60647": [-87.7019, 41.9206],
+            "60654": [-87.6354, 41.8926],
+        };
+
+        // Add markers when map loads
+        map.on('load', () => {
+            // Add neighborhood points as a source
+            const features = neighborhoodData.map(n => ({
+                type: 'Feature',
+                properties: {
+                    name: n.name,
+                    zip: n.zip,
+                    growth: n.growth,
+                    story: n.story
+                },
+                geometry: {
+                    type: 'Point',
+                    coordinates: zipCoords[n.zip] || [-87.6298, 41.8781]
+                }
+            }));
+
+            map.addSource('neighborhoods', {
+                type: 'geojson',
+                data: { type: 'FeatureCollection', features }
+            });
+
+            map.addLayer({
+                id: 'neighborhood-points',
+                type: 'circle',
+                source: 'neighborhoods',
+                paint: {
+                    'circle-radius': [
+                        'interpolate', ['linear'], ['get', 'growth'],
+                        0.2, 8,
+                        0.5, 12,
+                        0.85, 18
+                    ],
+                    'circle-color': [
+                        'interpolate', ['linear'], ['get', 'growth'],
+                        0.3, '#f87171',
+                        0.5, '#fbbf24',
+                        0.7, '#34d399'
+                    ],
+                    'circle-opacity': 0.8,
+                    'circle-stroke-width': 2,
+                    'circle-stroke-color': 'rgba(255,255,255,0.3)'
+                }
+            });
+
+            // Add labels
+            map.addLayer({
+                id: 'neighborhood-labels',
+                type: 'symbol',
+                source: 'neighborhoods',
+                layout: {
+                    'text-field': ['get', 'name'],
+                    'text-size': 12,
+                    'text-offset': [0, 1.5],
+                    'text-anchor': 'top'
+                },
+                paint: {
+                    'text-color': '#f5f5f7',
+                    'text-halo-color': '#0a0a0f',
+                    'text-halo-width': 2
+                }
+            });
+
+            // Click interaction
+            map.on('click', 'neighborhood-points', (e) => {
+                const props = e.features[0].properties;
+                new maplibregl.Popup()
+                    .setLngLat(e.lngLat)
+                    .setHTML(`
+                        <strong>${props.name}</strong> (${props.zip})<br>
+                        <span style="color: #60a5fa;">Growth: ${(props.growth * 100).toFixed(0)}%</span><br>
+                        <p style="margin-top: 8px; font-size: 13px;">${props.story}</p>
+                    `)
+                    .addTo(map);
+            });
+
+            map.on('mouseenter', 'neighborhood-points', () => {
+                map.getCanvas().style.cursor = 'pointer';
+            });
+            map.on('mouseleave', 'neighborhood-points', () => {
+                map.getCanvas().style.cursor = '';
+            });
+
+            // Show legend after intro
+            document.getElementById('legend').style.display = 'block';
+        });
+
+        // ============================================
+        // SCROLLAMA
+        // ============================================
+        const scroller = scrollama();
+
+        scroller
+            .setup({
+                step: '.step',
+                offset: 0.5,
+                progress: true
+            })
+            .onStepEnter(response => {
+                // Mark active
+                document.querySelectorAll('.step').forEach(s => s.classList.remove('is-active'));
+                response.element.classList.add('is-active');
+
+                // Get step data
+                const stepId = response.element.dataset.step;
+                const mapState = mapSteps[stepId];
+
+                if (mapState) {
+                    map.flyTo({
+                        center: mapState.center,
+                        zoom: mapState.zoom,
+                        pitch: mapState.pitch,
+                        duration: 1500,
+                        essential: true
+                    });
+                }
+
+                // Highlight specific neighborhoods
+                if (stepId === 'westloop') {
+                    highlightNeighborhood('60607');
+                } else if (stepId === 'bronzeville') {
+                    highlightNeighborhood('60615');
+                } else if (stepId === 'englewood') {
+                    highlightNeighborhood('60621');
+                } else {
+                    resetHighlight();
+                }
+            });
+
+        function highlightNeighborhood(zip) {
+            map.setPaintProperty('neighborhood-points', 'circle-opacity', [
+                'case',
+                ['==', ['get', 'zip'], zip], 1,
+                0.2
+            ]);
+        }
+
+        function resetHighlight() {
+            map.setPaintProperty('neighborhood-points', 'circle-opacity', 0.8);
+        }
+
+        // ============================================
+        // EXPLORE CARDS
+        // ============================================
+        const grid = document.getElementById('explore-grid');
+        neighborhoodData.forEach(n => {
+            const card = document.createElement('div');
+            card.className = 'explore-card';
+            card.innerHTML = `
+                <h3>${n.name}</h3>
+                <div class="neighborhood">ZIP ${n.zip}</div>
+                <p>${n.story}</p>
+                <div class="metric-row">
+                    <div class="metric">
+                        <div class="metric-value" style="color: ${n.growth > 0.6 ? '#34d399' : n.growth > 0.4 ? '#fbbf24' : '#f87171'}">
+                            ${(n.growth * 100).toFixed(0)}%
+                        </div>
+                        <div class="metric-label">Growth</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value">${n.units}</div>
+                        <div class="metric-label">Units</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value">${n.permits}</div>
+                        <div class="metric-label">Permits</div>
+                    </div>
+                </div>
+            `;
+            card.addEventListener('click', () => {
+                const coords = zipCoords[n.zip];
+                if (coords) {
+                    map.flyTo({ center: coords, zoom: 14, pitch: 45 });
+                    window.scrollTo({ top: document.querySelector('.scrolly').offsetTop, behavior: 'smooth' });
+                }
+            });
+            grid.appendChild(card);
+        });
+
+        // ============================================
+        // D3 CHARTS
+        // ============================================
+        // Growth Chart
+        const growthData = neighborhoodData.slice().sort((a, b) => b.growth - a.growth).slice(0, 10);
+        const margin = { top: 20, right: 30, bottom: 60, left: 60 };
+        const width = document.getElementById('growth-chart').clientWidth - margin.left - margin.right;
+        const height = 280 - margin.top - margin.bottom;
+
+        const svg1 = d3.select('#growth-chart')
+            .append('svg')
+            .attr('width', width + margin.left + margin.right)
+            .attr('height', height + margin.top + margin.bottom)
+            .append('g')
+            .attr('transform', `translate(${margin.left},${margin.top})`);
+
+        const x1 = d3.scaleBand()
+            .range([0, width])
+            .domain(growthData.map(d => d.name))
+            .padding(0.3);
+
+        const y1 = d3.scaleLinear()
+            .domain([0, 1])
+            .range([height, 0]);
+
+        svg1.append('g')
+            .attr('transform', `translate(0,${height})`)
+            .call(d3.axisBottom(x1))
+            .selectAll('text')
+            .attr('transform', 'rotate(-45)')
+            .style('text-anchor', 'end')
+            .style('fill', '#a1a1aa')
+            .style('font-size', '11px');
+
+        svg1.append('g')
+            .call(d3.axisLeft(y1).tickFormat(d => (d * 100) + '%'))
+            .selectAll('text')
+            .style('fill', '#a1a1aa');
+
+        svg1.selectAll('.domain, .tick line').style('stroke', '#3f3f46');
+
+        svg1.selectAll('rect')
+            .data(growthData)
+            .enter()
+            .append('rect')
+            .attr('x', d => x1(d.name))
+            .attr('width', x1.bandwidth())
+            .attr('y', height)
+            .attr('height', 0)
+            .attr('fill', d => d.growth > 0.6 ? '#34d399' : d.growth > 0.4 ? '#fbbf24' : '#f87171')
+            .attr('rx', 4)
+            .transition()
+            .duration(1000)
+            .delay((d, i) => i * 100)
+            .attr('y', d => y1(d.growth))
+            .attr('height', d => height - y1(d.growth));
+
+        // Constraint vs Growth Scatter
+        const svg2 = d3.select('#constraint-chart')
+            .append('svg')
+            .attr('width', width + margin.left + margin.right)
+            .attr('height', height + margin.top + margin.bottom)
+            .append('g')
+            .attr('transform', `translate(${margin.left},${margin.top})`);
+
+        const x2 = d3.scaleLinear().domain([0.35, 0.65]).range([0, width]);
+        const y2 = d3.scaleLinear().domain([0, 1]).range([height, 0]);
+
+        svg2.append('g')
+            .attr('transform', `translate(0,${height})`)
+            .call(d3.axisBottom(x2).tickFormat(d => (d * 100) + '%'))
+            .selectAll('text')
+            .style('fill', '#a1a1aa');
+
+        svg2.append('g')
+            .call(d3.axisLeft(y2).tickFormat(d => (d * 100) + '%'))
+            .selectAll('text')
+            .style('fill', '#a1a1aa');
+
+        svg2.selectAll('.domain, .tick line').style('stroke', '#3f3f46');
+
+        // Axis labels
+        svg2.append('text')
+            .attr('x', width / 2)
+            .attr('y', height + 45)
+            .attr('text-anchor', 'middle')
+            .style('fill', '#71717a')
+            .style('font-size', '12px')
+            .text('Zoning Constraint');
+
+        svg2.append('text')
+            .attr('transform', 'rotate(-90)')
+            .attr('x', -height / 2)
+            .attr('y', -45)
+            .attr('text-anchor', 'middle')
+            .style('fill', '#71717a')
+            .style('font-size', '12px')
+            .text('Growth Score');
+
+        svg2.selectAll('circle')
+            .data(neighborhoodData)
+            .enter()
+            .append('circle')
+            .attr('cx', d => x2(d.constraint))
+            .attr('cy', d => y2(d.growth))
+            .attr('r', 0)
+            .attr('fill', d => d.growth > 0.6 ? '#34d399' : d.growth > 0.4 ? '#fbbf24' : '#f87171')
+            .attr('opacity', 0.8)
+            .attr('stroke', '#fff')
+            .attr('stroke-width', 1)
+            .transition()
+            .duration(1000)
+            .delay((d, i) => i * 80)
+            .attr('r', d => 5 + d.units / 50);
+
+        // Labels for key points
+        svg2.selectAll('.label')
+            .data(neighborhoodData.filter(d => ['West Loop', 'Bronzeville', 'Englewood', 'Wicker Park'].includes(d.name)))
+            .enter()
+            .append('text')
+            .attr('x', d => x2(d.constraint) + 10)
+            .attr('y', d => y2(d.growth) + 4)
+            .text(d => d.name)
+            .style('fill', '#f5f5f7')
+            .style('font-size', '11px')
+            .attr('opacity', 0)
+            .transition()
+            .delay(1500)
+            .attr('opacity', 1);
+
+        // Handle resize
+        window.addEventListener('resize', () => scroller.resize());
+    </script>
+</body>
+</html>
