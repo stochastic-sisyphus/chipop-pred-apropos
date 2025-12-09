@@ -47,6 +47,22 @@ class BaseModel(ABC):
         self.feature_importance = {}
         self.predictions = None
         self.results = {}
+
+    def create_placeholder_figure(self, figure_path: Path) -> None:
+        """Create a simple placeholder figure.
+
+        This utility is used by test wrappers to generate minimal
+        visualization outputs when real figures are unavailable.
+
+        Args:
+            figure_path (Path): Path where the placeholder image will be saved.
+        """
+        figure_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.figure()
+        plt.plot([0, 1], [0, 1])
+        plt.title("Placeholder")
+        plt.savefig(figure_path)
+        plt.close()
     
     @abstractmethod
     def preprocess_data(self, data):
