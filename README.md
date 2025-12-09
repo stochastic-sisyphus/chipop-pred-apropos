@@ -31,7 +31,7 @@ python main.py --cag-only
 - **ContextBuilder** - Chicago neighborhood profiles with demographic, economic, housing context
 - **RealityInterpreter** - Translates statistics to lived community experience
 - **PatternDiscovery** - LLM-guided detection of demographic transitions, spatial spillovers
-- **BlueprintGenerator** - Suggests next-step analyses based on findings
+- **BlueprintGenerator** - Suggests next-step analysis based on findings
 
 See [`examples/cag_minimal_example.py`](examples/cag_minimal_example.py) for usage.
 
