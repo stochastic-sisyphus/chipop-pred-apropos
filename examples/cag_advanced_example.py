@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-CAG Framework Usage Examples
+CAG Framework - Advanced Usage Examples
 
-Demonstrates how to use the Context Augmented Generation framework
-with the Chicago population prediction pipeline.
-
-Examples:
+Comprehensive examples demonstrating all CAG framework capabilities:
 1. Post-hoc enhancement of pipeline results
 2. Standalone analysis on custom data
-3. Integrated pipeline execution with CAG plugin
-4. Individual component usage
+3. Individual component usage (ContextBuilder, RealityInterpreter, etc.)
+4. Custom neighborhood profiles
+5. Different interpretation modes
+
+For a simpler starting point, see cag_minimal_example.py
 """
 
 import sys

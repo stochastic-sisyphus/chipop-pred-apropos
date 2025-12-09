@@ -75,6 +75,69 @@ def clear_cache():
     else:
         logger.info("No cache directory found")
 
+def load_previous_results(output_dir):
+    """
+    Load previous pipeline results from the output directory.
+
+    Args:
+        output_dir: Output directory containing previous results
+
+    Returns:
+        dict: Previous pipeline results, or None if not found
+    """
+    import glob
+
+    output_path = Path(output_dir)
+
+    # Look for the most recent pipeline results JSON file
+    result_patterns = [
+        output_path / 'pipeline_results.json',
+        output_path / 'results' / 'pipeline_results.json',
+        output_path / 'cag' / 'enhanced_results_*.json',
+    ]
+
+    for pattern in result_patterns:
+        if '*' in str(pattern):
+            # Glob pattern - find most recent
+            matches = sorted(glob.glob(str(pattern)), reverse=True)
+            if matches:
+                try:
+                    import json
+                    with open(matches[0], 'r') as f:
+                        return json.load(f)
+                except Exception as e:
+                    logger.warning(f"Failed to load {matches[0]}: {e}")
+        elif pattern.exists():
+            try:
+                import json
+                with open(pattern, 'r') as f:
+                    return json.load(f)
+            except Exception as e:
+                logger.warning(f"Failed to load {pattern}: {e}")
+
+    # Try to reconstruct results from model outputs directory
+    models_dir = output_path / 'models'
+    if models_dir.exists():
+        logger.info("Reconstructing results from model outputs...")
+        results = {'model_results': {}, 'status': 'completed'}
+
+        for model_dir in models_dir.iterdir():
+            if model_dir.is_dir():
+                results_file = model_dir / 'results.json'
+                if results_file.exists():
+                    try:
+                        import json
+                        with open(results_file, 'r') as f:
+                            results['model_results'][model_dir.name] = json.load(f)
+                    except Exception as e:
+                        logger.warning(f"Failed to load {results_file}: {e}")
+
+        if results['model_results']:
+            return results
+
+    return None
+
+
 def run_cag_enhancement(pipeline_results, output_dir):
     """
     Run Context Augmented Generation (CAG) enhancement on pipeline results.
@@ -300,6 +363,25 @@ def main():
         # Set output directory
         output_dir = args.output_dir or settings.OUTPUT_DIR
 
+        # Handle --cag-only: load previous results instead of running pipeline
+        if args.cag_only:
+            logger.info("CAG-only mode: Loading previous pipeline results...")
+            results = load_previous_results(output_dir)
+            if results is None:
+                logger.error("No previous pipeline results found. Run pipeline first or use --enable-cag instead.")
+                return 1
+            logger.info("Loaded previous results, running CAG enhancement...")
+            enhanced_results = run_cag_enhancement(results, output_dir)
+            if 'cag' in enhanced_results:
+                logger.info("CAG enhancement completed successfully")
+                if enhanced_results['cag'].get('patterns', {}).get('discovered'):
+                    pattern_count = len(enhanced_results['cag']['patterns']['discovered'])
+                    logger.info(f"  - Discovered {pattern_count} patterns")
+                if enhanced_results['cag'].get('interpretation', {}).get('anomalies'):
+                    anomaly_count = len(enhanced_results['cag']['interpretation']['anomalies'])
+                    logger.info(f"  - Identified {anomaly_count} anomalies")
+            return 0
+
         # Check API keys and warn if missing
         use_sample_data = args.use_sample_data or not check_api_keys_available()
 
@@ -334,7 +416,7 @@ def main():
         logger.info("Pipeline execution completed successfully")
 
         # Run CAG enhancement if enabled
-        if args.enable_cag or args.cag_only:
+        if args.enable_cag:
             logger.info("CAG enhancement enabled - running contextual analysis...")
             if isinstance(results, dict):
                 enhanced_results = run_cag_enhancement(results, output_dir)

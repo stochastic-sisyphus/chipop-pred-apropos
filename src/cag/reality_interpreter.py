@@ -275,12 +275,200 @@ class ContextualInterpretation(InterpretationStrategy):
         return None
 
 
+# --- Pure functions for narrative generation ---
+# These can be tested independently and keep the strategy class thin
+
+
+def generate_overview(
+    interpretations: List[Dict[str, Any]],
+    context: CAGContext,
+) -> str:
+    """
+    Generate overview narrative from interpretations.
+
+    Args:
+        interpretations: List of interpretation results
+        context: CAG context for geographic/temporal scope
+
+    Returns:
+        Overview narrative string
+    """
+    high_concerns = [i for i in interpretations if i.get('concern_level') == 'high']
+    moderate_concerns = [i for i in interpretations if i.get('concern_level') == 'moderate']
+
+    if high_concerns:
+        return (
+            f"Analysis of {context.geographic_scope} for {context.time_period} "
+            f"reveals {len(high_concerns)} high-concern indicators requiring attention. "
+            "These statistical patterns suggest potential community stress that may not "
+            "be visible in aggregate economic metrics."
+        )
+    if moderate_concerns:
+        return (
+            f"Analysis of {context.geographic_scope} for {context.time_period} "
+            f"shows {len(moderate_concerns)} areas of moderate concern. "
+            "While aggregate statistics may appear stable, underlying patterns "
+            "suggest monitoring is warranted."
+        )
+    return (
+        f"Analysis of {context.geographic_scope} for {context.time_period} "
+        "shows indicators within expected ranges. Community conditions appear "
+        "stable based on available metrics."
+    )
+
+
+def generate_dimension_narratives(
+    interpretations: List[Dict[str, Any]],
+) -> Dict[str, str]:
+    """
+    Generate narratives organized by reality dimension.
+
+    Args:
+        interpretations: List of interpretation results
+
+    Returns:
+        Dictionary mapping dimensions to narrative strings
+    """
+    narratives = {}
+
+    # Group by dimension
+    by_dimension: Dict[str, List[Dict[str, Any]]] = {}
+    for interp in interpretations:
+        dim = interp.get('dimension', 'other')
+        if dim not in by_dimension:
+            by_dimension[dim] = []
+        by_dimension[dim].append(interp)
+
+    # Generate narrative for each dimension
+    for dimension, interps in by_dimension.items():
+        concern_levels = [i.get('concern_level', 'low') for i in interps]
+        if 'high' in concern_levels:
+            narratives[dimension] = (
+                f"Significant concerns in {dimension.replace('_', ' ')}. "
+                "Statistical indicators suggest community stress that warrants "
+                "deeper investigation and potential intervention."
+            )
+        elif 'moderate' in concern_levels:
+            narratives[dimension] = (
+                f"Moderate concerns in {dimension.replace('_', ' ')}. "
+                "While not critical, trends should be monitored for "
+                "potential escalation."
+            )
+        else:
+            narratives[dimension] = (
+                f"{dimension.replace('_', ' ').title()} indicators appear stable."
+            )
+
+    return narratives
+
+
+def generate_community_impact(
+    interpretations: List[Dict[str, Any]],
+    context: CAGContext,
+) -> str:
+    """
+    Generate community impact narrative bridging stats to lived reality.
+
+    Args:
+        interpretations: List of interpretation results
+        context: CAG context with community information
+
+    Returns:
+        Community impact narrative string
+    """
+    community_context = context.domain_context.get('community', {})
+
+    # Focus on high and moderate concerns
+    concerns = [
+        i for i in interpretations
+        if i.get('concern_level') in ('high', 'moderate')
+    ]
+
+    if not concerns:
+        return (
+            "Based on available indicators, community conditions appear stable. "
+            "However, aggregate statistics may not capture all aspects of lived experience. "
+            "Continued monitoring and community engagement are recommended."
+        )
+
+    impact_points = []
+    for concern in concerns:
+        narrative = concern.get('narrative', '')
+        if concern.get('concern_amplifiers'):
+            narrative += f" (amplified by: {', '.join(concern['concern_amplifiers'])})"
+        impact_points.append(narrative)
+
+    community_orgs = community_context.get('active_organizations', [])
+    if community_orgs:
+        resources = f" Community organizations like {', '.join(community_orgs[:2])} may be valuable partners in addressing these concerns."
+    else:
+        resources = ""
+
+    impact_text = "\n".join("• " + p for p in impact_points)
+    return (
+        "Community impact assessment:\n\n"
+        f"{impact_text}\n\n"
+        "These patterns suggest that statistical growth metrics may not fully "
+        f"reflect the lived experience of community residents.{resources}"
+    )
+
+
+def generate_recommendations(
+    interpretations: List[Dict[str, Any]],
+) -> List[str]:
+    """
+    Generate actionable recommendations from interpretations.
+
+    Args:
+        interpretations: List of interpretation results
+
+    Returns:
+        List of recommendation strings
+    """
+    recommendations = []
+
+    for interp in interpretations:
+        if interp.get('concern_level') == 'high':
+            dim = interp.get('dimension', 'unknown')
+            if dim == 'economic_wellbeing':
+                recommendations.append(
+                    "Investigate income-cost divergence with detailed household analysis"
+                )
+            elif dim == 'housing_security':
+                recommendations.append(
+                    "Assess affordable housing inventory and preservation strategies"
+                )
+            elif dim == 'displacement_risk':
+                recommendations.append(
+                    "Implement early warning monitoring for displacement indicators"
+                )
+            elif dim == 'community_stability':
+                recommendations.append(
+                    "Engage community organizations to understand local dynamics"
+                )
+
+    # Add general recommendations
+    if not recommendations:
+        recommendations.append(
+            "Continue monitoring key indicators for emerging patterns"
+        )
+
+    recommendations.append(
+        "Validate statistical findings with community engagement and qualitative research"
+    )
+
+    return recommendations
+
+
 class NarrativeInterpretation(InterpretationStrategy):
     """
     Full narrative interpretation for human-readable insights.
 
     This strategy produces the "lived reality bridge" output that
     translates statistics into community impact narratives.
+
+    Uses pure functions for narrative generation to keep the class thin
+    and make the narrative logic independently testable.
     """
 
     def interpret(
@@ -294,172 +482,23 @@ class NarrativeInterpretation(InterpretationStrategy):
         contextual = ContextualInterpretation().interpret(
             statistical_data, context, indicators
         )
+        interpretations = contextual.get('interpretations', [])
 
-        # Generate narrative sections
+        # Generate narrative sections using pure functions
         narratives = {
-            'overview': self._generate_overview(contextual, context),
-            'by_dimension': self._generate_dimension_narratives(contextual),
-            'community_impact': self._generate_community_impact(contextual, context),
-            'recommendations': self._generate_recommendations(contextual),
+            'overview': generate_overview(interpretations, context),
+            'by_dimension': generate_dimension_narratives(interpretations),
+            'community_impact': generate_community_impact(interpretations, context),
+            'recommendations': generate_recommendations(interpretations),
         }
 
         return {
             'mode': 'narrative',
             'statistical_summary': statistical_data,
-            'interpretations': contextual['interpretations'],
+            'interpretations': interpretations,
             'narratives': narratives,
             'context_used': list(context.context_types),
         }
-
-    def _generate_overview(
-        self,
-        contextual: Dict[str, Any],
-        context: CAGContext
-    ) -> str:
-        """Generate overview narrative."""
-        interpretations = contextual.get('interpretations', [])
-
-        high_concerns = [i for i in interpretations if i.get('concern_level') == 'high']
-        moderate_concerns = [i for i in interpretations if i.get('concern_level') == 'moderate']
-
-        if high_concerns:
-            return (
-                f"Analysis of {context.geographic_scope} for {context.time_period} "
-                f"reveals {len(high_concerns)} high-concern indicators requiring attention. "
-                f"These statistical patterns suggest potential community stress that may not "
-                f"be visible in aggregate economic metrics."
-            )
-        elif moderate_concerns:
-            return (
-                f"Analysis of {context.geographic_scope} for {context.time_period} "
-                f"shows {len(moderate_concerns)} areas of moderate concern. "
-                f"While aggregate statistics may appear stable, underlying patterns "
-                f"suggest monitoring is warranted."
-            )
-        else:
-            return (
-                f"Analysis of {context.geographic_scope} for {context.time_period} "
-                f"shows indicators within expected ranges. Community conditions appear "
-                f"stable based on available metrics."
-            )
-
-    def _generate_dimension_narratives(
-        self,
-        contextual: Dict[str, Any]
-    ) -> Dict[str, str]:
-        """Generate narratives by reality dimension."""
-        narratives = {}
-        interpretations = contextual.get('interpretations', [])
-
-        # Group by dimension
-        by_dimension = {}
-        for interp in interpretations:
-            dim = interp.get('dimension', 'other')
-            if dim not in by_dimension:
-                by_dimension[dim] = []
-            by_dimension[dim].append(interp)
-
-        # Generate narrative for each dimension
-        for dimension, interps in by_dimension.items():
-            concern_levels = [i.get('concern_level', 'low') for i in interps]
-            if 'high' in concern_levels:
-                narratives[dimension] = (
-                    f"Significant concerns in {dimension.replace('_', ' ')}. "
-                    f"Statistical indicators suggest community stress that warrants "
-                    f"deeper investigation and potential intervention."
-                )
-            elif 'moderate' in concern_levels:
-                narratives[dimension] = (
-                    f"Moderate concerns in {dimension.replace('_', ' ')}. "
-                    f"While not critical, trends should be monitored for "
-                    f"potential escalation."
-                )
-            else:
-                narratives[dimension] = (
-                    f"{dimension.replace('_', ' ').title()} indicators appear stable."
-                )
-
-        return narratives
-
-    def _generate_community_impact(
-        self,
-        contextual: Dict[str, Any],
-        context: CAGContext
-    ) -> str:
-        """Generate community impact narrative bridging stats to reality."""
-        interpretations = contextual.get('interpretations', [])
-        community_context = context.domain_context.get('community', {})
-
-        # Focus on high and moderate concerns
-        concerns = [i for i in interpretations
-                   if i.get('concern_level') in ('high', 'moderate')]
-
-        if not concerns:
-            return (
-                "Based on available indicators, community conditions appear stable. "
-                "However, aggregate statistics may not capture all aspects of lived experience. "
-                "Continued monitoring and community engagement are recommended."
-            )
-
-        impact_points = []
-        for concern in concerns:
-            narrative = concern.get('narrative', '')
-            if concern.get('concern_amplifiers'):
-                narrative += f" (amplified by: {', '.join(concern['concern_amplifiers'])})"
-            impact_points.append(narrative)
-
-        community_orgs = community_context.get('active_organizations', [])
-        if community_orgs:
-            resources = f" Community organizations like {', '.join(community_orgs[:2])} may be valuable partners in addressing these concerns."
-        else:
-            resources = ""
-
-        return (
-            f"Community impact assessment:\n\n"
-            f"{'\\n'.join('• ' + p for p in impact_points)}\n\n"
-            f"These patterns suggest that statistical growth metrics may not fully "
-            f"reflect the lived experience of community residents.{resources}"
-        )
-
-    def _generate_recommendations(
-        self,
-        contextual: Dict[str, Any]
-    ) -> List[str]:
-        """Generate actionable recommendations."""
-        recommendations = []
-        interpretations = contextual.get('interpretations', [])
-
-        for interp in interpretations:
-            if interp.get('concern_level') == 'high':
-                dim = interp.get('dimension', 'unknown')
-                if dim == 'economic_wellbeing':
-                    recommendations.append(
-                        "Investigate income-cost divergence with detailed household analysis"
-                    )
-                elif dim == 'housing_security':
-                    recommendations.append(
-                        "Assess affordable housing inventory and preservation strategies"
-                    )
-                elif dim == 'displacement_risk':
-                    recommendations.append(
-                        "Implement early warning monitoring for displacement indicators"
-                    )
-                elif dim == 'community_stability':
-                    recommendations.append(
-                        "Engage community organizations to understand local dynamics"
-                    )
-
-        # Add general recommendations
-        if not recommendations:
-            recommendations.append(
-                "Continue monitoring key indicators for emerging patterns"
-            )
-
-        recommendations.append(
-            "Validate statistical findings with community engagement and qualitative research"
-        )
-
-        return recommendations
 
 
 class RealityInterpreter(CAGComponent):
@@ -545,6 +584,7 @@ class RealityInterpreter(CAGComponent):
         if 'narratives' in interpretation:
             result.contextual_interpretation = interpretation['narratives'].get('overview', '')
             result.lived_reality_bridge = interpretation['narratives'].get('community_impact', '')
+            result.community_impact_narrative = interpretation['narratives'].get('community_impact', '')
             result.policy_implications = interpretation['narratives'].get('recommendations', [])
 
         # Add interpretations as discovered patterns

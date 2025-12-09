@@ -23,7 +23,7 @@ from .base import (
     CAGContext,
     CAGResult,
 )
-from .pattern_discovery import DiscoveredPattern, FeatureSuggestion, ConfidenceLevel
+from .pattern_discovery import DiscoveredPattern, FeatureSuggestion, ConfidenceLevel, PatternType
 
 logger = logging.getLogger(__name__)
 
@@ -249,7 +249,6 @@ class BlueprintGenerator(CAGComponent):
         # Extract patterns and findings
         patterns = self._extract_patterns(data)
         data_gaps = self._identify_data_gaps(data, context)
-        validation_needs = self._identify_validation_needs(patterns)
 
         # Generate validation blueprints for high-confidence patterns
         if self.generate_validation_blueprints:
@@ -284,24 +283,51 @@ class BlueprintGenerator(CAGComponent):
         # From pattern discovery results
         if 'discovered_patterns' in data:
             for p_dict in data['discovered_patterns']:
-                if isinstance(p_dict, dict):
+                if isinstance(p_dict, DiscoveredPattern):
+                    patterns.append(p_dict)
+                elif isinstance(p_dict, dict):
+                    # Reconstruct pattern with proper enum handling
+                    pattern_type_raw = p_dict.get('pattern_type', '')
+                    try:
+                        pattern_type = PatternType(pattern_type_raw) if pattern_type_raw else PatternType.COMMUNITY_INDICATOR
+                    except ValueError:
+                        pattern_type = PatternType.COMMUNITY_INDICATOR
+
+                    confidence_raw = p_dict.get('confidence', 'exploratory')
+                    try:
+                        confidence = ConfidenceLevel(confidence_raw) if isinstance(confidence_raw, str) else confidence_raw
+                    except ValueError:
+                        confidence = ConfidenceLevel.EXPLORATORY
+
                     pattern = DiscoveredPattern(
                         pattern_id=p_dict.get('pattern_id', ''),
-                        pattern_type=p_dict.get('pattern_type', ''),
+                        pattern_type=pattern_type,
                         name=p_dict.get('name', ''),
                         description=p_dict.get('description', ''),
-                        confidence=ConfidenceLevel(p_dict.get('confidence', 'exploratory')),
+                        confidence=confidence,
+                        statistical_evidence=p_dict.get('statistical_evidence', {}),
+                        contextual_evidence=p_dict.get('contextual_evidence', []),
                         affected_zip_codes=p_dict.get('affected_zip_codes', []),
+                        spatial_relationship=p_dict.get('spatial_relationship', ''),
+                        time_horizon=p_dict.get('time_horizon', ''),
+                        suggested_investigations=p_dict.get('suggested_investigations', []),
+                        potential_actions=p_dict.get('potential_actions', []),
+                        data_requirements=p_dict.get('data_requirements', []),
+                        validated=p_dict.get('validated', False),
+                        validation_notes=p_dict.get('validation_notes', ''),
                     )
                     patterns.append(pattern)
-                elif isinstance(p_dict, DiscoveredPattern):
-                    patterns.append(p_dict)
 
         # From CAG results
         if 'cag_results' in data:
             for result in data['cag_results']:
                 if hasattr(result, 'discovered_patterns'):
-                    patterns.extend(result.discovered_patterns)
+                    for p in result.discovered_patterns:
+                        if isinstance(p, DiscoveredPattern):
+                            patterns.append(p)
+                        elif isinstance(p, dict):
+                            # Recursively handle dict patterns from results
+                            patterns.extend(self._extract_patterns({'discovered_patterns': [p]}))
 
         return patterns
 
@@ -346,23 +372,6 @@ class BlueprintGenerator(CAGComponent):
             gaps.append("Time series analysis may enhance trend understanding")
 
         return gaps
-
-    def _identify_validation_needs(
-        self,
-        patterns: List[DiscoveredPattern]
-    ) -> List[Dict[str, Any]]:
-        """Identify patterns requiring validation."""
-        needs = []
-
-        for pattern in patterns:
-            if not pattern.validated:
-                needs.append({
-                    'pattern': pattern,
-                    'validation_type': 'statistical' if pattern.statistical_evidence else 'qualitative',
-                    'urgency': 'high' if pattern.confidence == ConfidenceLevel.HIGH else 'medium',
-                })
-
-        return needs
 
     def _create_validation_blueprint(
         self,

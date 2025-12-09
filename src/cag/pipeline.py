@@ -169,32 +169,8 @@ class CAGPipeline:
             self._results.append(interpretation_result)
             self.logger.info("Reality interpretation complete")
 
-        # Phase 3: Pattern Discovery
-        discovery_result = None
-        if self.pattern_discovery:
-            self.logger.info("Discovering patterns...")
-            discovery_result = self.pattern_discovery.process(
-                data,
-                context
-            )
-            self._results.append(discovery_result)
-            self.logger.info(f"Discovered {len(discovery_result.discovered_patterns)} patterns")
-
-        # Phase 4: Blueprint Generation
-        blueprint_result = None
-        if self.blueprint_generator:
-            self.logger.info("Generating blueprints...")
-            blueprint_data = {
-                'model_results': data.get('model_results', {}),
-                'discovered_patterns': discovery_result.discovered_patterns if discovery_result else [],
-                'cag_results': self._results,
-            }
-            blueprint_result = self.blueprint_generator.process(
-                blueprint_data,
-                context
-            )
-            self._results.append(blueprint_result)
-            self.logger.info(f"Generated {len(blueprint_result.suggested_investigations)} blueprints")
+        # Phase 3 & 4: Pattern Discovery + Blueprint Generation
+        discovery_result, blueprint_result = self.run_patterns_and_blueprints(data, context)
 
         # Compile enhanced results
         enhanced = self._compile_enhanced_results(
@@ -259,25 +235,24 @@ class CAGPipeline:
             context_used=context,
         )
 
-        # Run each component
+        # Run interpretation first
         if self.reality_interpreter and context:
             interp = self.reality_interpreter.process(data, context)
             aggregate.contextual_interpretation = interp.contextual_interpretation
             aggregate.lived_reality_bridge = interp.lived_reality_bridge
             aggregate.policy_implications.extend(interp.policy_implications)
 
-        if self.pattern_discovery:
-            discovery = self.pattern_discovery.process(data, context)
-            aggregate.discovered_patterns.extend(discovery.discovered_patterns)
-            aggregate.anomalies_identified.extend(discovery.anomalies_identified)
+        # Run patterns and blueprints using shared orchestration
+        discovery_result, blueprint_result = self.run_patterns_and_blueprints(
+            {'model_results': data}, context
+        )
 
-        if self.blueprint_generator:
-            blueprint_data = {
-                'model_results': data,
-                'discovered_patterns': aggregate.discovered_patterns,
-            }
-            blueprints = self.blueprint_generator.process(blueprint_data, context)
-            aggregate.suggested_investigations.extend(blueprints.suggested_investigations)
+        if discovery_result:
+            aggregate.discovered_patterns.extend(discovery_result.discovered_patterns)
+            aggregate.anomalies_identified.extend(discovery_result.anomalies_identified)
+
+        if blueprint_result:
+            aggregate.suggested_investigations.extend(blueprint_result.suggested_investigations)
 
         return aggregate
 
@@ -413,6 +388,48 @@ class CAGPipeline:
             self.blueprint_generator.blueprints = []
 
         self.logger.info("CAG pipeline reset")
+
+    def run_patterns_and_blueprints(
+        self,
+        data: Dict[str, Any],
+        context: Optional[CAGContext] = None,
+    ) -> tuple:
+        """
+        Run pattern discovery and blueprint generation in sequence.
+
+        This is a shared orchestration helper used by enhance_pipeline_results,
+        run_standalone, and the plugin's post_pipeline hook.
+
+        Args:
+            data: Data dict containing 'model_results' and optionally other data
+            context: Optional CAGContext for interpretation
+
+        Returns:
+            Tuple of (discovery_result, blueprint_result), either may be None
+        """
+        discovery_result = None
+        blueprint_result = None
+
+        # Phase 1: Pattern Discovery
+        if self.pattern_discovery:
+            self.logger.info("Discovering patterns...")
+            discovery_result = self.pattern_discovery.process(data, context)
+            self._results.append(discovery_result)
+            self.logger.info(f"Discovered {len(discovery_result.discovered_patterns)} patterns")
+
+        # Phase 2: Blueprint Generation
+        if self.blueprint_generator:
+            self.logger.info("Generating blueprints...")
+            blueprint_data = {
+                'model_results': data.get('model_results', {}),
+                'discovered_patterns': discovery_result.discovered_patterns if discovery_result else [],
+                'cag_results': self._results,
+            }
+            blueprint_result = self.blueprint_generator.process(blueprint_data, context)
+            self._results.append(blueprint_result)
+            self.logger.info(f"Generated {len(blueprint_result.suggested_investigations)} blueprints")
+
+        return discovery_result, blueprint_result
 
     def _extract_zip_codes(self, data: Dict[str, Any]) -> List[str]:
         """Extract ZIP codes from data."""
@@ -629,27 +646,20 @@ class CAGPipelinePlugin(CAGPlugin):
         """Run pattern discovery and blueprint generation."""
         context = self.cag_pipeline._current_context
 
-        # Pattern discovery
-        if self.cag_pipeline.pattern_discovery:
-            data = {
-                'model_results': pipeline_results.get('model_results', {}),
-                'collected_data': self._collected_data,
-            }
-            discovery = self.cag_pipeline.pattern_discovery.process(data, context)
-            self.cag_pipeline._results.append(discovery)
+        # Use shared orchestration for pattern discovery and blueprint generation
+        data = {
+            'model_results': pipeline_results.get('model_results', {}),
+            'collected_data': self._collected_data,
+        }
+        discovery_result, blueprint_result = self.cag_pipeline.run_patterns_and_blueprints(
+            data, context
+        )
 
-            pipeline_results['cag_patterns'] = discovery.discovered_patterns
+        if discovery_result:
+            pipeline_results['cag_patterns'] = discovery_result.discovered_patterns
 
-        # Blueprint generation
-        if self.cag_pipeline.blueprint_generator:
-            blueprint_data = {
-                'model_results': pipeline_results.get('model_results', {}),
-                'discovered_patterns': self.cag_pipeline.pattern_discovery.discovered_patterns if self.cag_pipeline.pattern_discovery else [],
-            }
-            blueprints = self.cag_pipeline.blueprint_generator.process(blueprint_data, context)
-            self.cag_pipeline._results.append(blueprints)
-
-            pipeline_results['cag_blueprints'] = blueprints.suggested_investigations
+        if blueprint_result:
+            pipeline_results['cag_blueprints'] = blueprint_result.suggested_investigations
 
         self.logger.info("CAG post-pipeline processing complete")
         return pipeline_results

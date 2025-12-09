@@ -22,7 +22,13 @@ Components:
 from .base import CAGComponent, CAGContext, CAGResult
 from .context_builder import ContextBuilder, ChicagoContextProfile
 from .reality_interpreter import RealityInterpreter
-from .pattern_discovery import PatternDiscovery
+from .pattern_discovery import (
+    PatternDiscovery,
+    PatternType,
+    ConfidenceLevel,
+    DiscoveredPattern,
+    create_pattern,
+)
 from .blueprint_generator import BlueprintGenerator
 from .pipeline import CAGPipeline
 
@@ -34,6 +40,10 @@ __all__ = [
     'ChicagoContextProfile',
     'RealityInterpreter',
     'PatternDiscovery',
+    'PatternType',
+    'ConfidenceLevel',
+    'DiscoveredPattern',
+    'create_pattern',
     'BlueprintGenerator',
     'CAGPipeline',
 ]

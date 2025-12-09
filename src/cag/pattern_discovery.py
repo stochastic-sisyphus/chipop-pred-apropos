@@ -40,6 +40,64 @@ from .base import (
 logger = logging.getLogger(__name__)
 
 
+def create_pattern(
+    *,
+    pattern_type: "PatternType",
+    zip_code: str,
+    name: str,
+    description: str,
+    confidence: "ConfidenceLevel",
+    statistical_evidence: Optional[Dict[str, Any]] = None,
+    contextual_evidence: Optional[List[str]] = None,
+    affected_zip_codes: Optional[List[str]] = None,
+    spatial_relationship: str = "",
+    time_horizon: str = "",
+    suggested_investigations: Optional[List[str]] = None,
+    potential_actions: Optional[List[str]] = None,
+    data_requirements: Optional[List[str]] = None,
+) -> "DiscoveredPattern":
+    """
+    Factory function to create DiscoveredPattern with sensible defaults.
+
+    Centralizes pattern construction logic to reduce repetitive code
+    across detector implementations.
+
+    Args:
+        pattern_type: Type of pattern being created
+        zip_code: Primary ZIP code for pattern ID generation
+        name: Human-readable pattern name
+        description: Detailed description of the pattern
+        confidence: Confidence level for the pattern
+        statistical_evidence: Dict of supporting statistics
+        contextual_evidence: List of contextual support statements
+        affected_zip_codes: List of affected ZIP codes (defaults to [zip_code])
+        spatial_relationship: Spatial pattern descriptor
+        time_horizon: Temporal descriptor (e.g., "emerging", "established")
+        suggested_investigations: List of follow-up investigations
+        potential_actions: List of recommended actions
+        data_requirements: List of additional data needs
+
+    Returns:
+        Configured DiscoveredPattern instance
+    """
+    return DiscoveredPattern(
+        pattern_id=f"{pattern_type.value}_{zip_code}_{datetime.now().strftime('%Y%m%d')}",
+        pattern_type=pattern_type,
+        name=name,
+        description=description,
+        confidence=confidence,
+        statistical_evidence=statistical_evidence or {},
+        contextual_evidence=contextual_evidence or [],
+        affected_zip_codes=affected_zip_codes if affected_zip_codes is not None else [zip_code],
+        spatial_relationship=spatial_relationship,
+        time_horizon=time_horizon,
+        first_detected=datetime.now(),
+        suggested_investigations=suggested_investigations or [],
+        potential_actions=potential_actions or [],
+        data_requirements=data_requirements or [],
+    )
+
+
 class PatternType(Enum):
     """Types of patterns that can be discovered."""
     DEMOGRAPHIC_TRANSITION = "demographic_transition"
@@ -252,9 +310,9 @@ class DemographicTransitionDetector(PatternDetector):
                     if income_change > 0.1 and income_diversity < 0.5:
                         profile = context.community_profiles.get(zip_code, {})
 
-                        patterns.append(DiscoveredPattern(
-                            pattern_id=f"demo_trans_{zip_code}_{datetime.now().strftime('%Y%m%d')}",
+                        patterns.append(create_pattern(
                             pattern_type=self.pattern_type,
+                            zip_code=zip_code,
                             name=f"Income Transition in {zip_code}",
                             description=(
                                 f"ZIP code {zip_code} shows rising median income (+{income_change:.1%}) "
@@ -270,7 +328,6 @@ class DemographicTransitionDetector(PatternDetector):
                             contextual_evidence=[
                                 profile.get('historical', {}).get('gentrification', 'No historical context'),
                             ],
-                            affected_zip_codes=[zip_code],
                             time_horizon='emerging',
                             suggested_investigations=[
                                 "Track demographic composition changes over 5-year periods",
@@ -296,9 +353,9 @@ class DemographicTransitionDetector(PatternDetector):
                     if profile:
                         housing = profile.get('housing', {})
                         if 'transition' in str(housing).lower() or 'changing' in str(housing).lower():
-                            patterns.append(DiscoveredPattern(
-                                pattern_id=f"demo_hidden_{zip_code}_{datetime.now().strftime('%Y%m%d')}",
+                            patterns.append(create_pattern(
                                 pattern_type=self.pattern_type,
+                                zip_code=zip_code,
                                 name=f"Hidden Demographic Shift in {zip_code}",
                                 description=(
                                     f"ZIP code {zip_code} shows stable total population but contextual "
@@ -306,7 +363,6 @@ class DemographicTransitionDetector(PatternDetector):
                                     f"This 'hidden transition' may mask significant community change."
                                 ),
                                 confidence=ConfidenceLevel.EXPLORATORY,
-                                affected_zip_codes=[zip_code],
                                 time_horizon='uncertain',
                                 suggested_investigations=[
                                     "Disaggregate population data by age, income, and ethnicity",
@@ -350,9 +406,9 @@ class EconomicDivergenceDetector(PatternDetector):
 
                 # Paradox: Income growth but high retail gap
                 if income_growth > 0.05 and retail_gap > 0.5:
-                    patterns.append(DiscoveredPattern(
-                        pattern_id=f"econ_div_{zip_code}_{datetime.now().strftime('%Y%m%d')}",
+                    patterns.append(create_pattern(
                         pattern_type=self.pattern_type,
+                        zip_code=zip_code,
                         name=f"Income-Service Paradox in {zip_code}",
                         description=(
                             f"ZIP code {zip_code} shows income growth ({income_growth:.1%}) "
@@ -366,7 +422,6 @@ class EconomicDivergenceDetector(PatternDetector):
                             'income_growth': income_growth,
                             'retail_gap': retail_gap,
                         },
-                        affected_zip_codes=[zip_code],
                         suggested_investigations=[
                             "Analyze retail category composition (luxury vs essential)",
                             "Survey resident satisfaction with service accessibility",
@@ -426,9 +481,9 @@ class SpatialSpilloverDetector(PatternDetector):
                     ]
 
                     if low_growth_adjacent:
-                        patterns.append(DiscoveredPattern(
-                            pattern_id=f"spillover_{zip_code}_{datetime.now().strftime('%Y%m%d')}",
+                        patterns.append(create_pattern(
                             pattern_type=self.pattern_type,
+                            zip_code=zip_code,
                             name=f"Development Spillover from {zip_code}",
                             description=(
                                 f"High development activity in {zip_code} may create "
@@ -485,9 +540,9 @@ class TemporalAnomalyDetector(PatternDetector):
                 if isinstance(forecast, dict):
                     confidence_interval = forecast.get('confidence_interval', 0)
                     if confidence_interval > 0.3:  # Wide confidence interval
-                        patterns.append(DiscoveredPattern(
-                            pattern_id=f"temporal_{zip_code}_{datetime.now().strftime('%Y%m%d')}",
+                        patterns.append(create_pattern(
                             pattern_type=self.pattern_type,
+                            zip_code=zip_code,
                             name=f"High Forecast Uncertainty in {zip_code}",
                             description=(
                                 f"Population forecasts for {zip_code} have unusually wide "
@@ -499,7 +554,6 @@ class TemporalAnomalyDetector(PatternDetector):
                             statistical_evidence={
                                 'confidence_interval': confidence_interval,
                             },
-                            affected_zip_codes=[zip_code],
                             time_horizon='uncertain',
                             suggested_investigations=[
                                 "Identify factors causing forecast instability",
