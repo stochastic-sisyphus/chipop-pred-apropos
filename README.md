@@ -2,6 +2,39 @@
 
 A data pipeline that analyzes housing trends, retail gaps, and population shifts in Chicago using real data from Census, FRED, and Chicago Data Portal APIs.
 
+## Interactive Dashboard
+
+**[View the Live Interactive Dashboard](https://stochastic-sisyphus.github.io/chipop-pred-apropos/)**
+
+Explore Chicago's urban development patterns with:
+- 📍 Interactive ZIP code map with growth metrics
+- 📊 Development growth rankings by neighborhood
+- 🔍 Zoning constraint analysis
+- 📈 Growth vs. constraint scatter plots
+- 🎛️ Filter by metric type and growth threshold
+
+![Dashboard Preview](docs/dashboard-preview.png)
+
+## Context Augmented Generation (CAG) Framework
+
+This pipeline includes a CAG framework that bridges quantitative metrics with qualitative community context:
+
+```bash
+# Run pipeline with CAG enhancement
+python main.py --enable-cag
+
+# Run CAG analysis on existing results
+python main.py --cag-only
+```
+
+**CAG Components:**
+- **ContextBuilder** - Chicago neighborhood profiles with demographic, economic, housing context
+- **RealityInterpreter** - Translates statistics to lived community experience
+- **PatternDiscovery** - LLM-guided detection of demographic transitions, spatial spillovers
+- **BlueprintGenerator** - Suggests next-step analyses based on findings
+
+See [`examples/cag_minimal_example.py`](examples/cag_minimal_example.py) for usage.
+
 ## Quick Start
 
 ```bash
