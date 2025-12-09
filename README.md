@@ -7,11 +7,11 @@ A data pipeline that analyzes housing trends, retail gaps, and population shifts
 **[View the Live Interactive Dashboard](https://stochastic-sisyphus.github.io/chipop-pred-apropos/)**
 
 Explore Chicago's urban development patterns with:
-- 📍 Interactive ZIP code map with growth metrics
-- 📊 Development growth rankings by neighborhood
-- 🔍 Zoning constraint analysis
-- 📈 Growth vs. constraint scatter plots
-- 🎛️ Filter by metric type and growth threshold
+- Interactive ZIP code map with growth metrics
+- Development growth rankings by neighborhood
+- Zoning constraint analysis
+- Growth vs. constraint scatter plots
+- Filter by metric type and growth threshold
 
 ![Dashboard Preview](docs/dashboard-preview.png)
 
@@ -66,7 +66,7 @@ python main.py
 
 ### Key Findings
 
-#### 🏗️ Multifamily Growth (10 Emerging ZIP Codes)
+#### Multifamily Growth (10 Emerging ZIP Codes)
 | ZIP Code | Growth Score | Permit Growth | Unit Growth |
 |----------|-------------|---------------|-------------|
 | 60602 | 0.84 | +2.4% | +77.6% |
@@ -80,7 +80,7 @@ python main.py
 - Average unit growth: 1.37 units
 - Growth score range: 0.18 - 0.84
 
-#### 🛍️ Retail Gap Analysis (11 Opportunity Zones)
+#### Retail Gap Analysis (11 Opportunity Zones)
 Top ZIP codes with unmet retail demand:
 - **60640** - Highest gap score (1.00)
 - **60615** - Significant retail opportunity
@@ -88,7 +88,7 @@ Top ZIP codes with unmet retail demand:
 - Average retail per capita: 45.54 sq ft
 - Average retail per housing unit: 71.53 sq ft
 
-#### 📍 Retail Void Analysis
+#### Retail Void Analysis
 3 ZIP codes identified with retail category voids:
 - **60601** - Missing grocery, clothing stores
 - **60603** - Retail desert zones
