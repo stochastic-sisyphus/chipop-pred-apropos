@@ -641,6 +641,21 @@ class RetailGapModel(BaseModel):
             logger.error(f"Error running retail gap model: {str(e)}")
             logger.error(traceback.format_exc())
             return self.results
+
+    def run_analysis(self, data):
+        """Convenience wrapper used in tests.
+
+        Calls :py:meth:`run` and returns ``True`` if results were
+        produced successfully.
+
+        Args:
+            data (pd.DataFrame): Input data for the analysis.
+
+        Returns:
+            bool: ``True`` if the analysis completed successfully.
+        """
+        results = self.run(data)
+        return bool(results)
     
     def _generate_output_files(self):
         """
