@@ -26,3 +26,4 @@ plotly==6.0.1  # Interactive plots
 pytest==8.3.5  # Testing framework
 # Task scheduling
 schedule==1.2.2  # Job scheduling
+streamlit==1.35.0  # Interactive dashboard

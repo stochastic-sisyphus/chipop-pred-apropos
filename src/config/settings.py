@@ -44,6 +44,11 @@ BUSINESS_LICENSES_PROCESSED_PATH = PROCESSED_DATA_DIR / "business_licenses_proce
 ECONOMIC_PROCESSED_PATH = PROCESSED_DATA_DIR / "economic_processed.csv"
 MERGED_DATA_PATH = PROCESSED_DATA_DIR / "merged_dataset.csv"
 
+# Key output files used by the dashboard
+MULTIFAMILY_ZIPS_PATH = OUTPUT_DIR / "data" / "top_multifamily_zips.csv"
+RETAIL_GAP_ZIPS_PATH = OUTPUT_DIR / "data" / "retail_gap_zips.csv"
+POPULATION_FORECAST_PATH = OUTPUT_DIR / "forecasts" / "population_forecast.csv"
+
 # API credentials
 # These would typically be loaded from environment variables or a secure config file
 # For development, placeholder values are provided with clear instructions
