@@ -104,11 +104,12 @@ class PopulationPredictionModel:
                     housing_growth_rate = 0
                     housing_acceleration = 0
             else:
-                pop_growth_rate = 0
+                # No time series - will derive from permit data below
+                pop_growth_rate = None  # Mark as needing derivation
                 pop_volatility = 0
-                housing_growth_rate = 0
+                housing_growth_rate = None
                 housing_acceleration = 0
-            
+
             # Permit-based features
             permit_data = zip_data[zip_data.get('permit_year', 0) > 0] if 'permit_year' in zip_data.columns else pd.DataFrame()
             
@@ -180,7 +181,49 @@ class PopulationPredictionModel:
             # Current values for baseline
             current_population = zip_data['population'].iloc[-1] if 'population' in zip_data.columns and len(zip_data) > 0 else 0
             current_housing = zip_data['housing_units'].iloc[-1] if 'housing_units' in zip_data.columns and len(zip_data) > 0 else 0
-            
+
+            # Derive growth rates from permit data when time series unavailable
+            persons_per_unit = current_population / current_housing if current_housing > 0 else 2.3
+
+            if housing_growth_rate is None:
+                # Estimate annual housing growth from recent unit additions
+                # Assume recent_units represents ~3 years of development
+                if current_housing > 0 and recent_units > 0:
+                    annual_units = recent_units / 3.0
+                    housing_growth_rate = annual_units / current_housing
+                else:
+                    # Apply Chicago baseline: ~0.5% annual housing growth
+                    housing_growth_rate = 0.005
+
+                # Adjust for neighborhood characteristics
+                if is_downtown:
+                    housing_growth_rate *= 1.5  # Downtown growing faster
+                elif is_focus_neighborhood:
+                    housing_growth_rate *= 1.2  # Focus areas have higher development
+
+            if pop_growth_rate is None:
+                # Derive population growth from housing growth
+                # Population change = new units * persons_per_unit / current_population
+                if current_population > 0:
+                    annual_pop_from_housing = housing_growth_rate * current_housing * persons_per_unit
+                    pop_growth_rate = annual_pop_from_housing / current_population
+
+                    # Apply neighborhood-specific adjustments
+                    if is_downtown:
+                        pop_growth_rate *= 0.8  # Downtown has lower occupancy rates
+                    elif zip_code in ['60615', '60637']:  # Bronzeville, Woodlawn
+                        pop_growth_rate *= 1.1  # Higher growth expected
+                else:
+                    pop_growth_rate = 0.01  # Default 1% growth
+
+                # Add some variance based on permit momentum
+                if permit_momentum > 0:
+                    pop_growth_rate += permit_momentum * 0.001  # Positive momentum boost
+
+            # Ensure reasonable bounds
+            pop_growth_rate = max(-0.05, min(0.10, pop_growth_rate))  # -5% to +10% annual
+            housing_growth_rate = max(-0.02, min(0.15, housing_growth_rate))  # -2% to +15% annual
+
             # Compile features
             feature_row = pd.DataFrame({
                 'zip_code': [zip_code],

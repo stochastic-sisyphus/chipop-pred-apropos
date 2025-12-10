@@ -72,7 +72,7 @@ class IncomeDistributionModel:
                 if len(income_series) > 0:
                     current_income = income_series.iloc[-1]
                     initial_income = income_series.iloc[0] if len(income_series) > 0 else current_income
-                    income_growth_rate = self._calculate_growth_rate(income_series)
+                    income_growth_rate = self._calculate_growth_rate(income_series, zip_data)
                     income_volatility = income_series.std() / income_series.mean() if income_series.mean() != 0 else 0
                 else:
                     # No valid income data
@@ -121,16 +121,49 @@ class IncomeDistributionModel:
         
         return results_df
     
-    def _calculate_growth_rate(self, series: pd.Series) -> float:
-        """Calculate compound annual growth rate."""
-        if len(series) < 2:
-            return 0
-        
-        years = len(series) - 1
-        if years == 0 or series.iloc[0] == 0:
-            return 0
-        
-        return (series.iloc[-1] / series.iloc[0]) ** (1/years) - 1
+    def _calculate_growth_rate(self, series: pd.Series, zip_data: pd.DataFrame = None) -> float:
+        """Calculate compound annual growth rate, with estimation fallback."""
+        if len(series) >= 2:
+            years = len(series) - 1
+            if years > 0 and series.iloc[0] > 0:
+                return (series.iloc[-1] / series.iloc[0]) ** (1/years) - 1
+
+        # No time series - estimate from permit activity and neighborhood type
+        if zip_data is not None:
+            return self._estimate_income_growth(series, zip_data)
+
+        return 0
+
+    def _estimate_income_growth(self, income_series: pd.Series, zip_data: pd.DataFrame) -> float:
+        """Estimate income growth from permit activity when time series unavailable."""
+        current_income = income_series.iloc[-1] if len(income_series) > 0 else 0
+
+        # Base growth rate from Chicago regional average (~2.5% nominal)
+        base_growth = 0.025
+
+        # Adjust based on income level (mean reversion tendency)
+        if current_income > 0:
+            if current_income < 40000:
+                # Low-income areas: potential for higher growth via investment
+                base_growth += 0.015
+            elif current_income > 120000:
+                # High-income areas: slower growth
+                base_growth -= 0.01
+
+        # Adjust based on housing activity (proxy for investment)
+        if 'housing_units' in zip_data.columns:
+            housing_units = zip_data['housing_units'].iloc[-1] if len(zip_data) > 0 else 0
+            if housing_units > 20000:
+                base_growth += 0.01  # High-density areas attracting investment
+
+        # Adjust for permit activity
+        if 'recent_permits' in zip_data.columns:
+            recent = zip_data['recent_permits'].iloc[-1] if len(zip_data) > 0 else 0
+            if recent > 50:
+                base_growth += 0.02  # High development activity
+
+        # Apply reasonable bounds
+        return max(0.0, min(0.08, base_growth))
     
     def _get_income_bracket(self, income: float) -> str:
         """Determine income bracket."""
@@ -153,23 +186,36 @@ class IncomeDistributionModel:
         Score ranges from 0 (no gentrification) to 1 (high gentrification).
         """
         score_components = []
-        
-        # Income growth component
-        income_score = min(income_growth / self.gentrification_thresholds['income_growth_rate'], 1)
+
+        # Income growth component (already estimated if time series unavailable)
+        income_score = min(max(income_growth, 0) / self.gentrification_thresholds['income_growth_rate'], 1)
         score_components.append(income_score)
-        
-        # Housing cost changes
-        if 'housing_units' in zip_data.columns and len(zip_data) > 1:
-            housing_growth = zip_data['housing_units'].pct_change().mean()
-            housing_score = min(housing_growth / 0.03, 1)  # 3% threshold
+
+        # Housing development activity (works with single point data)
+        if 'housing_units' in zip_data.columns and len(zip_data) > 0:
+            if len(zip_data) > 1:
+                housing_growth = zip_data['housing_units'].pct_change().mean()
+            else:
+                # Estimate from permit activity if available
+                units = zip_data['housing_units'].iloc[-1]
+                recent_permits = zip_data.get('recent_permits', pd.Series([0])).iloc[-1] if 'recent_permits' in zip_data.columns else 0
+                housing_growth = (recent_permits * 5) / units if units > 0 else 0  # Assume 5 units per permit
+            housing_score = min(max(housing_growth, 0) / 0.03, 1)
             score_components.append(housing_score)
-        
-        # Retail/business changes
-        if 'retail_businesses' in zip_data.columns and len(zip_data) > 1:
-            retail_growth = zip_data['retail_businesses'].pct_change().mean()
-            retail_score = min(retail_growth / 0.04, 1)  # 4% threshold
-            score_components.append(retail_score)
-        
+
+        # Median income level (lower income areas more susceptible)
+        if 'median_income' in zip_data.columns and len(zip_data) > 0:
+            income = zip_data['median_income'].iloc[-1]
+            if 30000 < income < 60000:
+                # Moderate income areas most at risk of gentrification
+                income_susceptibility = 0.6
+            elif income <= 30000:
+                # Low income areas: high risk if income is growing
+                income_susceptibility = 0.4 + (income_score * 0.4)
+            else:
+                income_susceptibility = 0.2
+            score_components.append(income_susceptibility)
+
         return np.mean(score_components) if score_components else 0
     
     def _calculate_displacement_risk(self, zip_data: pd.DataFrame, income_growth: float) -> str:
@@ -177,25 +223,42 @@ class IncomeDistributionModel:
         Calculate displacement risk based on income growth and population changes.
         """
         risk_score = 0
-        
+
         # High income growth increases displacement risk
         if income_growth > self.gentrification_thresholds['income_growth_rate']:
             risk_score += 0.4
-        
-        # Population changes
-        if 'population' in zip_data.columns and len(zip_data) > 1:
-            pop_change = zip_data['population'].pct_change().mean()
+        elif income_growth > 0.02:  # Moderate growth also adds some risk
+            risk_score += 0.2
+
+        # Population/housing changes
+        if 'population' in zip_data.columns and len(zip_data) > 0:
+            if len(zip_data) > 1:
+                pop_change = zip_data['population'].pct_change().mean()
+            else:
+                # Estimate from housing units and permits
+                pop = zip_data['population'].iloc[-1]
+                units = zip_data['housing_units'].iloc[-1] if 'housing_units' in zip_data.columns else 0
+                # High density + growth suggests displacement pressure
+                if units > 0 and pop / units < 2.0:  # Low persons per unit
+                    pop_change = 0.05  # Assume some turnover
+                else:
+                    pop_change = 0.02
+
             if abs(pop_change) > self.gentrification_thresholds['displacement_threshold']:
                 risk_score += 0.3
-        
+
         # Current income level (lower income areas at higher risk)
         if 'median_income' in zip_data.columns and len(zip_data) > 0:
             income_series = zip_data['median_income'].dropna()
             if len(income_series) > 0:
                 current_income = income_series.iloc[-1]
-                if current_income < 50000:
-                    risk_score += 0.3
-        
+                if current_income < 40000:
+                    risk_score += 0.35  # Very low income: highest risk
+                elif current_income < 60000:
+                    risk_score += 0.25  # Low-moderate income: high risk
+                elif current_income < 80000:
+                    risk_score += 0.1   # Moderate income: some risk
+
         # Categorize risk
         if risk_score >= 0.7:
             return 'High'
