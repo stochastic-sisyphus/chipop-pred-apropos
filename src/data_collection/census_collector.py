@@ -274,19 +274,105 @@ class CensusCollector:
         return df
     
     def _generate_sample_historical_data(self, start_year, end_year):
-        """Generate sample historical Census data when explicitly requested."""
+        """Generate sample historical Census data with realistic Chicago neighborhood trends."""
         logger.warning(f"Generating sample historical Census data from {start_year} to {end_year}")
-        
+
+        # Chicago neighborhood characteristics for realistic trend generation
+        neighborhood_profiles = {
+            '60601': {'name': 'Loop', 'base_pop': 16000, 'growth': 0.025, 'income': 95000, 'income_growth': 0.03},
+            '60602': {'name': 'Loop', 'base_pop': 1100, 'growth': 0.02, 'income': 92000, 'income_growth': 0.025},
+            '60603': {'name': 'Loop', 'base_pop': 1100, 'growth': 0.015, 'income': 88000, 'income_growth': 0.02},
+            '60604': {'name': 'South Loop', 'base_pop': 650, 'growth': 0.03, 'income': 72000, 'income_growth': 0.035},
+            '60605': {'name': 'South Loop', 'base_pop': 34000, 'growth': 0.028, 'income': 85000, 'income_growth': 0.03},
+            '60606': {'name': 'West Loop', 'base_pop': 3500, 'growth': 0.04, 'income': 98000, 'income_growth': 0.04},
+            '60607': {'name': 'West Loop', 'base_pop': 30000, 'growth': 0.045, 'income': 105000, 'income_growth': 0.045},
+            '60608': {'name': 'Pilsen', 'base_pop': 85000, 'growth': 0.01, 'income': 42000, 'income_growth': 0.025},
+            '60609': {'name': 'Back of Yards', 'base_pop': 55000, 'growth': -0.005, 'income': 35000, 'income_growth': 0.015},
+            '60610': {'name': 'Old Town', 'base_pop': 31000, 'growth': 0.02, 'income': 95000, 'income_growth': 0.025},
+            '60612': {'name': 'Near West', 'base_pop': 36000, 'growth': 0.015, 'income': 52000, 'income_growth': 0.03},
+            '60613': {'name': 'Lakeview', 'base_pop': 70000, 'growth': 0.008, 'income': 78000, 'income_growth': 0.02},
+            '60614': {'name': 'Lincoln Park', 'base_pop': 65000, 'growth': 0.005, 'income': 115000, 'income_growth': 0.018},
+            '60615': {'name': 'Bronzeville', 'base_pop': 42000, 'growth': 0.012, 'income': 38000, 'income_growth': 0.028},
+            '60616': {'name': 'South Loop', 'base_pop': 45000, 'growth': 0.025, 'income': 65000, 'income_growth': 0.035},
+            '60617': {'name': 'South Chicago', 'base_pop': 75000, 'growth': -0.008, 'income': 32000, 'income_growth': 0.01},
+            '60618': {'name': 'Avondale', 'base_pop': 85000, 'growth': 0.01, 'income': 58000, 'income_growth': 0.022},
+            '60619': {'name': 'Chatham', 'base_pop': 50000, 'growth': -0.01, 'income': 36000, 'income_growth': 0.012},
+            '60620': {'name': 'Auburn Gresham', 'base_pop': 48000, 'growth': -0.012, 'income': 32000, 'income_growth': 0.01},
+            '60621': {'name': 'Englewood', 'base_pop': 30000, 'growth': -0.02, 'income': 24000, 'income_growth': 0.008},
+            '60622': {'name': 'Wicker Park', 'base_pop': 52000, 'growth': 0.018, 'income': 82000, 'income_growth': 0.035},
+            '60623': {'name': 'Lawndale', 'base_pop': 75000, 'growth': -0.008, 'income': 28000, 'income_growth': 0.012},
+            '60624': {'name': 'West Garfield', 'base_pop': 25000, 'growth': -0.015, 'income': 25000, 'income_growth': 0.01},
+            '60625': {'name': 'Lincoln Square', 'base_pop': 55000, 'growth': 0.012, 'income': 62000, 'income_growth': 0.025},
+            '60626': {'name': 'Rogers Park', 'base_pop': 55000, 'growth': 0.008, 'income': 45000, 'income_growth': 0.02},
+            '60628': {'name': 'Roseland', 'base_pop': 52000, 'growth': -0.012, 'income': 34000, 'income_growth': 0.01},
+            '60629': {'name': 'Chicago Lawn', 'base_pop': 80000, 'growth': 0.002, 'income': 38000, 'income_growth': 0.015},
+            '60630': {'name': 'Jefferson Park', 'base_pop': 48000, 'growth': 0.005, 'income': 58000, 'income_growth': 0.018},
+            '60631': {'name': 'Edgebrook', 'base_pop': 20000, 'growth': 0.003, 'income': 85000, 'income_growth': 0.015},
+            '60632': {'name': 'Brighton Park', 'base_pop': 65000, 'growth': 0.005, 'income': 40000, 'income_growth': 0.018},
+            '60633': {'name': 'Hegewisch', 'base_pop': 10000, 'growth': -0.005, 'income': 52000, 'income_growth': 0.012},
+            '60634': {'name': 'Portage Park', 'base_pop': 65000, 'growth': 0.003, 'income': 55000, 'income_growth': 0.018},
+            '60636': {'name': 'West Englewood', 'base_pop': 35000, 'growth': -0.018, 'income': 26000, 'income_growth': 0.008},
+            '60637': {'name': 'Woodlawn', 'base_pop': 52000, 'growth': 0.008, 'income': 32000, 'income_growth': 0.022},
+            '60638': {'name': 'Garfield Ridge', 'base_pop': 35000, 'growth': 0.002, 'income': 62000, 'income_growth': 0.015},
+            '60639': {'name': 'Belmont Cragin', 'base_pop': 78000, 'growth': 0.005, 'income': 42000, 'income_growth': 0.018},
+            '60640': {'name': 'Uptown', 'base_pop': 58000, 'growth': 0.015, 'income': 48000, 'income_growth': 0.028},
+            '60641': {'name': 'Kilbourn Park', 'base_pop': 48000, 'growth': 0.008, 'income': 55000, 'income_growth': 0.02},
+            '60642': {'name': 'Noble Square', 'base_pop': 8000, 'growth': 0.035, 'income': 92000, 'income_growth': 0.04},
+            '60643': {'name': 'Morgan Park', 'base_pop': 28000, 'growth': -0.003, 'income': 58000, 'income_growth': 0.015},
+            '60644': {'name': 'Austin', 'base_pop': 55000, 'growth': -0.01, 'income': 32000, 'income_growth': 0.01},
+            '60645': {'name': 'West Ridge', 'base_pop': 55000, 'growth': 0.005, 'income': 48000, 'income_growth': 0.018},
+            '60646': {'name': 'Sauganash', 'base_pop': 22000, 'growth': 0.002, 'income': 95000, 'income_growth': 0.015},
+            '60647': {'name': 'Logan Square', 'base_pop': 72000, 'growth': 0.015, 'income': 65000, 'income_growth': 0.032},
+            '60649': {'name': 'South Shore', 'base_pop': 52000, 'growth': -0.008, 'income': 28000, 'income_growth': 0.012},
+            '60651': {'name': 'Humboldt Park', 'base_pop': 56000, 'growth': 0.005, 'income': 35000, 'income_growth': 0.02},
+            '60652': {'name': 'Ashburn', 'base_pop': 42000, 'growth': 0.002, 'income': 58000, 'income_growth': 0.015},
+            '60653': {'name': 'Bronzeville', 'base_pop': 18000, 'growth': 0.02, 'income': 42000, 'income_growth': 0.03},
+            '60654': {'name': 'River North', 'base_pop': 24000, 'growth': 0.035, 'income': 125000, 'income_growth': 0.035},
+            '60655': {'name': 'Mt Greenwood', 'base_pop': 20000, 'growth': 0.001, 'income': 82000, 'income_growth': 0.012},
+            '60656': {'name': 'Norwood Park', 'base_pop': 38000, 'growth': 0.002, 'income': 72000, 'income_growth': 0.015},
+            '60657': {'name': 'Lakeview', 'base_pop': 95000, 'growth': 0.008, 'income': 88000, 'income_growth': 0.022},
+            '60659': {'name': 'North Park', 'base_pop': 45000, 'growth': 0.005, 'income': 52000, 'income_growth': 0.018},
+            '60660': {'name': 'Edgewater', 'base_pop': 58000, 'growth': 0.01, 'income': 55000, 'income_growth': 0.022},
+            '60661': {'name': 'West Loop', 'base_pop': 12000, 'growth': 0.05, 'income': 115000, 'income_growth': 0.045},
+        }
+
         all_data = []
+        base_year = 2010  # Reference year for calculations
+
         for year in range(start_year, end_year + 1):
-            df = self._generate_sample_data(year, 'zip code tabulation area')
-            if df is not None:
-                all_data.append(df)
-        
-        if not all_data:
-            logger.error("Failed to generate sample historical Census data")
-            return None
-        
-        historical_df = pd.concat(all_data, ignore_index=True)
-        logger.info(f"Generated {len(historical_df)} sample historical records")
+            years_from_base = year - base_year
+
+            for zip_code in settings.CHICAGO_ZIP_CODES:
+                zip_str = str(zip_code)
+                profile = neighborhood_profiles.get(zip_str, {
+                    'name': 'Other',
+                    'base_pop': 40000,
+                    'growth': 0.005,
+                    'income': 55000,
+                    'income_growth': 0.02
+                })
+
+                # Calculate values with compound growth and some noise
+                import random
+                random.seed(hash(f"{zip_code}_{year}"))
+                noise = random.uniform(0.97, 1.03)
+
+                population = int(profile['base_pop'] * ((1 + profile['growth']) ** years_from_base) * noise)
+                median_income = int(profile['income'] * ((1 + profile['income_growth']) ** years_from_base) * noise)
+                housing_units = int(population / 2.3 * random.uniform(0.95, 1.05))
+                occupied_units = int(housing_units * random.uniform(0.88, 0.94))
+                renter_occupied = int(occupied_units * random.uniform(0.45, 0.65))
+
+                all_data.append({
+                    'zip_code': zip_str,
+                    'population': population,
+                    'median_income': median_income,
+                    'housing_units': housing_units,
+                    'occupied_housing_units': occupied_units,
+                    'renter_occupied_units': renter_occupied,
+                    'year': year
+                })
+
+        historical_df = pd.DataFrame(all_data)
+        logger.info(f"Generated {len(historical_df)} sample historical records with realistic Chicago trends")
         return historical_df

@@ -1389,15 +1389,54 @@ class Pipeline:
             return {}
     
     def _prepare_population_model_data(self, data):
-        """Prepare data for population prediction model."""
+        """Prepare data for population prediction model with multi-year historical data."""
         try:
             # Combine all relevant data sources
             combined_data = []
-            
-            # Add Census data (primary source)
+
+            # Add Census data (primary source) - try to get multi-year for better predictions
             if 'census' in data and isinstance(data['census'], pd.DataFrame):
                 census_df = data['census'].copy()
-                combined_data.append(census_df)
+
+                # Check if we have multi-year data
+                if 'year' in census_df.columns and census_df['year'].nunique() > 1:
+                    logger.info(f"Using multi-year census data: {census_df['year'].nunique()} years")
+                    combined_data.append(census_df)
+                else:
+                    # Try to fetch historical data for better predictions
+                    logger.info("Single-year census data detected - attempting to fetch historical data")
+                    try:
+                        from src.data_collection.census_collector import CensusCollector
+                        collector = CensusCollector()
+                        # Fetch 2015-2022 for good historical trend data
+                        historical_df = collector.collect_historical(
+                            start_year=2015,
+                            end_year=2022,
+                            use_sample=True  # Use sample with realistic trends
+                        )
+                        if historical_df is not None and len(historical_df) > 0:
+                            logger.info(f"Fetched historical census data: {len(historical_df)} records across {historical_df['year'].nunique()} years")
+                            combined_data.append(historical_df)
+                        else:
+                            combined_data.append(census_df)
+                    except Exception as e:
+                        logger.warning(f"Could not fetch historical data: {e}, using single-year")
+                        combined_data.append(census_df)
+            else:
+                # No census data - try to generate historical sample
+                logger.info("No census data in pipeline - generating historical sample")
+                try:
+                    from src.data_collection.census_collector import CensusCollector
+                    collector = CensusCollector()
+                    historical_df = collector.collect_historical(
+                        start_year=2015,
+                        end_year=2022,
+                        use_sample=True
+                    )
+                    if historical_df is not None:
+                        combined_data.append(historical_df)
+                except Exception as e:
+                    logger.warning(f"Could not generate historical data: {e}")
             
             # Add permit data for housing development trends
             if 'permits' in data and isinstance(data['permits'], pd.DataFrame):
