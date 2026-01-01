@@ -18,6 +18,7 @@ import warnings
 
 from src.data_collection.fred_collector import FREDCollector
 from src.data_collection.chicago_collector import ChicagoCollector
+from src.data_collection.zillow_collector import ZillowCollector
 from src.data_processing.processor import DataProcessor
 from src.data_processing.data_cleaner import DataCleaner
 from src.models.multifamily_growth_model import MultifamilyGrowthModel
@@ -490,10 +491,41 @@ class Pipeline:
                 if census_data is None or census_data.empty:
                     data['census'] = fred_data
             
+            # Collect Zillow home value data for real housing market trends
+            logger.info("Collecting Zillow ZHVI data for housing market trends...")
+            try:
+                zillow_collector = ZillowCollector()
+                zillow_metrics = zillow_collector.calculate_growth_metrics()
+
+                if zillow_metrics is not None and len(zillow_metrics) > 0:
+                    data['zillow'] = zillow_metrics
+                    logger.info(f"Collected Zillow data for {len(zillow_metrics)} ZIP codes")
+
+                    # Enhance census data with home values
+                    if 'census' in data and isinstance(data['census'], pd.DataFrame):
+                        zillow_subset = zillow_metrics[[
+                            'zip_code', 'current_home_value', 'growth_1y', 'cagr_5y',
+                            'volatility'
+                        ]].copy()
+                        data['census'] = data['census'].merge(
+                            zillow_subset, on='zip_code', how='left'
+                        )
+                        logger.info("Enhanced census data with Zillow home values")
+
+                    # Get gentrification indicators
+                    gent_indicators = zillow_collector.get_gentrification_indicators()
+                    if gent_indicators is not None and len(gent_indicators) > 0:
+                        data['gentrification'] = gent_indicators
+                        logger.info(f"Calculated gentrification indicators for {len(gent_indicators)} ZIP codes")
+                else:
+                    logger.warning("No Zillow data available")
+            except Exception as zillow_error:
+                logger.warning(f"Could not collect Zillow data: {zillow_error}")
+
             logger.info("Data collection completed successfully")
-            logger.info(f"✅ Final data structure: {list(data.keys())}")
+            logger.info(f"Final data structure: {list(data.keys())}")
             return data
-            
+
         except Exception as e:
             logger.error(f"Error collecting data: {str(e)}")
             logger.error(traceback.format_exc())
