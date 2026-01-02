@@ -177,4 +177,7 @@ models/cache/
 **/api_keys.*
 **/secrets.*
 config/api_keys.py
-config/secrets.py data/external/zillow_zhvi_zip.csv
+config/secrets.py
+
+# Large external data files (downloaded on-demand)
+data/external/

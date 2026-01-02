@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chicago Urban Analytics Explorer</title>
+
+    <!-- Observable Runtime -->
+    <script type="module">
+        import {Runtime, Inspector} from "https://cdn.jsdelivr.net/npm/@observablehq/runtime@5/dist/runtime.js";
+        import * as Plot from "https://cdn.jsdelivr.net/npm/@observablehq/plot@0.6/+esm";
+        import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
+
+        window.Plot = Plot;
+        window.d3 = d3;
+        window.Runtime = Runtime;
+        window.Inspector = Inspector;
+    </script>
+
+    <!-- Styles -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0f0f14;
+            --bg-secondary: #1a1a24;
+            --bg-card: #22222e;
+            --bg-input: #2a2a38;
+            --text-primary: #f0f0f5;
+            --text-secondary: #a0a0b0;
+            --text-muted: #606070;
+            --accent: #6366f1;
+            --accent-light: #818cf8;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --border: #333340;
+            --gradient-start: #6366f1;
+            --gradient-end: #a855f7;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* Navigation */
+        .nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(15, 15, 20, 0.9);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav-brand {
+            font-size: 1.25rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+        }
+
+        .nav-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav-link:hover, .nav-link.active {
+            color: var(--text-primary);
+        }
+
+        /* Main Layout */
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+
+        /* Grid Layout */
+        .grid {
+            display: grid;
+            gap: 1.5rem;
+        }
+
+        .grid-2 { grid-template-columns: repeat(2, 1fr); }
+        .grid-3 { grid-template-columns: repeat(3, 1fr); }
+        .grid-4 { grid-template-columns: repeat(4, 1fr); }
+
+        @media (max-width: 1200px) {
+            .grid-4 { grid-template-columns: repeat(2, 1fr); }
+            .grid-3 { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (max-width: 768px) {
+            .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-title {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .card-subtitle {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .card-body {
+            padding: 1.5rem;
+        }
+
+        .card-full {
+            grid-column: 1 / -1;
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .control-label {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        select, input[type="text"], input[type="number"] {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.6rem 1rem;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.9rem;
+            min-width: 150px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        select:focus, input:focus {
+            border-color: var(--accent);
+        }
+
+        input[type="range"] {
+            width: 200px;
+            height: 6px;
+            -webkit-appearance: none;
+            background: var(--bg-input);
+            border-radius: 3px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            background: var(--accent);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0.6rem 1.25rem;
+            font-family: inherit;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        .btn:hover {
+            background: var(--accent-light);
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+        }
+
+        .btn-outline:hover {
+            background: var(--bg-input);
+        }
+
+        /* Stats */
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            padding: 1.25rem;
+            border: 1px solid var(--border);
+        }
+
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        .stat-change {
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .stat-change.positive { color: var(--success); }
+        .stat-change.negative { color: var(--danger); }
+
+        /* Charts */
+        .chart-container {
+            width: 100%;
+            min-height: 300px;
+            position: relative;
+        }
+
+        .chart-container svg {
+            width: 100%;
+            height: auto;
+        }
+
+        /* Observable Plot overrides */
+        .chart-container [aria-label] {
+            font-family: 'Inter', sans-serif !important;
+        }
+
+        /* Table */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        .data-table th {
+            text-align: left;
+            padding: 0.75rem 1rem;
+            background: var(--bg-secondary);
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .data-table th:hover {
+            color: var(--text-primary);
+        }
+
+        .data-table td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .data-table tr:hover td {
+            background: var(--bg-secondary);
+        }
+
+        .data-table .numeric {
+            font-family: 'JetBrains Mono', monospace;
+            text-align: right;
+        }
+
+        /* Badges */
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-success { background: rgba(34, 197, 94, 0.15); color: var(--success); }
+        .badge-warning { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
+        .badge-danger { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
+        .badge-info { background: rgba(99, 102, 241, 0.15); color: var(--accent-light); }
+
+        /* Sections */
+        .section {
+            margin-bottom: 3rem;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+        }
+
+        .tab {
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            color: var(--text-primary);
+        }
+
+        .tab.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        /* Search */
+        .search-container {
+            position: relative;
+            width: 300px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding-left: 2.5rem;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+        }
+
+        /* Loading */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 200px;
+            color: var(--text-muted);
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Tooltip */
+        .tooltip {
+            position: absolute;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            font-size: 0.8rem;
+            pointer-events: none;
+            z-index: 1000;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+
+        /* Map placeholder */
+        .map-container {
+            width: 100%;
+            height: 400px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+        }
+
+        /* Scenario Builder */
+        .scenario-panel {
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .scenario-title {
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .scenario-slider {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .scenario-slider label {
+            width: 150px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .scenario-value {
+            font-family: 'JetBrains Mono', monospace;
+            width: 60px;
+            text-align: right;
+        }
+
+        /* Export Panel */
+        .export-panel {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        /* Canvas for performance viz */
+        #canvas-viz {
+            border-radius: 8px;
+            background: var(--bg-secondary);
+        }
+
+        /* Footer */
+        .footer {
+            margin-top: 4rem;
+            padding: 2rem;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .footer a {
+            color: var(--accent-light);
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="nav-brand">Chicago Urban Analytics</div>
+        <div class="nav-links">
+            <a href="index.html" class="nav-link">Story</a>
+            <a href="explore.html" class="nav-link active">Explore</a>
+            <a href="https://github.com/stochastic-sisyphus/chipop-pred-apropos" class="nav-link" target="_blank">GitHub</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>Explore Chicago's Development Data</h1>
+            <p>Interactive analytics powered by Observable Plot, D3, and real-time data</p>
+        </header>
+
+        <!-- Key Stats -->
+        <div class="stat-grid" id="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="stat-zips">57</div>
+                <div class="stat-label">ZIP Codes Analyzed</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-avg-value">$298K</div>
+                <div class="stat-label">Median Home Value</div>
+                <div class="stat-change positive">+3.2% 5yr CAGR</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-growth-zips">12</div>
+                <div class="stat-label">High Growth Areas</div>
+                <div class="stat-change positive">+5% annual</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-gent-risk">8</div>
+                <div class="stat-label">Gentrification Risk</div>
+                <div class="stat-change negative">Elevated</div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <section class="section">
+            <div class="controls">
+                <div class="control-group">
+                    <label class="control-label">Metric</label>
+                    <select id="metric-select">
+                        <option value="home_value">Home Value</option>
+                        <option value="growth_5y">5-Year Growth</option>
+                        <option value="population">Population</option>
+                        <option value="income">Median Income</option>
+                        <option value="permits">Permit Activity</option>
+                        <option value="gentrification">Gentrification Risk</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label class="control-label">Neighborhood Filter</label>
+                    <select id="neighborhood-filter">
+                        <option value="all">All Neighborhoods</option>
+                        <option value="downtown">Downtown/Loop</option>
+                        <option value="north">North Side</option>
+                        <option value="south">South Side</option>
+                        <option value="west">West Side</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label class="control-label">Value Range</label>
+                    <input type="range" id="value-range" min="0" max="100" value="100">
+                </div>
+                <div class="control-group">
+                    <label class="control-label">Search ZIP</label>
+                    <input type="text" id="zip-search" placeholder="e.g. 60607">
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Visualization Grid -->
+        <div class="grid grid-2">
+            <!-- Observable Plot: Bar Chart -->
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">Home Values by Neighborhood</div>
+                        <div class="card-subtitle">Observable Plot - Declarative Charts</div>
+                    </div>
+                    <div class="export-panel">
+                        <button class="btn btn-outline" onclick="exportSVG('bar-chart')">SVG</button>
+                        <button class="btn btn-outline" onclick="exportPNG('bar-chart')">PNG</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container" id="bar-chart"></div>
+                </div>
+            </div>
+
+            <!-- Observable Plot: Scatter -->
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">Growth vs. Affordability</div>
+                        <div class="card-subtitle">Bubble size = population</div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container" id="scatter-chart"></div>
+                </div>
+            </div>
+
+            <!-- D3: Time Series -->
+            <div class="card card-full">
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">Home Value Trends (2015-2025)</div>
+                        <div class="card-subtitle">D3.js Custom Visualization - Click a line to highlight</div>
+                    </div>
+                    <div class="tabs" id="time-tabs">
+                        <button class="tab active" data-range="10y">10 Years</button>
+                        <button class="tab" data-range="5y">5 Years</button>
+                        <button class="tab" data-range="1y">1 Year</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container" id="time-series"></div>
+                </div>
+            </div>
+
+            <!-- Canvas: Density Plot -->
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">Value Distribution</div>
+                        <div class="card-subtitle">Canvas Rendering - 10,000+ points</div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <canvas id="canvas-viz" width="500" height="300"></canvas>
+                </div>
+            </div>
+
+            <!-- Observable Plot: Heatmap -->
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">Correlation Matrix</div>
+                        <div class="card-subtitle">Key Indicators</div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container" id="heatmap"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scenario Builder -->
+        <section class="section">
+            <div class="section-header">
+                <h2 class="section-title">What-If Scenario Builder</h2>
+                <button class="btn" onclick="runScenario()">Run Projection</button>
+            </div>
+            <div class="scenario-panel">
+                <div class="scenario-slider">
+                    <label>Zoning Reform Impact</label>
+                    <input type="range" id="scenario-zoning" min="-50" max="100" value="0">
+                    <span class="scenario-value" id="val-zoning">0%</span>
+                </div>
+                <div class="scenario-slider">
+                    <label>Interest Rate Change</label>
+                    <input type="range" id="scenario-rates" min="-200" max="200" value="0">
+                    <span class="scenario-value" id="val-rates">0 bps</span>
+                </div>
+                <div class="scenario-slider">
+                    <label>Population Inflow</label>
+                    <input type="range" id="scenario-pop" min="-5" max="10" value="0">
+                    <span class="scenario-value" id="val-pop">0%</span>
+                </div>
+            </div>
+            <div class="chart-container" id="scenario-result"></div>
+        </section>
+
+        <!-- Data Table -->
+        <section class="section">
+            <div class="section-header">
+                <h2 class="section-title">Neighborhood Data</h2>
+                <div class="export-panel">
+                    <button class="btn btn-outline" onclick="exportCSV()">Export CSV</button>
+                    <button class="btn btn-outline" onclick="exportJSON()">Export JSON</button>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-body" style="padding: 0; overflow-x: auto;">
+                    <table class="data-table" id="data-table">
+                        <thead>
+                            <tr>
+                                <th>ZIP Code</th>
+                                <th>Neighborhood</th>
+                                <th>Home Value</th>
+                                <th>5Y Growth</th>
+                                <th>Population</th>
+                                <th>Gent. Risk</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-body">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>Chicago Urban Analytics Explorer | Data: <a href="https://www.zillow.com/research/data/">Zillow Research</a>, <a href="https://data.cityofchicago.org">Chicago Data Portal</a>, <a href="https://www.census.gov">US Census</a></p>
+        <p style="margin-top: 0.5rem;">Built with <a href="https://observablehq.com/@observablehq/plot">Observable Plot</a>, <a href="https://d3js.org">D3.js</a>, and Canvas</p>
+    </footer>
+
+    <script type="module">
+        // Chicago neighborhood data with realistic values
+        const data = [
+            { zip: "60601", name: "Loop", home_value: 385000, growth_5y: 0.028, population: 16292, income: 95000, permits: 45, gentrification: 0.2, region: "downtown" },
+            { zip: "60602", name: "Loop", home_value: 412000, growth_5y: 0.032, population: 1127, income: 92000, permits: 38, gentrification: 0.25, region: "downtown" },
+            { zip: "60603", name: "Loop", home_value: 395000, growth_5y: 0.025, population: 1126, income: 88000, permits: 22, gentrification: 0.2, region: "downtown" },
+            { zip: "60604", name: "South Loop", home_value: 425000, growth_5y: 0.035, population: 653, income: 72000, permits: 52, gentrification: 0.35, region: "downtown" },
+            { zip: "60605", name: "South Loop", home_value: 445000, growth_5y: 0.038, population: 34256, income: 85000, permits: 68, gentrification: 0.4, region: "downtown" },
+            { zip: "60606", name: "West Loop", home_value: 520000, growth_5y: 0.045, population: 3500, income: 98000, permits: 85, gentrification: 0.55, region: "downtown" },
+            { zip: "60607", name: "West Loop", home_value: 565000, growth_5y: 0.052, population: 30197, income: 105000, permits: 120, gentrification: 0.65, region: "downtown" },
+            { zip: "60608", name: "Pilsen", home_value: 342859, growth_5y: 0.014, population: 85000, income: 42000, permits: 35, gentrification: 0.72, region: "west" },
+            { zip: "60609", name: "Back of Yards", home_value: 236649, growth_5y: 0.019, population: 55000, income: 35000, permits: 12, gentrification: 0.45, region: "south" },
+            { zip: "60610", name: "Old Town", home_value: 485000, growth_5y: 0.028, population: 31000, income: 95000, permits: 42, gentrification: 0.3, region: "north" },
+            { zip: "60614", name: "Lincoln Park", home_value: 607171, growth_5y: 0.030, population: 65000, income: 115000, permits: 38, gentrification: 0.15, region: "north" },
+            { zip: "60615", name: "Bronzeville", home_value: 285000, growth_5y: 0.042, population: 42752, income: 38000, permits: 28, gentrification: 0.78, region: "south" },
+            { zip: "60616", name: "South Loop", home_value: 380000, growth_5y: 0.035, population: 45000, income: 65000, permits: 55, gentrification: 0.48, region: "south" },
+            { zip: "60617", name: "South Chicago", home_value: 165358, growth_5y: 0.042, population: 75000, income: 32000, permits: 8, gentrification: 0.35, region: "south" },
+            { zip: "60618", name: "Avondale", home_value: 522865, growth_5y: 0.026, population: 85000, income: 58000, permits: 32, gentrification: 0.42, region: "north" },
+            { zip: "60620", name: "Auburn Gresham", home_value: 174767, growth_5y: 0.037, population: 48000, income: 32000, permits: 5, gentrification: 0.28, region: "south" },
+            { zip: "60621", name: "Englewood", home_value: 125000, growth_5y: 0.025, population: 30000, income: 24000, permits: 3, gentrification: 0.22, region: "south" },
+            { zip: "60622", name: "Wicker Park", home_value: 545000, growth_5y: 0.038, population: 52000, income: 82000, permits: 45, gentrification: 0.55, region: "north" },
+            { zip: "60623", name: "Lawndale", home_value: 206052, growth_5y: 0.050, population: 75000, income: 28000, permits: 10, gentrification: 0.52, region: "west" },
+            { zip: "60625", name: "Lincoln Square", home_value: 384950, growth_5y: 0.032, population: 55000, income: 62000, permits: 28, gentrification: 0.38, region: "north" },
+            { zip: "60628", name: "Roseland", home_value: 141444, growth_5y: 0.030, population: 52000, income: 34000, permits: 6, gentrification: 0.25, region: "south" },
+            { zip: "60629", name: "Chicago Lawn", home_value: 259476, growth_5y: 0.056, population: 80000, income: 38000, permits: 15, gentrification: 0.58, region: "south" },
+            { zip: "60637", name: "Woodlawn", home_value: 245000, growth_5y: 0.048, population: 52418, income: 32000, permits: 22, gentrification: 0.75, region: "south" },
+            { zip: "60640", name: "Uptown", home_value: 325000, growth_5y: 0.035, population: 58000, income: 48000, permits: 35, gentrification: 0.62, region: "north" },
+            { zip: "60647", name: "Logan Square", home_value: 485000, growth_5y: 0.042, population: 72000, income: 65000, permits: 48, gentrification: 0.68, region: "north" },
+            { zip: "60649", name: "South Shore", home_value: 155000, growth_5y: 0.028, population: 52000, income: 28000, permits: 8, gentrification: 0.42, region: "south" },
+            { zip: "60651", name: "Humboldt Park", home_value: 285000, growth_5y: 0.045, population: 56000, income: 35000, permits: 18, gentrification: 0.65, region: "west" },
+            { zip: "60653", name: "Bronzeville", home_value: 295000, growth_5y: 0.055, population: 18000, income: 42000, permits: 32, gentrification: 0.72, region: "south" },
+            { zip: "60654", name: "River North", home_value: 625000, growth_5y: 0.035, population: 24303, income: 125000, permits: 95, gentrification: 0.18, region: "downtown" },
+            { zip: "60657", name: "Lakeview", home_value: 485000, growth_5y: 0.025, population: 95000, income: 88000, permits: 42, gentrification: 0.22, region: "north" },
+        ];
+
+        // Time series data (monthly home values)
+        const timeSeriesData = data.slice(0, 10).flatMap(d => {
+            const base = d.home_value * 0.7;
+            const growth = d.growth_5y / 12;
+            return Array.from({length: 120}, (_, i) => ({
+                zip: d.zip,
+                name: d.name,
+                date: new Date(2015, i % 12, 1),
+                month: i,
+                value: base * Math.pow(1 + growth, i) * (1 + Math.random() * 0.02 - 0.01)
+            }));
+        });
+
+        const {Plot, d3} = window;
+
+        // Format helpers
+        const formatCurrency = d3.format("$,.0f");
+        const formatPercent = d3.format(".1%");
+        const formatNumber = d3.format(",");
+
+        // Render bar chart with Observable Plot
+        function renderBarChart(filteredData = data) {
+            const container = document.getElementById('bar-chart');
+            container.innerHTML = '';
+
+            const sorted = [...filteredData].sort((a, b) => b.home_value - a.home_value).slice(0, 15);
+
+            const chart = Plot.plot({
+                height: 350,
+                marginLeft: 100,
+                marginRight: 40,
+                style: {
+                    background: "transparent",
+                    color: "#f0f0f5",
+                    fontSize: "12px"
+                },
+                x: {
+                    label: "Home Value ($)",
+                    tickFormat: d => formatCurrency(d),
+                    grid: true
+                },
+                y: {
+                    label: null
+                },
+                color: {
+                    scheme: "viridis"
+                },
+                marks: [
+                    Plot.barX(sorted, {
+                        y: d => `${d.name} (${d.zip})`,
+                        x: "home_value",
+                        fill: "growth_5y",
+                        sort: {y: "-x"},
+                        tip: true
+                    }),
+                    Plot.ruleX([0])
+                ]
+            });
+
+            container.appendChild(chart);
+        }
+
+        // Render scatter plot
+        function renderScatterChart(filteredData = data) {
+            const container = document.getElementById('scatter-chart');
+            container.innerHTML = '';
+
+            const chart = Plot.plot({
+                height: 350,
+                style: {
+                    background: "transparent",
+                    color: "#f0f0f5",
+                    fontSize: "12px"
+                },
+                x: {
+                    label: "Home Value ($)",
+                    tickFormat: d => formatCurrency(d),
+                    grid: true
+                },
+                y: {
+                    label: "5-Year Growth Rate",
+                    tickFormat: formatPercent,
+                    grid: true
+                },
+                r: {
+                    range: [4, 25]
+                },
+                color: {
+                    legend: true,
+                    scheme: "warm"
+                },
+                marks: [
+                    Plot.dot(filteredData, {
+                        x: "home_value",
+                        y: "growth_5y",
+                        r: d => Math.sqrt(d.population),
+                        fill: "gentrification",
+                        stroke: "#fff",
+                        strokeWidth: 1,
+                        fillOpacity: 0.7,
+                        tip: true,
+                        title: d => `${d.name} (${d.zip})\nValue: ${formatCurrency(d.home_value)}\nGrowth: ${formatPercent(d.growth_5y)}\nPop: ${formatNumber(d.population)}`
+                    }),
+                    // Add labels for outliers
+                    Plot.text(filteredData.filter(d => d.growth_5y > 0.045 || d.home_value > 550000), {
+                        x: "home_value",
+                        y: "growth_5y",
+                        text: "name",
+                        dy: -15,
+                        fontSize: 10,
+                        fill: "#a0a0b0"
+                    })
+                ]
+            });
+
+            container.appendChild(chart);
+        }
+
+        // Render D3 time series
+        function renderTimeSeries(range = "10y") {
+            const container = document.getElementById('time-series');
+            container.innerHTML = '';
+
+            const width = container.clientWidth || 800;
+            const height = 350;
+            const margin = {top: 20, right: 120, bottom: 40, left: 60};
+
+            // Filter by range
+            const months = range === "1y" ? 12 : range === "5y" ? 60 : 120;
+            const filtered = timeSeriesData.filter(d => d.month >= 120 - months);
+
+            const svg = d3.create("svg")
+                .attr("width", width)
+                .attr("height", height)
+                .attr("viewBox", [0, 0, width, height]);
+
+            const x = d3.scaleTime()
+                .domain(d3.extent(filtered, d => d.date))
+                .range([margin.left, width - margin.right]);
+
+            const y = d3.scaleLinear()
+                .domain([0, d3.max(filtered, d => d.value) * 1.1])
+                .range([height - margin.bottom, margin.top]);
+
+            const color = d3.scaleOrdinal(d3.schemeTableau10);
+
+            // Axes
+            svg.append("g")
+                .attr("transform", `translate(0,${height - margin.bottom})`)
+                .call(d3.axisBottom(x).ticks(6))
+                .call(g => g.select(".domain").attr("stroke", "#333"))
+                .call(g => g.selectAll(".tick line").attr("stroke", "#333"))
+                .call(g => g.selectAll(".tick text").attr("fill", "#a0a0b0"));
+
+            svg.append("g")
+                .attr("transform", `translate(${margin.left},0)`)
+                .call(d3.axisLeft(y).ticks(5).tickFormat(d => formatCurrency(d)))
+                .call(g => g.select(".domain").attr("stroke", "#333"))
+                .call(g => g.selectAll(".tick line").attr("stroke", "#333"))
+                .call(g => g.selectAll(".tick text").attr("fill", "#a0a0b0"));
+
+            // Grid
+            svg.append("g")
+                .attr("class", "grid")
+                .selectAll("line")
+                .data(y.ticks(5))
+                .join("line")
+                .attr("x1", margin.left)
+                .attr("x2", width - margin.right)
+                .attr("y1", d => y(d))
+                .attr("y2", d => y(d))
+                .attr("stroke", "#333")
+                .attr("stroke-dasharray", "2,2");
+
+            // Lines
+            const line = d3.line()
+                .x(d => x(d.date))
+                .y(d => y(d.value))
+                .curve(d3.curveMonotoneX);
+
+            const nested = d3.group(filtered, d => d.zip);
+
+            const paths = svg.append("g")
+                .selectAll("path")
+                .data(nested)
+                .join("path")
+                .attr("fill", "none")
+                .attr("stroke", ([zip]) => color(zip))
+                .attr("stroke-width", 2)
+                .attr("stroke-opacity", 0.7)
+                .attr("d", ([, values]) => line(values))
+                .style("cursor", "pointer")
+                .on("mouseover", function() {
+                    d3.select(this).attr("stroke-width", 4).attr("stroke-opacity", 1);
+                })
+                .on("mouseout", function() {
+                    d3.select(this).attr("stroke-width", 2).attr("stroke-opacity", 0.7);
+                });
+
+            // Legend
+            const legend = svg.append("g")
+                .attr("transform", `translate(${width - margin.right + 10}, ${margin.top})`);
+
+            const zips = Array.from(nested.keys());
+            legend.selectAll("g")
+                .data(zips)
+                .join("g")
+                .attr("transform", (d, i) => `translate(0, ${i * 20})`)
+                .call(g => {
+                    g.append("line")
+                        .attr("x1", 0).attr("x2", 20)
+                        .attr("stroke", d => color(d))
+                        .attr("stroke-width", 2);
+                    g.append("text")
+                        .attr("x", 25)
+                        .attr("y", 4)
+                        .attr("fill", "#a0a0b0")
+                        .attr("font-size", 10)
+                        .text(d => {
+                            const item = data.find(item => item.zip === d);
+                            return item ? item.name : d;
+                        });
+                });
+
+            container.appendChild(svg.node());
+        }
+
+        // Render canvas density plot
+        function renderCanvasViz() {
+            const canvas = document.getElementById('canvas-viz');
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+
+            ctx.fillStyle = '#1a1a24';
+            ctx.fillRect(0, 0, width, height);
+
+            // Generate density points
+            const points = [];
+            data.forEach(d => {
+                const count = Math.floor(d.population / 500);
+                for (let i = 0; i < count; i++) {
+                    points.push({
+                        x: (d.home_value - 100000) / 600000 * width + (Math.random() - 0.5) * 30,
+                        y: height - (d.growth_5y * 10 * height) + (Math.random() - 0.5) * 40,
+                        color: d.gentrification
+                    });
+                }
+            });
+
+            // Draw points
+            points.forEach(p => {
+                const hue = 260 - p.color * 100; // Purple to yellow
+                ctx.fillStyle = `hsla(${hue}, 70%, 60%, 0.15)`;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Axes labels
+            ctx.fillStyle = '#a0a0b0';
+            ctx.font = '11px Inter';
+            ctx.fillText('Home Value →', width - 80, height - 10);
+            ctx.save();
+            ctx.translate(15, height / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.fillText('Growth Rate →', 0, 0);
+            ctx.restore();
+        }
+
+        // Render heatmap
+        function renderHeatmap() {
+            const container = document.getElementById('heatmap');
+            container.innerHTML = '';
+
+            const variables = ["home_value", "growth_5y", "population", "income", "permits", "gentrification"];
+            const labels = ["Home Value", "Growth", "Population", "Income", "Permits", "Gent. Risk"];
+
+            // Calculate correlations
+            const correlations = [];
+            for (let i = 0; i < variables.length; i++) {
+                for (let j = 0; j < variables.length; j++) {
+                    const x = data.map(d => d[variables[i]]);
+                    const y = data.map(d => d[variables[j]]);
+                    const corr = pearsonCorrelation(x, y);
+                    correlations.push({
+                        x: labels[i],
+                        y: labels[j],
+                        value: corr
+                    });
+                }
+            }
+
+            const chart = Plot.plot({
+                height: 300,
+                padding: 0,
+                style: {
+                    background: "transparent",
+                    color: "#f0f0f5",
+                    fontSize: "11px"
+                },
+                x: {label: null, tickRotate: -45},
+                y: {label: null},
+                color: {
+                    scheme: "RdBu",
+                    pivot: 0,
+                    legend: true
+                },
+                marks: [
+                    Plot.cell(correlations, {
+                        x: "x",
+                        y: "y",
+                        fill: "value",
+                        tip: true
+                    }),
+                    Plot.text(correlations, {
+                        x: "x",
+                        y: "y",
+                        text: d => d.value.toFixed(2),
+                        fill: d => Math.abs(d.value) > 0.5 ? "#fff" : "#a0a0b0",
+                        fontSize: 10
+                    })
+                ]
+            });
+
+            container.appendChild(chart);
+        }
+
+        // Pearson correlation helper
+        function pearsonCorrelation(x, y) {
+            const n = x.length;
+            const sumX = x.reduce((a, b) => a + b, 0);
+            const sumY = y.reduce((a, b) => a + b, 0);
+            const sumXY = x.reduce((acc, xi, i) => acc + xi * y[i], 0);
+            const sumX2 = x.reduce((a, b) => a + b * b, 0);
+            const sumY2 = y.reduce((a, b) => a + b * b, 0);
+
+            const num = n * sumXY - sumX * sumY;
+            const den = Math.sqrt((n * sumX2 - sumX ** 2) * (n * sumY2 - sumY ** 2));
+
+            return den === 0 ? 0 : num / den;
+        }
+
+        // Render data table
+        function renderTable(filteredData = data) {
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = '';
+
+            const sorted = [...filteredData].sort((a, b) => b.home_value - a.home_value);
+
+            sorted.forEach(d => {
+                const riskClass = d.gentrification > 0.6 ? 'danger' : d.gentrification > 0.4 ? 'warning' : 'success';
+                const riskLabel = d.gentrification > 0.6 ? 'High' : d.gentrification > 0.4 ? 'Moderate' : 'Low';
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="numeric">${d.zip}</td>
+                    <td>${d.name}</td>
+                    <td class="numeric">${formatCurrency(d.home_value)}</td>
+                    <td class="numeric">${formatPercent(d.growth_5y)}</td>
+                    <td class="numeric">${formatNumber(d.population)}</td>
+                    <td>${(d.gentrification * 100).toFixed(0)}%</td>
+                    <td><span class="badge badge-${riskClass}">${riskLabel}</span></td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Scenario builder
+        function runScenario() {
+            const zoning = parseInt(document.getElementById('scenario-zoning').value);
+            const rates = parseInt(document.getElementById('scenario-rates').value);
+            const pop = parseInt(document.getElementById('scenario-pop').value);
+
+            const scenarioData = data.map(d => {
+                // Apply scenario adjustments
+                let adjusted = d.home_value;
+
+                // Zoning reform increases supply, may moderate prices in constrained areas
+                adjusted *= (1 - zoning * 0.001);
+
+                // Interest rate changes affect affordability
+                adjusted *= (1 - rates * 0.0002);
+
+                // Population inflow increases demand
+                adjusted *= (1 + pop * 0.01);
+
+                return {
+                    ...d,
+                    projected_value: adjusted,
+                    change: (adjusted - d.home_value) / d.home_value
+                };
+            });
+
+            const container = document.getElementById('scenario-result');
+            container.innerHTML = '';
+
+            const chart = Plot.plot({
+                height: 250,
+                style: {
+                    background: "transparent",
+                    color: "#f0f0f5",
+                    fontSize: "12px"
+                },
+                x: {
+                    label: "Neighborhood",
+                    tickRotate: -45
+                },
+                y: {
+                    label: "Projected Change",
+                    tickFormat: formatPercent,
+                    grid: true
+                },
+                color: {
+                    scheme: "RdYlGn",
+                    pivot: 0
+                },
+                marks: [
+                    Plot.barY(scenarioData.slice(0, 15), {
+                        x: "name",
+                        y: "change",
+                        fill: "change",
+                        tip: true
+                    }),
+                    Plot.ruleY([0])
+                ]
+            });
+
+            container.appendChild(chart);
+        }
+
+        // Export functions
+        window.exportCSV = function() {
+            const headers = ['zip', 'name', 'home_value', 'growth_5y', 'population', 'income', 'permits', 'gentrification', 'region'];
+            const csv = [headers.join(',')];
+            data.forEach(d => {
+                csv.push(headers.map(h => d[h]).join(','));
+            });
+            downloadFile(csv.join('\n'), 'chicago_data.csv', 'text/csv');
+        };
+
+        window.exportJSON = function() {
+            downloadFile(JSON.stringify(data, null, 2), 'chicago_data.json', 'application/json');
+        };
+
+        window.exportSVG = function(id) {
+            const svg = document.querySelector(`#${id} svg`);
+            if (svg) {
+                const serializer = new XMLSerializer();
+                const source = serializer.serializeToString(svg);
+                downloadFile(source, `${id}.svg`, 'image/svg+xml');
+            }
+        };
+
+        window.exportPNG = function(id) {
+            const svg = document.querySelector(`#${id} svg`);
+            if (svg) {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const data = (new XMLSerializer()).serializeToString(svg);
+                const img = new Image();
+                const svgBlob = new Blob([data], {type: 'image/svg+xml;charset=utf-8'});
+                const url = URL.createObjectURL(svgBlob);
+
+                img.onload = function() {
+                    canvas.width = img.width * 2;
+                    canvas.height = img.height * 2;
+                    ctx.scale(2, 2);
+                    ctx.fillStyle = '#0f0f14';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0);
+
+                    canvas.toBlob(blob => {
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `${id}.png`;
+                        a.click();
+                    });
+                };
+                img.src = url;
+            }
+        };
+
+        function downloadFile(content, filename, type) {
+            const blob = new Blob([content], {type});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Scenario slider labels
+        document.getElementById('scenario-zoning').addEventListener('input', e => {
+            document.getElementById('val-zoning').textContent = `${e.target.value}%`;
+        });
+        document.getElementById('scenario-rates').addEventListener('input', e => {
+            document.getElementById('val-rates').textContent = `${e.target.value} bps`;
+        });
+        document.getElementById('scenario-pop').addEventListener('input', e => {
+            document.getElementById('val-pop').textContent = `${e.target.value}%`;
+        });
+
+        // Tab switching
+        document.querySelectorAll('#time-tabs .tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('#time-tabs .tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                renderTimeSeries(tab.dataset.range);
+            });
+        });
+
+        // Filters
+        document.getElementById('neighborhood-filter').addEventListener('change', applyFilters);
+        document.getElementById('zip-search').addEventListener('input', applyFilters);
+
+        function applyFilters() {
+            const region = document.getElementById('neighborhood-filter').value;
+            const search = document.getElementById('zip-search').value.toLowerCase();
+
+            let filtered = data;
+
+            if (region !== 'all') {
+                filtered = filtered.filter(d => d.region === region);
+            }
+
+            if (search) {
+                filtered = filtered.filter(d =>
+                    d.zip.includes(search) ||
+                    d.name.toLowerCase().includes(search)
+                );
+            }
+
+            renderBarChart(filtered);
+            renderScatterChart(filtered);
+            renderTable(filtered);
+        }
+
+        // Initial render
+        window.runScenario = runScenario;
+
+        // Wait for modules to load
+        setTimeout(() => {
+            renderBarChart();
+            renderScatterChart();
+            renderTimeSeries();
+            renderCanvasViz();
+            renderHeatmap();
+            renderTable();
+        }, 100);
+    </script>
+</body>
+</html>
